@@ -2,7 +2,7 @@
 
 輕量的 Windows 11 File Explorer 視窗與分頁（Tabs）備份／還原工具，使用 **PowerShell、Shell COM 與 Windows UI Automation**，不需安裝第三方套件。
 
-> **目前為實驗性版本**  
+> **Beta 版本：`0.1.0-beta.1`（實驗性）**  
 > 在一台 Windows 11 Enterprise 23H2（Build 22631）的 VMware Horizon VDI 上，已實測 `Capture` 和 `Restore` 可將 **2 個視窗、3 個 Tabs** 還原為原本的視窗／分頁分組。此結果不保證適用於其他 Windows 或 Horizon 版本。
 
 ## 功能

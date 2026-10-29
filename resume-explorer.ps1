@@ -1,4 +1,4 @@
-# ExplorerTabs v1.4 - no prompts, no SendKeys, tab-group restore via UI Automation + Shell COM.
+# Resume Explorer 0.1.0-beta.1 - no prompts, no SendKeys, tab-group restore via UI Automation + Shell COM.
 # Experimental on Windows 11 23H2. Restore ONLY adds windows/tabs; never closes them.
 # No network, registry edits, clipboard modifications, execution-policy changes or process termination.
 [CmdletBinding()]
