@@ -37,7 +37,11 @@ Group 2 中有多個其餘標籤頁已被跳過, 是不是要引入 re-try 機�
 
 ### Feature Request-1
 
-當執行 `& .\resume-explorer.ps1 -Action Restore` 時, 是否可以背景執行, 而不要彈出 explorer 視窗
+當執行 `& .\resume-explorer.ps1 -Action Restore` 時，希望在背景還原 Explorer 視窗與標籤頁，不顯示或彈出 Explorer 視窗、不將其帶到前景，也不搶走目前使用中應用程式的焦點，以免打斷使用者操作。
+
+此需求針對 Explorer 視窗本身的顯示與焦點行為，不是僅隱藏 PowerShell／Console 視窗。
+
+先記錄期望行為，不預設實作方式，也不因技術難度預先縮減需求。可行性與開發成本留待後續評估；若無法可靠達成或成本不合理，可記錄原因並將此需求標記為 Rejected。
 
 ### Feature Request-2
 
