@@ -33,6 +33,15 @@ Group 2 中有多個其餘標籤頁已被跳過, 是不是要引入 re-try 機�
 
 若 re-try 後, 依然無法安全選擇一個標籤頁, 那麼就可以放棄該 Group 的其餘標籤頁, 並記錄下來以便後續手動 re-try 定同時指定欲加入 Group 的標籤頁.
 
+3 次 retry 是合理的初始預設值，而且重試次數應設為可調整參數，例如：
+
+```powershell
+$MaxRetries = 3
+$RetryDelayMs = @(200, 400, 800)
+```
+
+這樣能處理 Explorer 暫時性的狀態更新延遲，又不會讓 Restore 無限等待。
+
 ## Feature Requests
 
 ### Feature Request-1
