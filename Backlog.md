@@ -11,6 +11,14 @@
 
 ## Open Issues
 
+### Issue-5 — P1 — 調查大量 explorer.exe Process 與 Restore 的關聯（待 RCA）
+
+- **發現**：執行 `restart-win-explorer-scripts/scripts/restart-file-explorer.bat` 時，`taskkill /f /im explorer.exe` 回報成功終止 **38 個** `explorer.exe` PID（本次輸出）；異常數量是否由 `resume-explorer` 產生尚未證實。批次檔使用 `#` 作註解，CMD 將其當成命令而顯示 `'#' is not recognized`；這是該批次檔獨立的語法問題，不能當作 Explorer Process 增多的原因。
+- **待查問題**：區分正常的 Windows Explorer 多 Process／多視窗架構，與 `resume-explorer` 的每 Group 建立新視窗、Restore／Retry 重複執行、未顯示視窗或遺留 Process 的可能影響；也要排除其他工具或系統行為。不可只依 `taskkill` 數量判定 Memory Leak 或 Process Leak。
+- **安全、唯讀調查**：在下次 Restore **之前與之後**記錄 `explorer.exe` PID、Parent PID、StartTime、CommandLine、SessionId、MainWindowHandle、視窗是否可見／可列舉，以及 Shell COM 的 HWND／Tab 對應；比較新建視窗與 Process 數量的增量，釐清是否存在無對應可見視窗的 Process。先檢查 `resume-explorer` 的 `OpenWindow` 及 Issue-2 的 `-WindowStyle Hidden` regression 是否與此相關。
+- **影響分析**：量測 Process 數量、Explorer／COM observation 耗時、記憶體占用與 Issue-4 `NavigationTimeout` 的相關性，但不將相關視為因果；必要時於隔離環境做控制變因 E2E。
+- **安全限制／驗收**：不為診斷執行 `taskkill /f /im explorer.exe`、不自動關閉使用者視窗、不清理未知 PID；先確認是否異常，再提出最小修復並保留 Restore／Retry 的身份安全規則。`restart-file-explorer.bat` 的 `#` 註解問題應在該專案另行修正，不在本 Issue 擅自修改。
+
 ### Issue-4 — P1 — 同步 COM/UIA 呼叫超過 Restore deadline（待 RCA）
 
 - **實際證據**：2026-11-01 的 18-item Restore 有 13 Verified、1 OutcomeUnknown（Group 6 / Tab 3，`NavigationTimeout`）、4 NotAttempted。該項目共耗時 28,545 ms；Navigation 僅有一筆觀測，時間標記 15,813 ms，`RawCount=68`、`UniqueCount=68`，該觀測包含目標路徑，但尚不足以確認指定候選 identity 持續穩定。
