@@ -41,7 +41,7 @@ Group 2 因為 `Multiple new tabs detected`，使該 Group 後續 Tabs 被跳過
 - 如果該 Group 最終仍未完成，須記錄**目前失敗或結果不明的項目**及**尚未嘗試的項目**，讓使用者之後指定目標 Explorer 視窗與項目手動補做；其他正常 Group 照常處理。
 - 15 秒只是**單次新增 Tab 的觀測期限**，不是整次 Restore 的總期限；同步 COM/UIA 呼叫本身若卡住，需另外評估隔離方案。
 
-上述數值並非硬性需求；以**安全性、成功率、等待時間及實測證據**決定最終參數。詳細策略與驗收見 `resume-explorer-Issue-2-fix-plan.md`。
+上述數值並非硬性需求；以**安全性、成功率、等待時間及實測證據**決定最終參數。詳細策略與驗收見 [`plans/resume-explorer-Issue-2-fix-plan.md`](plans/resume-explorer-Issue-2-fix-plan.md)。
 
 **2026-11-01 實作進度：候選版，Issue 保持開啟**
 
