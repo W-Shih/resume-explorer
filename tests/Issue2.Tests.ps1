@@ -328,4 +328,18 @@ Test 'PreviewRetry and Retry integrate with preview fingerprints and child repla
         Remove-Item -LiteralPath $resolved -Recurse -Force
     }
 }
+Test 'production OpenWindow adapter explicitly requests a visible Explorer window' {
+    $launches=New-Object System.Collections.ArrayList
+    function Start-Process {
+        param([string]$FilePath, [string]$ArgumentList, [string]$WindowStyle)
+        [void]$launches.Add([pscustomobject]@{ FilePath=$FilePath; ArgumentList=$ArgumentList; WindowStyle=$WindowStyle })
+    }
+    # Exercise the production adapter, rather than replacing OpenWindow with a fake.
+    $adapter=New-ExplorerAdapter
+    & $adapter.OpenWindow 'C:\folder with spaces'
+    Assert ($launches.Count -eq 1) 'One request must launch Explorer exactly once'
+    Assert ($launches[0].FilePath -eq "$env:WINDIR\explorer.exe")
+    Assert ($launches[0].ArgumentList -ceq '"C:\folder with spaces"')
+    Assert ($launches[0].WindowStyle -eq 'Normal') 'Restore must request visible windows; Hidden caused the Verified-but-invisible regression'
+}
 Write-Host "$script:passed adapter tests passed. No live Explorer actions performed."

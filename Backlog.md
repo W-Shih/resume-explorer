@@ -45,6 +45,8 @@ Group 2 因為 `Multiple new tabs detected`，使該 Group 後續 Tabs 被跳過
 
 **2026-11-01 實作進度：候選版，Issue 保持開啟**
 
+- 後續 regression 修復：報告 `535b092885594426af03bded40354d85` 記錄 6 次視窗建立、12 次分頁 Invoke，18 項 Verified；引用的診斷對話確認 6 個新 HWND 都不可見。建立視窗時誤用了 `-WindowStyle Hidden`，現改為明確 `Normal`，並加入直接攔截 production adapter 啟動參數的回歸測試。原有 baseline／候選驗證／checkpoint 不變；舊的隱藏視窗不自動操作。
+
 - 已加入獨立 core、可信 baseline、單次 Invoke、15 秒共享觀測 deadline、200 ms polling、200/400/800 ms capped backoff、候選歷史及同身分導覽驗證。
 - 已加入原子 checkpoint、原始 Group / Item 索引、完整逐項狀態與 PreviewRetry / Retry；補做明確選擇 HWND 及項目，檢查預覽指紋及同家族子報告。
 - 自動驗證與尚未驗收項目見 `ISSUE2-VALIDATION.md`；尚無原 Group 2 問題環境的 trace，不能判定 baseline 遺漏、重複列、物件更換或真正併發何者是實際根因。

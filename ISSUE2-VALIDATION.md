@@ -12,7 +12,13 @@ Covered scenarios include normal and 12-second delayed creation, detection timeo
 
 The implementation stores phase-labelled observations inside each item's `Diagnostics.Samples`, including raw/deduplicated counts, Raw/Root HWND, process fingerprint, identity, path and read errors. This intentionally keeps the complete trace in the checkpoint rather than requiring a separate JSONL file. Reports may grow with group size and configured deadlines. COM references are retained only in live transactions, never serialized.
 
-Local results: **38 adapter/integration tests passed on PowerShell 7.6.1**, Windows build 22631. Windows PowerShell 5.1 parser accepted the core; executing the 5.1 test script was blocked by the machine execution policy. The policy was not changed or bypassed, so 5.1 runtime compatibility remains unverified. A read-only native Shell COM observation in the restricted agent process returned access denied (`0x80070005`); this is an execution-environment limitation, not evidence about the original Issue-2 root cause.
+Local results: **39 adapter/integration tests passed on PowerShell 7.6.1**, Windows build 22631. Windows PowerShell 5.1 parser accepted the core; executing the 5.1 test script was blocked by the machine execution policy. The policy was not changed or bypassed, so 5.1 runtime compatibility remains unverified. A read-only native Shell COM observation in the restricted agent process returned access denied (`0x80070005`); this is an execution-environment limitation, not evidence about the original Issue-2 root cause.
+
+## Visible-window regression (2026-11-01)
+
+Report `535b092885594426af03bded40354d85` confirms six window creation attempts, twelve tab creation/navigation attempts and eighteen Verified items. The referenced diagnostic conversation recorded all six created HWNDs as existing but invisible. The production OpenWindow adapter passed `-WindowStyle Hidden`; it now explicitly passes `Normal` to restore visible-window launch behavior. Path/identity verification does not test desktop visibility or focus.
+
+The new regression test invokes the actual production adapter with an intercepted Start-Process. It checks one Explorer launch, quoted paths with spaces and WindowStyle Normal. It failed on the Hidden implementation and passes after the fix. The previous tests replaced OpenWindow with a fake, so they could not detect this launch-parameter regression. No full Restore was re-run and no old hidden windows were altered during this fix; on-desktop visibility after a real launch remains a live acceptance check.
 
 ## Live acceptance still required
 

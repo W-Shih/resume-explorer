@@ -96,6 +96,8 @@ Saved 2 window(s), 3 tab(s): C:\Users\<username>\AppData\Local\Temp\ExplorerTabs
 
 15 秒是 **Invoke 返回後的單次觀測期限**；baseline、新視窗辨識和 navigation 各有獨立預算。同步 COM / UIA 呼叫如果卡住，輪詢計時器不能中斷它，故沒有嚴格的整次操作 wall-clock 上限。背景還原／不搶焦點仍是未實作需求。
 
+Restore 明確以 `-WindowStyle Normal` 請求可見的 Explorer 新視窗。已修正候選版曾誤用 `Hidden`，造成路徑全部 Verified、視窗卻不可見的 regression。`Verified` 仍表示身分／路徑驗證，不表示已驗證桌面可見性或焦點狀態。此修正作用於之後的新視窗建立，既有隱藏視窗不會自動顯示；請先檢查先前還原結果，避免重複執行整組 Restore。
+
 ```powershell
 .\resume-explorer.ps1 -Action Restore -Snapshot .\my-tabs.json `
     -ReportPath .\run.json -DetectionTimeoutSeconds 20 `

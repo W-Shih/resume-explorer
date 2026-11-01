@@ -116,7 +116,8 @@ function New-ExplorerAdapter {
         PrepareInvoke={ param($hwnd) Get-NewTabInvokePattern $hwnd }
         Invoke={ param($pattern) $pattern.Invoke() }
         Navigate={ param($view,$path) $view.ComObject.Navigate2([string]$path) }
-        OpenWindow={ param($path) Start-Process -FilePath "$env:WINDIR\explorer.exe" -ArgumentList ('"' + $path + '"') -WindowStyle Hidden }
+        # Restore requests visible windows. Hidden is not a background/no-focus implementation.
+        OpenWindow={ param($path) Start-Process -FilePath "$env:WINDIR\explorer.exe" -ArgumentList ('"' + $path + '"') -WindowStyle Normal }
         PathExists={ param($path) [IO.Directory]::Exists($path) }
     }
 }
