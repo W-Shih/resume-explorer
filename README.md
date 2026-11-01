@@ -5,6 +5,8 @@
 > **Beta 版本：`0.1.0-beta.1`（實驗性）**  
 > 在一台 Windows 11 Enterprise 23H2（Build 22631）的 VMware Horizon VDI 上，已實測 `Capture` 和 `Restore` 可將 **2 個視窗、3 個 Tabs** 還原為原本的視窗／分頁分組。此結果不保證適用於其他 Windows 或 Horizon 版本。
 
+目前程式包含 **Issue-2 修復候選版 `0.1.0-beta.1+issue2`**。上述實機結果屬於原 beta.1，不能當作此修復的實機驗收。原 VDI 重現、根因歸因與 20 次正常多 Group 還原尚待完成，因此尚未標記 beta.2 或關閉 Issue-2。自動測試及限制見 [Issue-2 實作驗證](ISSUE2-VALIDATION.md)。
+
 ## 功能
 
 - **Capture**：讀取目前的 File Explorer 視窗及可辨識的資料夾 Tabs，按視窗 HWND 分組，寫入 JSON Snapshot。
@@ -25,7 +27,7 @@
 
 ## 安裝
 
-將 `resume-explorer.ps1` 放到你選擇的資料夾，例如：
+將 `resume-explorer.ps1` **及同目錄的 `resume-explorer.core.ps1`** 一起放到你選擇的資料夾，例如：
 
 ```text
 D:\_tools\_wins\resume-explorer.ps1
@@ -83,6 +85,61 @@ Saved 2 window(s), 3 tab(s): C:\Users\<username>\AppData\Local\Temp\ExplorerTabs
 
 ## 技術原理
 
+### Issue-2 安全辨識與報告
+
+每個額外分頁的交易，先取得至少三次相同身分集合、跨越 600 ms 的可信 baseline（最長 3 秒），才呼叫一次 AddButton / Invoke。後續重試只讀取觀測，絕不再次建立分頁或重送 Navigate2。
+
+- 每個 Tab 的偵測預設 **15 秒總期限**，一般 polling 為 **200 ms**；暫時性讀取錯誤依 **200 / 400 / 800 ms** 退避，持續錯誤時上限維持 800 ms。可信觀測使連續錯誤次數歸零，沒有固定三次重試上限。
+- 唯一候選須持續可信穩定 600 ms，且安定期也包含在同一偵測期限內。真實多候選、曾經多候選、baseline 身分消失或候選更換時，停止該 Group，不猜選分頁；其他正常 Group 繼續。
+- Navigate2 只對確認的候選呼叫一次，並以同一 Identity 連續觀測到目標路徑來驗證（最長 10 秒）。舊的同路徑分頁不能代替候選通過驗證。Invoke 拋出例外時，即使看見候選也不會自動導覽。
+- 新視窗用 RootHwnd 去重，遇到多個候選即保守停止。Capture 與分頁交易保留原本 RawHwnd 分組；RootHwnd 僅用於視窗候選去重、指紋及 UIA 查找。這個分組模型仍需原 VDI 驗證。
+
+15 秒是 **Invoke 返回後的單次觀測期限**；baseline、新視窗辨識和 navigation 各有獨立預算。同步 COM / UIA 呼叫如果卡住，輪詢計時器不能中斷它，故沒有嚴格的整次操作 wall-clock 上限。背景還原／不搶焦點仍是未實作需求。
+
+```powershell
+.\resume-explorer.ps1 -Action Restore -Snapshot .\my-tabs.json `
+    -ReportPath .\run.json -DetectionTimeoutSeconds 20 `
+    -PollIntervalMs 200 -TransientErrorBackoffMs 200,400,800 `
+    -StableDurationMs 600 -BaselineTimeoutSeconds 3 -NavigationTimeoutSeconds 10
+```
+
+所有時間及 backoff 必須為正數，backoff 不可為空。預設報告位置是 `%LOCALAPPDATA%\ResumeExplorer\Runs\<RunId>.json`；指定的 ReportPath 必須是新檔案。原 Snapshot 不修改。報告含原始一基索引（略過無效路徑也不重新編號）、來源 SHA-256、視窗指紋、每次觀測及錯誤診斷，包含 Path，因此請妥善保存。
+
+| Status | 意義 |
+| --- | --- |
+| Verified | 該身分已觀測為目標路徑 |
+| NotAttempted | 尚未送出建立請求 |
+| PreconditionFailed | 建立前條件不成立，沒有 Invoke |
+| OutcomeUnknown | 可能已建立／導覽，無法確認 |
+| SkippedInvalidPath | 無效或目前不可存取的路徑 |
+
+`ReasonCode` 另記歧義、身分變化、逾時或觀測不完整等原因。`Completed` 表示此次流程已結束，**仍須查看項目 Status**；全域 Shell 不可用或 checkpoint 寫入失敗會停止整次 Restore。每次副作用前寫入 Attempted checkpoint，結果以同目錄暫存檔原子置換保存；突然中斷留下的 Attempted 必須視為結果不明。明細保存在同一 JSON 的 `Diagnostics.Samples`，含 Phase、時間、Raw/Root HWND 及該 run 內有效的 COM Identity；不是可跨程序重用的分頁 ID。
+
+### 指定 Group 與項目補做
+
+先檢查 Explorer 畫面，執行預覽取得目前 HWND 及指紋，再明確選擇項目。PreviewRetry 會在報告旁建立 `.retry-preview.json`；預覽指紋或來源報告變更時必須重新預覽。
+
+```powershell
+.\resume-explorer.ps1 -Action PreviewRetry -ReportPath .\run.json
+.\resume-explorer.ps1 -Action Retry -ReportPath .\run.json `
+    -GroupIndex 2 -TargetHwnd 123456 -ItemIndexes 4,5
+# 檢查畫面後，明確包含結果不明的項目：
+.\resume-explorer.ps1 -Action Retry -ReportPath .\run.json `
+    -GroupIndex 2 -TargetHwnd 123456 -ItemIndexes 3 -IncludeUncertain
+```
+
+補做一律在指定現存視窗**新增**所選項目，不重用或整理遺留空白分頁，不以相同 Path 自動略過。拒絕重複索引、Verified 及未明確授權的不明項目。新報告存於來源報告旁的 `RetryRuns`，保留 ParentRunId / RootRunId；同一來源家族的子報告會檢查已完成／曾嘗試項目，並以排他鎖防止同時補做。請保留整個報告家族及原報告位置，刪除／移動檔案會破壞此查核；此機制不提供跨 crash 的 exactly-once 保證。
+
+### 執行離線測試
+
+```powershell
+& .\tests\Issue2.Tests.ps1
+```
+
+測試以注入的時鐘和觀測 adapter 驗證副作用次數，不操作實際 Explorer，也不需安裝 Pester。
+
+### 原有流程
+
 1. `Shell.Application.Windows()` 取得 Explorer 的 Tab 導覽物件。
 2. 以相同的 `HWND` 將 Tabs 分組為同一個 Explorer 視窗。
 3. 將各組資料夾路徑存成 JSON。
@@ -126,7 +183,7 @@ Saved 2 window(s), 3 tab(s): C:\Users\<username>\AppData\Local\Temp\ExplorerTabs
 ## 後續規劃
 
 - [ ] 在 Capture 成功、Snapshot 驗證通過後，新增可控的 `Restart & Restore` 流程。
-- [ ] Restore 後比對實際視窗／Tabs 與 Snapshot，提供成功／失敗報告。
+- [x] Issue-2 候選版提供身分／路徑驗證與逐項結果報告；實機發布驗收待完成。
 - [ ] 加強 Tab 順序、目前作用中的 Tab 與視窗位置還原。
 
 ## 安全與合規

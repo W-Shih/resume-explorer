@@ -43,6 +43,13 @@ Group 2 因為 `Multiple new tabs detected`，使該 Group 後續 Tabs 被跳過
 
 上述數值並非硬性需求；以**安全性、成功率、等待時間及實測證據**決定最終參數。詳細策略與驗收見 `resume-explorer-Issue-2-fix-plan.md`。
 
+**2026-11-01 實作進度：候選版，Issue 保持開啟**
+
+- 已加入獨立 core、可信 baseline、單次 Invoke、15 秒共享觀測 deadline、200 ms polling、200/400/800 ms capped backoff、候選歷史及同身分導覽驗證。
+- 已加入原子 checkpoint、原始 Group / Item 索引、完整逐項狀態與 PreviewRetry / Retry；補做明確選擇 HWND 及項目，檢查預覽指紋及同家族子報告。
+- 自動驗證與尚未驗收項目見 `ISSUE2-VALIDATION.md`；尚無原 Group 2 問題環境的 trace，不能判定 baseline 遺漏、重複列、物件更換或真正併發何者是實際根因。
+- 尚待原 Horizon VDI 實機矩陣與 20 次多 Group 還原；版本暫留 `0.1.0-beta.1+issue2`，不宣告 beta.2 發布。沒有自動 commit，修復 commit 待審閱後建立。
+
 ## Feature Requests
 
 ### Feature Request-1
