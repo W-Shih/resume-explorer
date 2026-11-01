@@ -52,7 +52,32 @@ Group 2 因為 `Multiple new tabs detected`，使該 Group 後續 Tabs 被跳過
 - 自動驗證與尚未驗收項目見 `ISSUE2-VALIDATION.md`；尚無原 Group 2 問題環境的 trace，不能判定 baseline 遺漏、重複列、物件更換或真正併發何者是實際根因。
 - 尚待原 Horizon VDI 實機矩陣與 20 次多 Group 還原；版本暫留 `0.1.0-beta.1+issue2`，不宣告 beta.2 發布。沒有自動 commit，修復 commit 待審閱後建立。
 
+### Issue-3 — Restore 不應依賴滑鼠焦點／前景視窗（待驗證）
+
+- **預期行為**：Restore 期間使用者點擊 Chrome、Visual Studio 等其他應用程式，或將 Explorer 切至背景，不應因此導覽錯誤 Tab、失去已確認的 Tab identity 或錯誤中止。這是**互動容錯性**，與 Feature Request-1 的「不顯示、不搶焦點」是兩個不同需求。
+- **風險界線**：使用者對**正在還原的目標 Explorer** 手動新增、關閉、切換 Tabs 或關閉視窗，可能改變 UIA／COM 可觀測狀態；工具仍應保守停止，而不是猜選 Tab。是否連單純切換同視窗的 active Tab 都安全，需實機測試驗證，不預先宣稱。
+- **調查及驗收**：加入前景應用切換、其他 Explorer 視窗切換、目標 Explorer 手動操作等分離測試；比較每次觀測的 HWND、PID、Identity、Path 與耗時，釐清焦點切換是否造成異常。不可只因時間上相近就歸因於滑鼠點擊。
+- 詳細方案：[`plans/resume-explorer-restore-reliability-and-report-size-plan.md`](plans/resume-explorer-restore-reliability-and-report-size-plan.md)。
+
+### Issue-4 — 同步 COM/UIA 呼叫超過 Restore deadline（待 RCA）
+
+- **實際證據**：2026-11-01 的 18-item Restore 有 13 Verified、1 OutcomeUnknown（Group 6 / Tab 3，`NavigationTimeout`）、4 NotAttempted。該項目共耗時 28,545 ms；Navigation 僅有一筆觀測，時間標記 15,813 ms，`RawCount=68`、`UniqueCount=68`，該觀測包含目標路徑，但尚不足以確認指定候選 identity 持續穩定。
+- **原因未定**：全域 Shell COM 列舉／單一物件變慢、Explorer 負載、焦點／Tab 互動或同步呼叫阻塞皆仍是假設。現有 deadline 只限制輪詢邊界，**無法中止正在執行的同步 COM/UIA 呼叫**。
+- **修復方向**：先量測每次 Observe 的 wall-clock duration、階段、deadline overshoot、列舉數量與慢呼叫位置；再比較減少不必要觀測、target-aware 快速路徑及具安全隔離的 worker 設計。不應僅將 10 秒調高，或以直接殺執行緒的方式中止有副作用的 COM 呼叫。
+- **驗收**：在高 Tab 數、慢 VDI、同步阻塞與視窗互動下維持 identity safety、checkpoint 及有限的可觀測 deadline 語意；不能新增重複 Invoke／Navigate。
+- 詳細方案同上。
+
 ## Feature Requests
+
+### Feature Request-6 — 精簡 JSON Report 與可控診斷資訊（待實作）
+
+- **實際證據**：同一份 2026-11-01 Report 的大小為 **3,002,321 bytes**（約 3.00 MB／2.86 MiB），僅 18 Items、87 個 Diagnostics.Samples，卻包含 **5,119 筆儲存的 View 記錄**，高度重複保存全域 Shell 觀測。
+- **期望**：預設 Report 應保有 Run／Item 結果、ReasonCode、必要的事件時間與 Retry 安全依據，但不應每次 polling 都持久化全域全部 Explorer Views／Fingerprint。詳細 trace 應可透過明確指定的診斷模式取得，並設容量與樣本上限。
+- **方案**：調查容量構成，優先改為每次觀測的精簡統計、階段摘要與異常時的有限樣本；必要時允許 opt-in 詳細 trace、大小上限與截斷計數，保持事故可診斷性。壓縮／minify 可作輔助，但不可取代去除冗餘資料。
+- **相容性**：保留現有 ReportPath、原始 Group/Item、Status、ReasonCode、Run family 關係及 Retry 判斷；若改 Schema 須有明確版本策略與舊報告讀取測試。不能為縮小 Report 犧牲 crash checkpoint 或不明結果的安全保護。
+- 詳細方案：[`plans/resume-explorer-restore-reliability-and-report-size-plan.md`](plans/resume-explorer-restore-reliability-and-report-size-plan.md)。
+
+
 
 ### Restore Result Summary & Unverified Item Diagnostics — 已實作（2026-11-01）
 
