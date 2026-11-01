@@ -399,9 +399,86 @@ function Initialize-RunPath($Run, [string]$Path) {
     return $Path
 }
 
+function Get-RunSummary($Run) {
+    $items=@($Run.Items | Where-Object { $null -ne $_ })
+    $unverified=@($items | Where-Object { $_.Status -ne 'Verified' } | Sort-Object GroupIndex,ItemIndex)
+    $counts=@{}
+    foreach ($item in $items) {
+        $status=[string]$item.Status
+        if ([string]::IsNullOrWhiteSpace($status)) { $status='Unknown' }
+        $counts[$status]++
+    }
+    $orderedCounts=[ordered]@{}
+    $priority=@('Verified','OutcomeUnknown','PreconditionFailed','NotAttempted','SkippedInvalidPath')
+    foreach ($status in @($priority)+@($counts.Keys | Where-Object { $_ -notin $priority } | Sort-Object)) {
+        if ($counts.ContainsKey($status)) { $orderedCounts[$status]=$counts[$status] }
+    }
+    $verification='Partial'
+    if ($Run.State -eq 'Aborted') { $verification='Interrupted' }
+    elseif ($items.Count -eq 0) { $verification='Empty' }
+    elseif ($unverified.Count -eq 0 -and $Run.State -eq 'Completed') { $verification='Complete' }
+    [pscustomobject]@{
+        State=$Run.State; Verification=$verification; Total=$items.Count
+        Verified=($items.Count-$unverified.Count); NotVerified=$unverified.Count
+        StatusCounts=$orderedCounts; UnverifiedItems=$unverified
+    }
+}
+
+function ConvertTo-SummaryText($Value) {
+    # Escape terminal controls (including bidi/line separators) without changing report data.
+    [regex]::Replace([string]$Value, '[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]', {
+        param($match)
+        switch ([int][char]$match.Value) {
+            9 { '\t'; break }
+            10 { '\n'; break }
+            13 { '\r'; break }
+            default { '\u{0:X4}' -f [int][char]$match.Value }
+        }
+    })
+}
+
 function Write-RunSummary($Run, $Path) {
-    Write-Host "Report: $Path ($($Run.State))"
-    foreach ($group in @($Run.Items | Group-Object Status)) { Write-Host "  $($group.Name): $($group.Count)" }
+    $summary=Get-RunSummary $Run
+    Write-Host "Report: $(ConvertTo-SummaryText $Path) ($(ConvertTo-SummaryText $Run.State))"
+    Write-Host 'Restore summary:'
+    Write-Host "  Verification: $($summary.Verification)"
+    Write-Host "  Total: $($summary.Total)"
+    Write-Host "  Verified: $($summary.Verified)"
+    Write-Host "  Not verified: $($summary.NotVerified)"
+    foreach ($status in $summary.StatusCounts.Keys) {
+        if ($status -ne 'Verified') { Write-Host "  $(ConvertTo-SummaryText $status): $($summary.StatusCounts[$status])" }
+    }
+    if ($summary.NotVerified -gt 0) {
+        Write-Host ''
+        Write-Host 'Unverified items:'
+        $lastGroup=$null
+        foreach ($item in $summary.UnverifiedItems) {
+            if ($null -eq $lastGroup -or $lastGroup -ne $item.GroupIndex) {
+                Write-Host "  Group $(ConvertTo-SummaryText $item.GroupIndex):"
+                $lastGroup=$item.GroupIndex
+            }
+            $status=[string]$item.Status
+            if ([string]::IsNullOrWhiteSpace($status)) { $status='Unknown' }
+            $line="    Tab $(ConvertTo-SummaryText $item.ItemIndex) | $(ConvertTo-SummaryText $status)"
+            if (-not [string]::IsNullOrWhiteSpace([string]$item.ReasonCode)) { $line+=" | $(ConvertTo-SummaryText $item.ReasonCode)" }
+            Write-Host $line
+            Write-Host "      Path: $(ConvertTo-SummaryText $item.RequestedPath)"
+        }
+        Write-Warning "$($summary.NotVerified) of $($summary.Total) items were not verified." -WarningAction Continue
+    }
+    if ($summary.Verification -eq 'Interrupted') {
+        Write-Warning 'Restore run aborted; inspect the report and error before retrying.' -WarningAction Continue
+    } elseif ($summary.Verification -eq 'Empty') {
+        Write-Host 'No restore items were found.'
+    } elseif ($summary.Verification -eq 'Complete') {
+        Write-Host "All $($summary.Total) items verified."
+    }
+    if ($summary.NotVerified -gt 0) {
+        $entry=(Join-Path $PSScriptRoot 'resume-explorer.ps1').Replace("'","''")
+        $report=([IO.Path]::GetFullPath($Path)).Replace("'","''")
+        Write-Host 'Review retry options:'
+        Write-Host (ConvertTo-SummaryText "  & '$entry' -Action PreviewRetry -ReportPath '$report'")
+    }
 }
 
 function Invoke-RestoreGroups($Run, $Adapter, $Config, $Checkpoint, $ExistingFingerprint) {

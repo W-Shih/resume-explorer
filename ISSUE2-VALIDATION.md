@@ -20,6 +20,14 @@ Report `535b092885594426af03bded40354d85` confirms six window creation attempts,
 
 The new regression test invokes the actual production adapter with an intercepted Start-Process. It checks one Explorer launch, quoted paths with spaces and WindowStyle Normal. It failed on the Hidden implementation and passes after the fix. The previous tests replaced OpenWindow with a fake, so they could not detect this launch-parameter regression. No full Restore was re-run and no old hidden windows were altered during this fix; on-desktop visibility after a real launch remains a live acceptance check.
 
+## Restore summary enhancement (2026-11-01)
+
+Implemented pure Get-RunSummary analysis and Console rendering at the existing Write-RunSummary call site. Restore/Retry algorithms, Complete-Run checkpoint/error flow, CLI dispatch, SchemaVersion 1 and report persistence remain unchanged. There are no new log files or Explorer operations.
+
+PowerShell 7.6.1 results: **39 existing Issue2 tests plus 17 new RestoreSummary tests passed (56 total)**. The summary suite covers plan cases S01-S17: complete/partial/empty/interrupted results, zero Verified, interrupted runs with all items Verified, every unverified status, duplicate paths, original numeric indices, safely quoted absolute commands, unknown/missing fields, escaped controls, child-run scope, unchanged input/report bytes/schema, final checkpoint failure with JSON fallback and original exception, and WarningPreference Stop. S18 is covered by the existing PreviewRetry/Retry integration test in the 39-test suite, including preview fingerprints and child replay protection.
+
+Windows PowerShell 5.1 execution of the summary suite was blocked by the existing execution policy; no policy was changed or bypassed. No actual Restore or live Explorer visibility test was performed for this presentation-only enhancement. Original Issue-2 and visible-window live acceptance remain pending.
+
 ## Live acceptance still required
 
 - Reproduce the original failure with the diagnostic candidate; record Windows build, PowerShell version, group sizes, load, concurrent interaction and raw/root grouping.

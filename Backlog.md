@@ -54,6 +54,12 @@ Group 2 因為 `Multiple new tabs detected`，使該 Group 後續 Tabs 被跳過
 
 ## Feature Requests
 
+### Restore Result Summary & Unverified Item Diagnostics — 已實作（2026-11-01）
+
+- Restore／Retry 結束時顯示 Total、Verified、Not verified 與 Complete／Partial／Interrupted／Empty；列出全部非 Verified 的原始 Group／Tab、完整路徑、Status 及有值的 ReasonCode。
+- 未驗證項目使用 native Warning stream，附安全引用的完整 PreviewRetry 指令；不自動執行補做，不改既有 JSON Schema、checkpoint、例外或 Restore／Retry 安全規則。
+- 既有 39 項回歸與新增 17 項摘要離線測試通過，詳見 `ISSUE2-VALIDATION.md`。本次僅改善結果呈現，Issue-2／可見性實機驗收仍未完成。
+
 ### Feature Request-1
 
 當執行 `& .\resume-explorer.ps1 -Action Restore` 時，希望在背景還原 Explorer 視窗與標籤頁，不顯示或彈出 Explorer 視窗、不將其帶到前景，也不搶走目前使用中應用程式的焦點，以免打斷使用者操作。

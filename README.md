@@ -117,6 +117,57 @@ Restore 明確以 `-WindowStyle Normal` 請求可見的 Explorer 新視窗。已
 
 `ReasonCode` 另記歧義、身分變化、逾時或觀測不完整等原因。`Completed` 表示此次流程已結束，**仍須查看項目 Status**；全域 Shell 不可用或 checkpoint 寫入失敗會停止整次 Restore。每次副作用前寫入 Attempted checkpoint，結果以同目錄暫存檔原子置換保存；突然中斷留下的 Attempted 必須視為結果不明。明細保存在同一 JSON 的 `Diagnostics.Samples`，含 Phase、時間、Raw/Root HWND 及該 run 內有效的 COM Identity；不是可跨程序重用的分頁 ID。
 
+### 還原結果摘要
+
+Restore 與 Retry 共用結果摘要。第一行仍是當次 JSON 報告路徑；`Completed` 表示流程結束，`Verification` 才區分全部驗證、部分未驗證、中止或空結果。`Verified` 仍僅代表既有身分／路徑驗證，不表示視窗可見性或完整工作階段恢復。
+
+全部驗證完成的範例：
+
+```text
+Report: C:\Runs\complete.json (Completed)
+Restore summary:
+  Verification: Complete
+  Total: 3
+  Verified: 3
+  Not verified: 0
+All 3 items verified.
+```
+
+部分未驗證會逐項列出原始索引、完整路徑、Status 及有值的 ReasonCode；重複路徑仍分別列出，換行／控制字元會跳脫顯示，原始 JSON 值不變。例如：
+
+```text
+Report: C:\Runs\partial.json (Completed)
+Restore summary:
+  Verification: Partial
+  Total: 3
+  Verified: 1
+  Not verified: 2
+  OutcomeUnknown: 1
+  NotAttempted: 1
+
+Unverified items:
+  Group 2:
+    Tab 3 | OutcomeUnknown | AmbiguousCandidates
+      Path: D:\Work\Project\Notes
+    Tab 4 | NotAttempted
+      Path: D:\Work\Project\Reports
+WARNING: 2 of 3 items were not verified.
+Review retry options:
+  & 'E:\_projects\tools\scripts\resume-explorer\resume-explorer.ps1' -Action PreviewRetry -ReportPath 'C:\Runs\partial.json'
+```
+
+提示會依目前安裝位置與當次報告產生可從任意目錄執行的完整指令，並正確引用空白與單引號；**不會自動執行補做**。PreviewRetry 會列舉目前 Explorer 目標並在報告旁寫入 `.retry-preview.json`，Shell 不可用時可能失敗；仍可直接閱讀原 JSON 的詳細診斷。OutcomeUnknown 是結果不明，補做時仍須明確選取並使用 `-IncludeUncertain`。
+
+流程中止時，首行狀態改為 `(Aborted)`，摘要顯示 `Verification: Interrupted`、實際計數及未驗證明細，並另外警告：
+
+```text
+WARNING: Restore run aborted; inspect the report and error before retrying.
+```
+
+原始例外仍會往外傳遞，即使當前項目全是 Verified 也不會宣稱整次 run 成功。空 run 顯示 `Verification: Empty`、零項目與 `No restore items were found.`，不提供補做指令。若最終 checkpoint 寫入失敗，仍保留原 warning、記憶體 JSON fallback 和例外；顯示的報告路徑不代表磁碟檔案已同步。
+
+Retry 子 run 的 Total 只計算本次選取項目，Report 指向該次 child JSON；判斷整個原 Snapshot 的狀態仍須檢視原報告與子報告。
+
 ### 指定 Group 與項目補做
 
 先檢查 Explorer 畫面，執行預覽取得目前 HWND 及指紋，再明確選擇項目。PreviewRetry 會在報告旁建立 `.retry-preview.json`；預覽指紋或來源報告變更時必須重新預覽。
@@ -136,6 +187,7 @@ Restore 明確以 `-WindowStyle Normal` 請求可見的 Explorer 新視窗。已
 
 ```powershell
 & .\tests\Issue2.Tests.ps1
+& .\tests\RestoreSummary.Tests.ps1
 ```
 
 測試以注入的時鐘和觀測 adapter 驗證副作用次數，不操作實際 Explorer，也不需安裝 Pester。
