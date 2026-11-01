@@ -29,18 +29,19 @@ Group 6, HWND 1006 : C:\Projects\Tools\Output
 Restore attempted. Inspect resulting tabs before considering a restart workflow.
 ```
 
-Group 2 中有多個其餘標籤頁已被跳過, 是不是要引入 re-try 機制, 讓其嘗試一定次數後再放棄? 這樣可以避免因為暫時的問題而導致該 Group 後面的標籤頁無法正常打開。
+**問題與目標（意圖，不是強制實作規格）**
 
-若 re-try 後, 依然無法安全選擇一個標籤頁, 那麼就可以放棄該 Group 的其餘標籤頁, 並記錄下來以便後續手動 re-try 定同時指定欲加入 Group 的標籤頁.
+Group 2 因為 `Multiple new tabs detected`，使該 Group 後續 Tabs 被跳過。希望提升對 Explorer 暫時性狀態更新延遲／觀測錯誤的容錯能力，同時避免將路徑導覽到錯誤的分頁。
 
-3 次 retry 是合理的初始預設值，而且重試次數應設為可調整參數，例如：
+**建議設計方向（初始值可依實測調整）**
 
-```powershell
-$MaxRetries = 3
-$RetryDelayMs = @(200, 400, 800)
-```
+- 每個新增 Tab **最多送出一次** AddButton / Invoke；後續只重新觀測，不可重複建立或猜選候選 Tab。
+- 建議以**偵測總期限**取代固定 `1 + 3` 次為硬性停止條件：初始 `DetectionTimeoutSeconds = 15`，正常觀測間隔約 `200 ms`。針對暫時性讀取錯誤，可用 `200 → 400 → 800 ms` 的有限退避（持續錯誤時最高維持 800 ms），直到恢復或到期；不因第 3 次仍失敗就提前放棄。
+- 真正有多個不同候選／身分歧義、目標視窗失效等不可安全處理情況，可**提前停止**該 Group；延長等待不能當成安全識別的證據。
+- 如果該 Group 最終仍未完成，須記錄**目前失敗或結果不明的項目**及**尚未嘗試的項目**，讓使用者之後指定目標 Explorer 視窗與項目手動補做；其他正常 Group 照常處理。
+- 15 秒只是**單次新增 Tab 的觀測期限**，不是整次 Restore 的總期限；同步 COM/UIA 呼叫本身若卡住，需另外評估隔離方案。
 
-這樣能處理 Explorer 暫時性的狀態更新延遲，又不會讓 Restore 無限等待。
+上述數值並非硬性需求；以**安全性、成功率、等待時間及實測證據**決定最終參數。詳細策略與驗收見 `resume-explorer-Issue-2-fix-plan.md`。
 
 ## Feature Requests
 
