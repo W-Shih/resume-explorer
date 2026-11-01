@@ -1,7 +1,9 @@
 # Resume Explorer — Restore Result Summary & Unverified Item Diagnostics 實作計畫
 
 - 日期：2026-11-01
-- 狀態：**設計／實作計畫；尚未修改產品程式**
+- 狀態：**Done — implementation complete (2026-11-01)**
+- Implementation commit: `319da25`
+- Validation: 39 existing Issue2 tests + 17 new RestoreSummary tests passed in PowerShell 7.6.1; see `ISSUE2-VALIDATION.md` (repository root).
 - 適用版本：目前的 `0.1.0-beta.1+issue2` 候選版
 - 專案：`E:\_projects\tools\scripts\resume-explorer`
 - 優先度：P1；建議作為 Issue-2 後續的獨立、低風險 observability enhancement

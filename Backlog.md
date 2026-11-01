@@ -6,7 +6,7 @@
 
 這種路徑沒有打開 "H:\fake-path\dummy.zip"
 
-### Issue-2
+### Issue-2 — Closed (implementation complete; live acceptance tracked separately)
 
 ```txt
 PS C:\Projects\resume-explorer
@@ -41,16 +41,16 @@ Group 2 因為 `Multiple new tabs detected`，使該 Group 後續 Tabs 被跳過
 - 如果該 Group 最終仍未完成，須記錄**目前失敗或結果不明的項目**及**尚未嘗試的項目**，讓使用者之後指定目標 Explorer 視窗與項目手動補做；其他正常 Group 照常處理。
 - 15 秒只是**單次新增 Tab 的觀測期限**，不是整次 Restore 的總期限；同步 COM/UIA 呼叫本身若卡住，需另外評估隔離方案。
 
-上述數值並非硬性需求；以**安全性、成功率、等待時間及實測證據**決定最終參數。詳細策略與驗收見 [`plans/resume-explorer-Issue-2-fix-plan.md`](plans/resume-explorer-Issue-2-fix-plan.md)。
+上述數值並非硬性需求；以**安全性、成功率、等待時間及實測證據**決定最終參數。詳細策略與驗收見 [`plans/DONE/resume-explorer-Issue-2-fix-plan.md`](plans/DONE/resume-explorer-Issue-2-fix-plan.md)。
 
-**2026-11-01 實作進度：候選版，Issue 保持開啟**
+**2026-11-01 結案紀錄：核心修復已實作，Issue-2 Closed；未完成的實機驗收仍如實記錄於 `ISSUE2-VALIDATION.md`。**
 
 - 後續 regression 修復：報告 `535b092885594426af03bded40354d85` 記錄 6 次視窗建立、12 次分頁 Invoke，18 項 Verified；引用的診斷對話確認 6 個新 HWND 都不可見。建立視窗時誤用了 `-WindowStyle Hidden`，現改為明確 `Normal`，並加入直接攔截 production adapter 啟動參數的回歸測試。原有 baseline／候選驗證／checkpoint 不變；舊的隱藏視窗不自動操作。
 
 - 已加入獨立 core、可信 baseline、單次 Invoke、15 秒共享觀測 deadline、200 ms polling、200/400/800 ms capped backoff、候選歷史及同身分導覽驗證。
 - 已加入原子 checkpoint、原始 Group / Item 索引、完整逐項狀態與 PreviewRetry / Retry；補做明確選擇 HWND 及項目，檢查預覽指紋及同家族子報告。
 - 自動驗證與尚未驗收項目見 `ISSUE2-VALIDATION.md`；尚無原 Group 2 問題環境的 trace，不能判定 baseline 遺漏、重複列、物件更換或真正併發何者是實際根因。
-- 尚待原 Horizon VDI 實機矩陣與 20 次多 Group 還原；版本暫留 `0.1.0-beta.1+issue2`，不宣告 beta.2 發布。沒有自動 commit，修復 commit 待審閱後建立。
+- 原 Horizon VDI 實機矩陣、20 次多 Group 還原與根因歸因尚未完成；此處的 Closed 僅代表 Issue-2 核心修復已實作，不代表完成全部發布驗收或宣告 beta.2。後續同步超時／焦點互動與 Report 大小另由 Issue-3、Issue-4、Feature Request-6 追蹤。
 
 ### Issue-3 — Restore 不應依賴滑鼠焦點／前景視窗（待驗證）
 

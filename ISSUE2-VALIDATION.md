@@ -2,7 +2,7 @@
 
 Date: 2026-11-01. Candidate: `0.1.0-beta.1+issue2`.
 
-The implementation covers stages B/C and adds observation traces for stage A. The actual Group 2 failure has not been reproduced in the original Horizon VDI environment. No production RCA is claimed. Stage D live acceptance is still pending; the version is deliberately not promoted to beta.2.
+The implementation covers stages B/C and adds observation traces for stage A. The actual Group 2 failure has not been reproduced in the original Horizon VDI environment. No production RCA is claimed. Stage D live acceptance is still pending; the version is deliberately not promoted to beta.2. Issue-2 is closed as implementation-complete only; closure does not imply successful live acceptance or a confirmed production RCA.
 
 ## Automated checks
 

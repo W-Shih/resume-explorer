@@ -2,7 +2,9 @@
 
 - 日期：2026-11-01
 - 更新：依 Issue-2 的實際失敗模式重新評估；改採**15 秒 deadline + 200 ms 一般輪詢 + 最多 800 ms 的暫時性錯誤退避**。不再以固定 3 次觀測作為硬性停止條件。
-- 狀態：設計提案；同步更新 Backlog 意圖與本修復計畫，尚未修改或執行 Restore 程式
+- 狀態：**Done — core implementation complete; Issue-2 Closed (2026-11-01)**
+- Implementation commits: `7b6866b`, `b3f4197` (Issue-2 candidate), `990ec5f` (visible-window regression fix)
+- Validation: 39 offline Issue2 tests passed; original Horizon VDI Stage D live acceptance and production RCA remain pending, see `ISSUE2-VALIDATION.md` at repository root.
 - 建議目標版本：`0.1.0-beta.2`，以完成下述驗收為發布條件
 
 ## 1. 結論與修復策略

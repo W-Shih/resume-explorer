@@ -5,7 +5,7 @@
 > **Beta 版本：`0.1.0-beta.1`（實驗性）**  
 > 在一台 Windows 11 Enterprise 23H2（Build 22631）的 VMware Horizon VDI 上，已實測 `Capture` 和 `Restore` 可將 **2 個視窗、3 個 Tabs** 還原為原本的視窗／分頁分組。此結果不保證適用於其他 Windows 或 Horizon 版本。
 
-目前程式包含 **Issue-2 修復候選版 `0.1.0-beta.1+issue2`**。上述實機結果屬於原 beta.1，不能當作此修復的實機驗收。原 VDI 重現、根因歸因與 20 次正常多 Group 還原尚待完成，因此尚未標記 beta.2 或關閉 Issue-2。自動測試及限制見 [Issue-2 實作驗證](ISSUE2-VALIDATION.md)。
+目前程式包含 **Issue-2 修復候選版 `0.1.0-beta.1+issue2`**。上述實機結果屬於原 beta.1，不能當作此修復的實機驗收。原 VDI 重現、根因歸因與 20 次正常多 Group 還原尚待完成，因此尚未標記 beta.2；Issue-2 已按核心修復實作完成而結案，但實機驗收仍待完成。自動測試及限制見 [Issue-2 實作驗證](ISSUE2-VALIDATION.md)。
 
 ## 功能
 
