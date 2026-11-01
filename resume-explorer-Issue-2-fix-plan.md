@@ -1,8 +1,9 @@
 # Resume Explorer — Issue-2 修復計畫
 
-日期：2026-11-01  
-狀態：設計提案；尚未修改或執行 Restore 程式  
-建議目標版本：`0.1.0-beta.2`，以完成下述驗收為發布條件
+- 日期：2026-11-01
+- 更新：依 `Backlog.md:36–44`（commit `f4cc418`）將異常偵測改為預設額外 **3 次 retry（200／400／800 ms）**，並統一 timeout、報告與測試契約。
+- 狀態：設計提案；只更新本修復計畫，尚未修改或執行 Restore 程式
+- 建議目標版本：`0.1.0-beta.2`，以完成下述驗收為發布條件
 
 ## 1. 結論與修復策略
 
@@ -25,11 +26,11 @@ Issue-2 應採用「**一次建立請求，有限次重新觀測，確認新分�
 - 專案：`E:\_projects\tools\scripts\resume-explorer`。
 - 讀取：`resume-explorer.ps1`、`Backlog.md`、`README.md`。
 - 腳本版本：`0.1.0-beta.1`，151 行。
-- 查閱當下 HEAD：`b21adcb`（GUI 需求評估）；`git status --short` 無輸出。
+- 本次核對 HEAD：`f4cc418`（只修改 Backlog，新增 3 次 retry 的預設值）；修改本計畫前 `git status --short` 無輸出。原始計畫曾記錄 `b21adcb`，現已更新基準。
 - 相關歷史：`b251913` 新增 Backlog；`669de2a` 更新背景還原需求；`df262e5` 更新 Beta README。
 - README 已記錄 Windows 11 Enterprise 23H2 / Build 22631、VMware Horizon VDI 的小規模成功經驗；尚不能視為所有 Windows 版本皆支援。
 
-本次只讀取原專案及 git 資訊，未新增視窗、未重啟 Explorer、未改寫 repository。
+本次核對現有腳本與 Git 後，**只編輯本 Markdown 修復計畫**；未新增 Explorer 視窗、未重啟 Explorer、未更動任何產品腳本或執行測試。
 
 ### 2.2 Issue-2 的原始需求
 
@@ -165,18 +166,39 @@ UIA tab 數可作診斷交叉核對；只有實測確認它對應的是目前視
 
 ### 6.4 偵測重試與 reconciliation
 
-建議初始設定，待實測調整：
+依 Backlog 新增的預設值，明確採用 **首次觀測 + 最多 3 次「只讀重新觀測」**，重試間隔為 **200 / 400 / 800 ms**。這不是 3 次 AddButton，也不是 3 次重新 Navigate，更不是重跑整個 Group。
+
+建議初始設定（待實測調整；下列屬**待實作**介面，不是 beta.1 已有參數）：
 
 | 參數 | 預設 | 意義 |
 | --- | --- | --- |
-| `PollIntervalMs` | 200 | 每輪只重新觀測 |
-| `DetectWindowSeconds` | 7 | 一個觀測視窗 |
-| `DetectionRetryCount` | 2 | 首輪以外再觀測兩輪；總計最多 21 秒 |
-| `StableDurationMs` | 600 | 同一候選與完整集合需維持穩定 |
-| `NavigationTimeoutSeconds` | 10 | 導覽結果等待上限 |
-| `BaselineTimeoutSeconds` | 3 | 建立前安定期上限 |
+| `PollIntervalMs` | 200 | 尚未發現候選時的正常輪詢週期；不消耗異常 retry 額度 |
+| `DetectWindowSeconds` | 7 | 從本次 Invoke 邊界起算的**單一**偵測總預算，含所有 poll / retry / sleep |
+| `MaxRetries` | 3 | 異常觀測後允許的額外重新觀測次數；首次觀測不計，最多 4 個該異常序列樣本 |
+| `RetryDelayMs` | `@(200, 400, 800)` | 第 1／2／3 次額外觀測前的退避間隔；預設總額外等待 1,400 ms |
+| `StableDurationMs` | 600 | 同一候選與可信完整集合需維持穩定 |
+| `NavigationTimeoutSeconds` | 10 | 導覽結果等待上限，與偵測 retry 分開 |
+| `BaselineTimeoutSeconds` | 3 | Invoke 前 baseline 安定期上限，與偵測 retry 分開 |
 
-使用 `Stopwatch` 計算經過時間；跨 retry 視窗共用同一交易、baseline、候選歷史及總 deadline，不能每次重設歷史。上述上限是輪詢邏輯的預算，不包含無法返回的外部 API 呼叫。
+設定示意：
+
+```powershell
+# 待實作：可作為 Restore 的可調參數／內部設定
+[int]$MaxRetries = 3
+[int[]]$RetryDelayMs = @(200, 400, 800)
+```
+
+**重試的精確語義：**
+
+1. **正常等待不等於 retry：**沒有新候選時依 `PollIntervalMs` 輪詢，直到出現可信候選或達到 7 秒總期限；不能因 `MaxRetries=3` 就只檢查 4 次後放棄。
+2. **異常重新觀測才計數：**遇到單次讀取錯誤、暫時無法確認觀測完整性或多候選疑義時，只重新取得 Shell COM/UIA 的觀測快照。第 1／2／3 次額外觀測分別延後 200／400／800 ms；絕不再次呼叫 `Add-ExplorerTab`／`Invoke()`／`Navigate2()`。
+3. **不要重複睡眠：**異常 retry 的 backoff 取代該次正常 poll sleep，不能同時 sleep 200 ms 再 sleep 200／400／800 ms；異常解除後才回到一般 polling／穩定性確認。
+4. **總期限優先：**以單一 `Stopwatch`／deadline 涵蓋正常輪詢與異常 retry；剩餘時間不足時提前停止，不為了湊滿 3 次而超時，也不因每次 retry 重設 7 秒。
+5. **Config 可調且受限制：**`MaxRetries` 建議限制在 0–5；`RetryDelayMs` 必須是非空、正整數毫秒陣列。第 N 次使用第 N 個值，超出陣列長度時沿用最後值；`MaxRetries=0` 僅停用異常額外觀測，不停用 7 秒內正常輪詢。無效設定須在任何 Explorer 副作用之前拒絕。
+6. **觀測與結論分離：**同一 Identity 的多筆列舉先去重（不必消耗 retry）。若曾見 A、B 兩個不同的新 Identity，後來只見 A 仍不可認定 A 就是本次 Invoke 建立的分頁；3 次 retry 只能幫助診斷，**不會消除真實歧義**。已確定不可恢復者可提早保守停止。
+7. **適用範圍：**此 `MaxRetries` 僅控制 Invoke 後的異常偵測；不控制建立前的 AddButton 查找、baseline、導覽驗證或 `-Action Retry`（使用者指定項目補做），避免把兩種 retry 混為一談。
+
+上述時間是輪詢邏輯的預算，不保證能中斷卡住的同步 COM/UIA 呼叫；計畫中不得宣稱整次 Restore 的嚴格 wall-clock 上限。
 
 每輪執行：
 
@@ -224,7 +246,22 @@ for each group:
 
         checkpoint InvokeAttempted
         invoke AddButton at most once
-        observe with fixed baseline, shared deadline and full history
+        start one 7-second detection deadline (never reset on retry)
+        retryUsed = 0
+        while detection deadline not reached:
+            observe with frozen baseline; preserve every seen candidate ID
+            if no candidate and observation is reliable:
+                sleep normal poll interval (200 ms); continue
+            if one attributable candidate is reliable and stable for 600 ms:
+                break with candidate
+            if identity/history proves irrecoverable ambiguity:
+                break with OutcomeUnknown (do not guess)
+            if observation is transiently unreliable and retryUsed < MaxRetries:
+                delay = RetryDelayMs[min(retryUsed, RetryDelayMs.Length - 1)]
+                sleep at most the remaining deadline; retryUsed += 1
+                continue
+            break with OutcomeUnknown (retry exhausted or deadline)
+        checkpoint RetryAttemptsUsed and actual detection duration
         if invocation outcome or candidate attribution is uncertain:
             checkpoint current item as OutcomeUnknown
             mark later items NotAttempted
@@ -276,6 +313,8 @@ write final summary
 提議結果格式 `SchemaVersion: 1`，另存於使用者本機 application-data 下的 `ResumeExplorer\Runs\<RunId>.json`；可用 `-ReportPath` 覆寫。原始 Snapshot 不修改。
 
 主要欄位：RunId、StartedAtUtc、ToolVersion、SourceSnapshotHash、Snapshot 的選定原始項目、OS/PowerShell 版本、GroupIndex、ItemIndex、RequestedPath、Status、ReasonCode、InvokeAttempted、NavigateAttempted、ElapsedMs、觀測摘要、WindowFingerprint。
+
+每項偵測診斷另記：`MaxRetriesConfigured`、`RetryDelayMsConfigured`、`RetryAttemptsUsed`（僅額外異常觀測，不含正常 poll）、`PollCount`、`DetectionElapsedMs`、`SeenCandidateCount`、`LastObservationError`。若 3 次重試用盡，`ReasonCode` 仍須保留實際原因（例如 `AmbiguousCandidates`／`ObservationIncomplete`），不能只有 `RetryExhausted` 而失去根因資訊；若 7 秒 deadline 先到，亦如實記錄已使用次數。
 
 WindowFingerprint 包含 HWND、RootHwnd、PID、程序建立時間、SessionId，皆僅作驗證提示；不能以報告裡的舊 HWND 自動操作未來的視窗。
 
@@ -331,8 +370,8 @@ WindowFingerprint 包含 HWND、RootHwnd、PID、程序建立時間、SessionId�
 ### 階段 B：核心修復
 
 1. 抽出可單元測試的候選判定函式。
-2. 實作 stable baseline、Invoke-once 與有限觀測 retry。
-3. 保留候選歷史與可信度；加入多候選／身分變更保守停止。
+2. 實作 stable baseline、Invoke-once 與第 6.4 節的可調 `MaxRetries=3`、`RetryDelayMs=@(200,400,800)`；每次僅重讀觀測、共用原有 7 秒偵測 deadline，正常 polling 不消耗重試額度。
+3. 保留候選歷史與可信度；加入多候選／身分變更保守停止。驗證多個不同 Identity 曾出現時，即使重試後剩單一候選也不能直接導航。
 4. 實作同一候選的 navigation 驗證。
 5. 修正新視窗多候選取第一個的防線。
 
@@ -349,7 +388,7 @@ WindowFingerprint 包含 HWND、RootHwnd、PID、程序建立時間、SessionId�
 ### 階段 D：驗收與文件
 
 1. 跑完下列自動化與實機案例。
-2. README 說明 retry 次數的含義、結果狀態、補做命令與已知限制。
+2. README 說明「首次觀測不算 retry、預設額外 3 次 200／400／800 ms、最多 7 秒偵測總預算」、設定方式、結果狀態、補做命令與已知限制，避免使用者誤以為會再執行 3 次 AddButton。
 3. Backlog 保留原始錯誤例，補上根因證據、修復 commit、測試環境與未涵蓋條件。
 4. 確認腳本與 README 版本一致，才標記 `0.1.0-beta.2`。
 
@@ -369,6 +408,12 @@ WindowFingerprint 包含 HWND、RootHwnd、PID、程序建立時間、SessionId�
 | baseline 遺漏 | Invoke 前列舉錯誤／集合變動 | 不建立，或先完成可信穩定基準 |
 | baseline 消失 | B 中某個 ID 消失 | 不導覽任何新候選 |
 | 短暫讀取錯誤 | 正常 → 錯誤 → 正常 | 錯誤不視為空集合，穩定計時重來 |
+| retry 次數與間隔 | 首次異常 + 3 次仍不可信；fake clock | 額外觀測恰為 3 次，睡眠依序 200/400/800 ms；AddButton 僅 1 次、Navigate 0 次 |
+| 第 1／2／3 次恢復 | 每次分別在第 N 次異常重觀測後取得可信唯一候選 | `RetryAttemptsUsed=N`，停止額外 retry，穩定驗證通過後才 Navigate |
+| 正常零候選輪詢 | 先連續 N 輪零候選，最後才出現 A | 200 ms 正常 poll 不占用 3 次 retry；7 秒內可繼續等待 |
+| 即將到期的 retry | 6.8 秒才遇異常，需 sleep 400/800 ms | 偵測到 7 秒即停止，不能重新展開 7 秒或湊滿 3 次 |
+| 調整 retry 設定 | `MaxRetries=0`、`MaxRetries=5`、自訂短陣列、無效負數／空陣列 | 0 停用額外重試但正常 poll 仍有效；超出長度沿用最後延遲；非法值於 Invoke 前拒絕 |
+| 多候選經 retry 變單 | 首輪 B+A+C，後續 B+A | `SeenCandidateIds` 保留 A/C；即使重試完仍不可 Navigate |
 | Invoke 拋例外 | 例外後候選出現 | 不重點、不自動導覽、結果不明 |
 | 同路徑既有分頁 | 舊 tab 已是目標，A 還未導覽完成 | 舊 tab 不可讓 A 通過驗證 |
 | 合法重複路徑 | Snapshot 兩項 Path 相同 | 保留兩個 ItemIndex 與兩個要求 |
@@ -380,7 +425,8 @@ WindowFingerprint 包含 HWND、RootHwnd、PID、程序建立時間、SessionId�
 | retry 選擇 | 重複索引、Verified、不明未授權 | 明確拒絕，不新增 Tabs |
 | checkpoint 失敗 | 寫檔權限／磁碟錯誤 | 停止後續副作用並輸出摘要 |
 | crash 邊界 | 最後紀錄為 InvokeAttempted | 下次不自動重送 |
-| deadline | 多輪 transient errors | 不重設總預算；可預期結束 |
+| deadline | 多輪 transient errors | 不重設 7 秒偵測總預算；遇無法返回的外部 COM/UIA 呼叫須獨立標為限制 |
+| retry 診斷與歸因 | 部分異常後停止 Group 2 | 報告含 `MaxRetriesConfigured`、`RetryAttemptsUsed`、`PollCount`、`DetectionElapsedMs` 與實際 `ReasonCode`；Group 3 繼續 |
 
 使用 Pester mock 或注入 adapter 對副作用次數做斷言。不要只驗證字串 warning；主要驗證是否操作了不該操作的物件及是否遺漏結果。
 
@@ -399,7 +445,10 @@ WindowFingerprint 包含 HWND、RootHwnd、PID、程序建立時間、SessionId�
 
 ## 11. 驗收條件與失敗處置
 
-- [ ] 偵測 retry 的任何路徑都不會再次 Invoke。
+- [ ] 偵測 retry 的任何路徑都不會再次 Invoke 或重新 Navigate；每個新增交易 Invoke 最多 1 次。
+- [ ] `MaxRetries=3` 精確代表「首次異常觀測後最多 3 次額外觀測」，預設 backoff 為 200／400／800 ms，設定值可調且無效輸入不觸發 Explorer 副作用。
+- [ ] 偵測階段含 retries 共用 7 秒 deadline；無候選時 200 ms 正常輪詢不消耗 retry 次數，接近期限可提前結束。
+- [ ] 在恢復、耗盡、提早中止時均記錄實際 retry 次數及失敗原因；不將曾有兩個不同候選的交易誤判為已恢復。
 - [ ] 可恢復的延遲／相同 Identity 重複列案例能完成。
 - [ ] 兩個不同候選、曾經多候選、身分替換等案例均不會猜選。
 - [ ] 同一路徑的既有分頁不能讓新的錯誤分頁被誤判成功。
@@ -428,7 +477,7 @@ WindowFingerprint 包含 HWND、RootHwnd、PID、程序建立時間、SessionId�
 
 ## 13. 參考資料
 
-專案來源：2026-11-01 讀取的 `resume-explorer.ps1`、`Backlog.md`、`README.md`，HEAD `b21adcb`。前次對話用於定位 Issue，實際需求與程式判斷以本次讀取檔案為準。
+專案來源：2026-11-01 核對的 `resume-explorer.ps1`、`Backlog.md`（新增第 36–44 行）、`README.md`，HEAD `f4cc418`。前次對話用於定位 Issue，實際需求與程式判斷以本次檔案為準。
 
 1. Microsoft Learn — [Rules for Implementing QueryInterface](https://learn.microsoft.com/en-us/windows/win32/com/rules-for-implementing-queryinterface)：COM 物件 identity 契約。
 2. Microsoft Learn — [Marshal.GetIUnknownForObject](https://learn.microsoft.com/en-us/dotnet/api/system.runtime.interopservices.marshal.getiunknownforobject)：取得 IUnknown 與參考計數配對。
