@@ -17,7 +17,7 @@
 - **原因未定**：全域 Shell COM 列舉／單一物件變慢、Explorer 負載、焦點／Tab 互動或同步呼叫阻塞皆仍是假設。現有 deadline 只限制輪詢邊界，**無法中止正在執行的同步 COM/UIA 呼叫**。
 - **修復方向**：先量測每次 Observe 的 wall-clock duration、階段、deadline overshoot、列舉數量與慢呼叫位置；再比較減少不必要觀測、target-aware 快速路徑及具安全隔離的 worker 設計。不應僅將 10 秒調高，或以直接殺執行緒的方式中止有副作用的 COM 呼叫。
 - **驗收**：在高 Tab 數、慢 VDI、同步阻塞與視窗互動下維持 identity safety、checkpoint 及有限的可觀測 deadline 語意；不能新增重複 Invoke／Navigate。
-- 詳細方案同上。
+- 詳細方案：[`plans/resume-explorer-restore-reliability-and-report-size-plan.md`](plans/resume-explorer-restore-reliability-and-report-size-plan.md)（Issue-4：同步操作超時 RCA 與修復方向）。
 
 ### Issue-1 — P2
 
