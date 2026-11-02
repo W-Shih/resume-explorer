@@ -45,11 +45,11 @@
 
 ### Feature Request-6 — P1 — 精簡 JSON Report 與可控診斷資訊（待實作）
 
-- **實際證據**：同一份 2026-11-01 Report 的大小為 **3,002,321 bytes**（約 3.00 MB／2.86 MiB），僅 18 Items、87 個 Diagnostics.Samples，卻包含 **5,119 筆儲存的 View 記錄**，高度重複保存全域 Shell 觀測。
-- **期望**：預設 Report 應保有 Run／Item 結果、ReasonCode、必要的事件時間與 Retry 安全依據，但不應每次 polling 都持久化全域全部 Explorer Views／Fingerprint。詳細 trace 應可透過明確指定的診斷模式取得，並設容量與樣本上限。
-- **方案**：調查容量構成，優先改為每次觀測的精簡統計、階段摘要與異常時的有限樣本；必要時允許 opt-in 詳細 trace、大小上限與截斷計數，保持事故可診斷性。壓縮／minify 可作輔助，但不可取代去除冗餘資料。
-- **相容性**：保留現有 ReportPath、原始 Group/Item、Status、ReasonCode、Run family 關係及 Retry 判斷；若改 Schema 須有明確版本策略與舊報告讀取測試。不能為縮小 Report 犧牲 crash checkpoint 或不明結果的安全保護。
-- 詳細方案：[`plans/resume-explorer-Feature-Request-6-report-size-plan.md`](plans/resume-explorer-Feature-Request-6-report-size-plan.md)。
+- **2026-11-02 Review／唯讀實測**：原始 Report **3,002,321 bytes**（18 Items、**83** Diagnostics.Samples、**5,115** 累積 Views；原紀錄 87／5,119 已校正）。在**記憶體中**清空 Samples.Views 後重序列化為約 **116,701 bytes**；僅 minify 為約 **1,514,104 bytes**。這確認重複保存全域 Views 是主要容量來源，但**尚未證實是 Issue-4 Timeout 根因**；原始 Report 未被修改。
+- **決策**：預設 **Compact Diagnostics**，按 phase 累積計數／可靠性／錯誤摘要及有界關鍵樣本；詳細全域 Views 僅以 **Full opt-in** 且有限額提供。保持即時完整 Shell Observation 供 Restore identity／歧義判斷，僅精簡持久化投影；不把 minify／壓縮視為主要修復。
+- **版本與安全**：建議**新 Report SchemaVersion=2**，Reader 同時接受 V1/V2，舊檔不遷移；保留 ReportPath、Run family、原始 Group/Item、Path、Status、ReasonCode、attempt flags、Fingerprint、OutcomeUnknown、PreviewRetry／Retry 判斷以及**副作用前原子 checkpoint**。診斷截斷只能丟棄非核心樣本，必須保留 dropped/truncated counters；不得截斷安全欄位或 JSON。
+- **量化目標／測試**：同規模 Compact 初始軟性目標 **≤300,000 bytes**，先用合成 18 Items／83 Samples／5,115 Views benchmark 與 offline mock／V1-V2 Retry family tests 驗證；量測 checkpoint 時間、累計寫入 bytes 與記憶體；Full 另設樣本與診斷 byte budget。不可在日常 Explorer／VDI 自動 E2E 壓測。
+- **狀態／詳細計畫**：**Reviewed / Proposed，尚未改程式碼**。見 [`plans/resume-explorer-Feature-Request-6-report-size-plan.md`](plans/resume-explorer-Feature-Request-6-report-size-plan.md)。
 
 ### Feature Request-1 — P2
 

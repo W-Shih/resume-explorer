@@ -10,7 +10,7 @@
 
 既有 Restore 案例有 18 items：13 `Verified`、1 `OutcomeUnknown / NavigationTimeout`、4 `NotAttempted`。異常為 Group 6 / Tab 3（其後 4 items 未嘗試），該項已嘗試 Invoke 與 Navigate，`ElapsedMs=28545`。Navigation 只有一筆 observation，其 `ElapsedMs` 標記約 15,813 ms，`RawCount=68`、`UniqueCount=68`、`Reliable=True`。View 清單包含目標路徑，但不代表「目標 candidate identity 持續穩定 600 ms」已成立。此 `ElapsedMs` 是 Observation 相對階段起點的時間標籤，**不是單次 Observe 執行時間**；不能據此宣稱某次 COM 呼叫卡了 15.8 秒。
 
-同份 Report 為 **3,002,321 bytes**（約 3.00 MB / 2.86 MiB），18 items、87 筆 `Diagnostics.Samples`，累積儲存 5,119 筆 Views。反覆持久化全域 Shell 清單可能放大成本，但「各區塊實際佔比」與「寫檔是否為主要耗時」仍待量測。`RawCount=68` 是全域 Shell 枚舉數量，**不表示某個視窗內有 68 Tabs**。
+同份 Report 為 **3,002,321 bytes**（約 3.00 MB / 2.86 MiB），18 items、**83** 筆 `Diagnostics.Samples`，累積儲存 **5,115** 筆 Views（2026-11-02 逐 Item 唯讀複核；先前 87／5,119 為錯誤計數）。FR-6 已唯讀量測：僅在記憶體中清空診斷 Sample 的 Views 並重新序列化，Report 約為 **116,701 bytes**（原檔 3,002,321 bytes）；重複的全域 Views 為容量主因。**實際 checkpoint 序列化／磁碟寫入時間，以及其是否導致本 Issue timeout，仍未量測／證實。** `RawCount=68` 是全域 Shell 枚舉數量，**不表示某個視窗內有 68 Tabs**。
 
 目前只能確定：`while (Now < deadline)` 限制的是**進入下一輪輪詢的時機**，不能搶佔或取消已進入的同步 Shell COM／UIA 呼叫。造成超時的實際熱點可能是單一 Property、全域列舉、Fingerprint、Explorer／VDI 自身反應、UIA、Checkpoint／JSON，或多項因素疊加；滑鼠焦點尚無因果證據。
 
