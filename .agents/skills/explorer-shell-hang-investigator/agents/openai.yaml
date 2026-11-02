@@ -1,0 +1,3 @@
+interface:
+  display_name: "Explorer Shell Hang Investigator"
+  short_description: "Evidence-led Explorer and DriveFS hang investigation"
