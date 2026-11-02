@@ -43,13 +43,13 @@
 
 ## Feature Requests
 
-### Feature Request-6 — P2 — Report 容量與保留策略的實證導向優化（待調查）
+### Feature Request-6 — P2 — Error-aware / Run-family-aware Report Retention（待調查／規劃）
 
 - **2026-11-02 Review／唯讀實測**：原始 Report **3,002,321 bytes**（18 Items、**83** Diagnostics.Samples、**5,115** 累積 Views；原紀錄 87／5,119 已校正）。在**記憶體中**清空 Samples.Views 後重序列化為約 **116,701 bytes**；僅 minify 為約 **1,514,104 bytes**。這確認重複保存全域 Views 是主要容量來源，但**尚未證實是 Issue-4 Timeout 根因**；原始 Report 未被修改。
-- **2026-11-02 新決策（取代 Compact V2-first）**：先保留現行 **V1 Full JSON Report**，量測歷史磁碟用量、單次 Run 的記憶體與 checkpoint JSON serialize／write 成本，並與 Issue-4 COM/UIA 慢呼叫區分。**不預先承諾 Schema V2 或 Compact 實作**；「日常 Compact／調查 Full」另立 **Feature Request-9**，其優先序參考本案實測。
-- **歷史保留候選**：若磁碟累積確有問題，評估保留最近 **3–5 個完整 Root Run Families**（非 3–5 個單獨 JSON）：Root、Retry 子孫及相關 Sidecars 必須一致。初期採 DryRun／Preview + 明確 opt-in；不預設清理自訂 ReportPath、手動保留、執行中、Locked、OutcomeUnknown／Aborted 或依賴不明的家族。受保護報告可以超出候選數量，**安全優先於固定檔案上限**。
-- **安全與量測 Gate**：JSON Report 與副作用前原子 checkpoint、attempt flags、PreviewRetry/Retry hash guard 及 Run lineage 必須完整；不得因清理而遺失已完成或結果不明的 Retry 證據。先用去識別化合成 18 Items／83 Samples／5,115 Views 及真實 Report 唯讀統計，比較 P50/P95 checkpoint serialize/write、累計 bytes、記憶體與磁碟總量，再決定 No Change／Retention／提案由 FR-9 處理診斷精簡。離線測試不得影響真實 Explorer；原有 S16 測試失敗需獨立釐清。
-- **狀態／詳細計畫**：**Reviewed / Proposed，尚未改程式碼或清理任何 Report**。目前欠缺已證實的核心效能缺陷，建議由 P1 改為 P2；若有可重現的重大 checkpoint overhead 或儲存耗盡再升級。詳見 [`plans/resume-explorer-Feature-Request-6-report-size-plan.md`](plans/resume-explorer-Feature-Request-6-report-size-plan.md)。
+- **新決策／實際現況（2026-11-02）**：採 **Error-aware、Run-family-aware** 歷史保留政策，先量測真實磁碟、checkpoint serialize/write 與記憶體成本，不與 Issue-4 COM/UIA Timeout 混淆。現行 writer/reader **仍為 V1 Full**，沒有 Report retention/delete CLI；`5afd928` 雖以 `feat` 命名，實際只提交 Markdown，**沒有實作 FR-9 Compact／Full**。FR-9 的診斷等級屬獨立需求，本 FR 不要求立即修改 Schema。
+- **三層 Retention（候選，尚未實作）**：**A** 未解決／未審核異常與狀態不明的 Family **全部保護**；**B** 曾有異常、經使用者**明確確認已處理**的完整 Families **保留最近 5 個**；**C** 全部正常 Verified 的完整 Families **保留最近 1 個 Baseline**（可考慮安全寬限期）。以 Root + 所有 Retry 子孫 + Sidecars 為單位，**絕不依單個 JSON 輪替**。5+1 是 soft target；Pin、活躍／Locked、OutcomeUnknown、Aborted、缺漏／損壞／自訂路徑等仍優先保護。
+- **Classification／Safety Gates**：`Completed` ≠ 全部 Verified；Root `OutcomeUnknown` 即使後代 Retry Verified，**也不可自動認定已處理**，需獨立的使用者 Review/Pin 狀態，且不得改寫 Report 使 PreviewRetry hash 失效。先交付**唯讀 Family inventory／分類與 DryRun**；之後才評估顯式 opt-in Cleanup，前提是已解決跨檔刪除、共享 `RetryRuns`、PreviewRetry／Retry 競態、crash-recovery 與重新驗證問題。無法證明安全則**不實作自動刪除**；保留副作用前原子 checkpoint、attempt flags、Run lineage、Retry hash/lock，不在日常 Explorer／VDI 壓測。
+- **詳細階段／狀態**：**Reviewed / Proposed，尚未改程式碼、未刪除 Report**。Phase 0 唯讀量測；Phase 1 完整 Family graph／異常分類；Phase 2 人工 Review/Pin + DryRun；Phase 3 只有安全 Gate 全通過才提供顯式 Cleanup；自動清理不是預設交付。優先級 P2，若可重現嚴重磁碟／checkpoint 問題再升級。詳見 [`plans/resume-explorer-Feature-Request-6-report-size-plan.md`](plans/resume-explorer-Feature-Request-6-report-size-plan.md)。
 
 ### Feature Request-9 — P2 — JSON Report 診斷等級：Compact Default／Full Opt-in（待設計）
 
