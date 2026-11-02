@@ -19,6 +19,7 @@
 - **調查路徑（唯讀優先）**：在同一台機器／Session，於 **未執行 Restore、首次 Restore、重複 Restore、關閉已還原視窗後**分別記錄 `explorer.exe` PID、Parent PID、StartTime、CommandLine、SessionId、MainWindowHandle、CPU／Working Set；比對 HWND／Shell COM 的視窗與 Tab identity，確認有無不對應可見視窗的殘留 Process。分開量測每次操作的 **新增、退出與最終淨增加數量**，不要比較不同環境的一次性總數。
 - **程式碼檢查**：優先檢查 `OpenWindow`、每 Group 建立視窗的預期行為、Restore／Retry 再次執行、失敗或超時分支，以及 Issue-2 曾出現的 `-WindowStyle Hidden` 可見性 regression。驗證是否有重複建立或遺留，而非預先假定有 Bug。必要時在隔離測試環境重現並量測 Process／COM observation 成本，與 Issue-4 分開判斷因果。
 - **RCA-first／互動式 Debug Gate**：Phase 0–2 先建立基準、收集唯讀證據及控制變因重現；**若仍無法定位根因，應先在可重設的隔離 Windows 測試環境進行互動式 Debug（例如追蹤 `OpenWindow` 呼叫次數、PID／HWND 變化、失敗分支與 Process creation/exit），找到具體可重現的錯誤機制後，才考慮修改現有程式碼**。不得因 Process 數量偏多就盲目加入清理、強制結束 Explorer、重構 COM 或改變 Restore 語意；若證據顯示為正常行為，直接以非缺陷結案。
+- **詳細調查／有條件修復計畫**：[`plans/resume-explorer-Issue-5-process-lifecycle-rca-plan.md`](plans/resume-explorer-Issue-5-process-lifecycle-rca-plan.md)（**Proposed / RCA Required**；Phase 0–2 先建立基準、控制變因與必要的 Interactive Debug，取得可重現的本程式缺陷證據後才進行最小修復）。舊檔 [`plans/resume-explorer-Issue-5-drivefs-shell-hang-rca.md`](plans/resume-explorer-Issue-5-drivefs-shell-hang-rca.md) 是 **Issue-6 已緩解 Hang 事件**的歷史 RCA，不是本 Issue 的修復計畫。
 - **驗收／安全限制**：若多 Process 都能對應到預期視窗且生命週期正常，記錄基準並結案為非缺陷；若可證實異常累積，先提供最小重現與修復方案，再做隔離測試。**不可為診斷任意 `taskkill /f /im explorer.exe` 或清理未知 PID**。上述批次檔將 `#` 當 CMD 註解所產生的 `'#' is not recognized` 是**另一專案的獨立語法問題**，不納入本 Issue 的因果推論。
 
 ### Issue-4 — P1 — 同步 COM/UIA 呼叫超過 Restore deadline（待 RCA）
