@@ -272,7 +272,7 @@ Get-Process explorer -ErrorAction SilentlyContinue |
 - **Issue-2（已完成核心實作）**：保留身份安全、Checkpoint、單次副作用與 Visibility 的 Regression 防護。
 - **Issue-3**：前景／焦點是否影響 Tab 操作屬另一個維度；如有資料交叉使用，須有控制變因。
 - **Issue-4**：同步 Shell COM／UIA 超時屬專門的 Deadline/RCA 問題。若 Issue-5 觀察到被 COM 阻塞，只共享 Timing 證據，不能直接推導 Process Leak。
-- **Feature Request-6**：精簡大 JSON Report；若加入 Issue-5 診斷，須限制樣本容量且不重複保存敏感 Views。
+- **Feature Request-6 / 9**：FR-6 先量測 JSON Report 的容量與 checkpoint 實際成本、評估安全歷史保留；FR-9 才負責未來 Compact/Full 診斷等級。若加入本 Issue 的 Process 生命週期診斷，避免無界樣本與重複敏感 Views，不可因需要 debug 就預先強制變更 Report Schema。
 - **Issue-6 (Closed / Mitigated)**：Google Drive Shell extension／Explorer `Not Responding` 事件；其歷史 RCA 已更名並移至 `plans/DONE/resume-explorer-Issue-6-drivefs-shell-hang-rca.md`。這**不是** Issue-5 的修復計畫，亦**沒有**證據顯示 `resume-explorer` 造成當次 Hang。
 - **`restart-win-explorer-scripts`**：`.bat` 使用 `#` 註解造成 CMD `'#' is not recognized` 是另一專案的語法問題，**不是** Process Leak 根因；不在本 Issue 擅自修改。
 

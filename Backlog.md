@@ -43,13 +43,21 @@
 
 ## Feature Requests
 
-### Feature Request-6 — P1 — 精簡 JSON Report 與可控診斷資訊（待實作）
+### Feature Request-6 — P2 — Report 容量與保留策略的實證導向優化（待調查）
 
 - **2026-11-02 Review／唯讀實測**：原始 Report **3,002,321 bytes**（18 Items、**83** Diagnostics.Samples、**5,115** 累積 Views；原紀錄 87／5,119 已校正）。在**記憶體中**清空 Samples.Views 後重序列化為約 **116,701 bytes**；僅 minify 為約 **1,514,104 bytes**。這確認重複保存全域 Views 是主要容量來源，但**尚未證實是 Issue-4 Timeout 根因**；原始 Report 未被修改。
-- **2026-11-02 深入 Review 後的分段決策**：先以 **最小 Compact V2** 保留所有輕量 polling Samples，僅移除每筆重複持久化的全域 Views，保留必要錯誤 stage/HRESULT 與完整即時 Shell Observation。若大量輪詢／長錯誤造成超標，再按量測需要加入 PhaseSummaries、有界事件保留與 Retention；**Full opt-in 及 byte budget 為條件式後續功能**，非 MVP 前置要求。不以 minify／壓縮代替結構性修復。
-- **版本與安全**：新 Report 建議 `SchemaVersion=2`，Reader 同時接受 V1/V2，舊檔不遷移；嚴格檢查缺漏／非布林 attempted flags（避免未知結果被當可重試）、混合版本 Retry 家族與 Preview hash。保留 ReportPath、Run lineage、原始 Group/Item、Path、Status、ReasonCode、Fingerprint、OutcomeUnknown、以及**副作用前原子 checkpoint**。只有實際啟用取樣／容量淘汰才需保存相應 omitted/dropped/truncated counters；不可截斷核心欄位／JSON。既有外部 V1 JSON 消費者需明確適配 V2，回滾 writer 亦須留可讀 V2 的 reader。
-- **量化目標／測試**：同規模 Compact 初始軟性目標 **≤300,000 bytes**，先用合成 18 Items／83 Samples／5,115 Views benchmark 和 offline mock／V1-V2 混合 Retry tests 驗證；量測 checkpoint 時間、累計寫入 bytes、記憶體與長輪詢情況。現有 39 個 Issue-2 離線測試通過；RestoreSummary 測試在既有 S16 checkpoint-failure 訊息斷言中止，須先釐清並保留 V1→V2 版本斷言。不得在日常 Explorer／VDI 自動 E2E 壓測。
-- **狀態／詳細計畫**：**Reviewed / Proposed，尚未改程式碼**。見 [`plans/resume-explorer-Feature-Request-6-report-size-plan.md`](plans/resume-explorer-Feature-Request-6-report-size-plan.md)。
+- **2026-11-02 新決策（取代 Compact V2-first）**：先保留現行 **V1 Full JSON Report**，量測歷史磁碟用量、單次 Run 的記憶體與 checkpoint JSON serialize／write 成本，並與 Issue-4 COM/UIA 慢呼叫區分。**不預先承諾 Schema V2 或 Compact 實作**；「日常 Compact／調查 Full」另立 **Feature Request-9**，其優先序參考本案實測。
+- **歷史保留候選**：若磁碟累積確有問題，評估保留最近 **3–5 個完整 Root Run Families**（非 3–5 個單獨 JSON）：Root、Retry 子孫及相關 Sidecars 必須一致。初期採 DryRun／Preview + 明確 opt-in；不預設清理自訂 ReportPath、手動保留、執行中、Locked、OutcomeUnknown／Aborted 或依賴不明的家族。受保護報告可以超出候選數量，**安全優先於固定檔案上限**。
+- **安全與量測 Gate**：JSON Report 與副作用前原子 checkpoint、attempt flags、PreviewRetry/Retry hash guard 及 Run lineage 必須完整；不得因清理而遺失已完成或結果不明的 Retry 證據。先用去識別化合成 18 Items／83 Samples／5,115 Views 及真實 Report 唯讀統計，比較 P50/P95 checkpoint serialize/write、累計 bytes、記憶體與磁碟總量，再決定 No Change／Retention／提案由 FR-9 處理診斷精簡。離線測試不得影響真實 Explorer；原有 S16 測試失敗需獨立釐清。
+- **狀態／詳細計畫**：**Reviewed / Proposed，尚未改程式碼或清理任何 Report**。目前欠缺已證實的核心效能缺陷，建議由 P1 改為 P2；若有可重現的重大 checkpoint overhead 或儲存耗盡再升級。詳見 [`plans/resume-explorer-Feature-Request-6-report-size-plan.md`](plans/resume-explorer-Feature-Request-6-report-size-plan.md)。
+
+### Feature Request-9 — P2 — JSON Report 診斷等級：Compact Default／Full Opt-in（待設計）
+
+- **功能需求**：**保留 JSON Report 作為 Restore／Retry 的核心功能**；本需求實作後，日常預設 `Compact`，需要深入 RCA 時可明確選擇 `Full`，不以關閉安全 Report 交換容量或效能。
+- **兩種等級**：Compact 保留全部安全／Retry 資料、Phase／可靠性／錯誤與關鍵歧義摘要，不再在每個 Sample 重複持久化全部 Explorer Views；Full 盡可能保留現行詳細 Views／Errors，注意敏感路徑及有界容量／截斷訊號。單一 Run 維持一份 JSON 與一套 Reader／Retry 契約。
+- **向後相容**：未來可考慮 `-DiagnosticLevel Compact|Full`，不要借用 PowerShell `-Verbose` Common Parameter；若 JSON 結構變更，必須明確 versioning、更新文件／版本號／測試、兼容歷史 V1 與新舊混合 Retry 家族，且不得改變副作用前原子 checkpoint 或 OutcomeUnknown 安全判斷。
+- **與 FR-6 分工**：這是**長期功能期望而非已實作行為**。目前仍是 V1 Full；**FR-6 先量測是否存在實質效能／儲存問題，FR-9 的實作優先序再依證據調整**，不可反過來要求 FR-6 先導入 Compact／Schema V2。
+- **狀態／計畫**：**Feature Requirement / Proposed，尚未實作**。見 [`plans/resume-explorer-Feature-Request-9-diagnostic-level-plan.md`](plans/resume-explorer-Feature-Request-9-diagnostic-level-plan.md)。
 
 ### Feature Request-1 — P2
 

@@ -29,7 +29,7 @@
 | `Get-ExplorerObservation()` | `Shell.Application.Windows()` 全域列舉；逐 View 讀 `FullName`、`HWND`、Fingerprint、Identity、`Document.Folder.Self.Path` | Windows() 取得與實際迭代分別耗時；哪個 Property 最慢；有多少 View |
 | `Get-WindowFingerprint()` | Windows API + `Get-Process`／StartTime／SessionId；可對同 PID 重複讀取 | 每輪呼叫次數、成本與 PID 一致性 |
 | `Get-TabIdentity()` | `Marshal.GetIUnknownForObject` 取得 Identity，隨後 Release | 單次耗時、跨 Observation 穩定性；不可當跨 Process／重啟持久 ID |
-| `Add-ObservationDiagnostic()` | 每次 Sample 複製完整 Views／Path／Fingerprint／Errors | 記憶體、轉換與報告體積；與 FR-6 協調 |
+| `Add-ObservationDiagnostic()` | 每次 Sample 複製完整 Views／Path／Fingerprint／Errors | FR-6 量測容量／checkpoint 成本；若需調整持久化投影，由 FR-9 評估 |
 | `Wait-StableTabBaseline()` | 3 秒期限、3 次可靠觀測且跨 600 ms | **潛在邊界問題**：Observe 在期限內開始、期限後返回，仍可能回傳 `Stable` |
 | `Wait-NewExplorerWindow()` | 固定 12 秒輪詢、RootHwnd 去重 | 同步 Observe 可能跨期限；候選歧義處理 |
 | `Wait-NewTabCandidate()` | 15 秒偵測、600 ms 穩定、讀取錯誤 200/400/800 ms backoff | Observe／Fingerprint 跨期限；不得重複 Invoke |
@@ -64,7 +64,7 @@
 
 ### 4.2 診斷資料格式
 
-建議以**選用、向後相容**欄位擴充現有 `Diagnostics`，預設保存精簡 `TimingSummary`、`SlowStages`（有限樣本）、`DeadlineOverrunMs`；詳細逐 View Trace 僅允許明確 opt-in，限制筆數、資料量與可能含使用者路徑的欄位。先避免更動 `SchemaVersion=1` 與既有 `ReasonCode` 讀取器；若需 breaking schema migration，另列 FR-6 工作。
+建議以**選用、向後相容**欄位擴充現有 `Diagnostics`，必要時保存有限的 `TimingSummary`、`SlowStages`、`DeadlineOverrunMs`。先維持目前 V1 Report 與 `ReasonCode` Reader；**不因 Issue-4 儀表化而預先要求 Compact/Full**。若實證需要改變持久化投影或 breaking schema migration，由 **FR-9** 負責設計與相容性；容量、checkpoint 成本證據由 **FR-6** 蒐集。
 
 診斷格式、File I/O 不得在正常 Restore 中持續儲存每輪完整 View 快照。新增儀表化本身須量測 overhead（有／無 Instrumentation 對照），且不能改變 `IdentitySetReliable`／候選驗證的判斷結果。
 
@@ -100,7 +100,7 @@
 1. 若 Fingerprint 查詢明顯占比高：研究**僅限單次 Observation** 的 PID／Process StartTime／Session 快取；Window Handle、PID 重用、Process 替換等情況仍要保守驗證，不跨次無條件沿用。
 2. 若 Path Property 為瓶頸：研究 target-aware 兩階段讀取，先建立**足夠完整**的 HWND／Identity 集合與 duplicate／reliability 檢查，再只對必要 View 讀 Path；目標視窗所有 baseline／new candidates 必須完整可判別。任何無法確立完整性的結果都不得標為 Reliable。
 3. 區分需要全域 Path 的 `Capture`／`Wait-NewExplorerWindow`，與可能只需目標 candidate Path 的 Detection／Navigation；不得貿然將所有模式變成只看目標。
-4. 若主要成本在診斷／checkpoint：減少重複 View 快照與 JSON 成本，維持「副作用前原子持久化」語意；報告精簡的主要實作與 schema 設計協調 FR-6。
+4. 若主要成本在診斷／checkpoint：先將實測成本交給 FR-6；若需減少重複 View 快照並引入 Compact/Full，與 FR-9 協調 Report Schema 與向後相容性，始終維持「副作用前原子持久化」語意。
 5. 若 UIA 或焦點是瓶頸：先做 Issue-3 的焦點矩陣，再評估安全的 UIA 查找方式；避免使用 SendKeys／滑鼠座標替代安全 identity。
 
 **Phase 2 Gate**：正確性測試全部通過；對同條件基準比較耗時、Observation 數量、Checkpoint 成本及失敗類型；任何優化若降低 identity 完整性或引入重複副作用，必須拒絕／回退。
@@ -193,5 +193,6 @@
 
 - **Issue-2**：必須保留原始 Group/Item 索引、`Seen` 候選歷史、`OutcomeUnknown`、Atomic Checkpoint、Single Invoke／Navigate、`PreviewRetry`／`Retry` 保護；Issue-4 不可為效能弱化這些不變量。
 - **Issue-3**：焦點與 UIA active-tab 相依性由 `resume-explorer-Issue-3-focus-independence-plan.md` 專門驗證；Issue-4 僅提供性能指標及協助分辨焦點因果。
-- **Feature Request-6**：精簡 JSON Report 與診斷 Schema 由 `resume-explorer-Feature-Request-6-report-size-plan.md` 主導；Issue-4 先提供最少必要 Timing 指標並維持 Reader 相容。
+- **Feature Request-6**：Report 容量／checkpoint 成本量測及**安全的歷史 Run Family Retention**；現階段不預先承諾 Compact 或 Schema V2。見 `resume-explorer-Feature-Request-6-report-size-plan.md`。
+- **Feature Request-9**：當量測顯示必要且需求排程允許時，再評估 Compact 預設、Full opt-in 與新版 Report Schema／Reader 相容性。見 `resume-explorer-Feature-Request-9-diagnostic-level-plan.md`；Issue-4 只提供必要 Timing 證據，不能以縮檔推論 COM Timeout 已修復。
 - **Explorer 多 Process／Not Responding 的獨立問題**：優先採唯讀觀測，勿僅依 PID 數量推論 Leak；若慢 Restore 和重啟後卡頓同時存在，仍須分開調查。
