@@ -46,9 +46,9 @@
 ### Feature Request-6 — P1 — 精簡 JSON Report 與可控診斷資訊（待實作）
 
 - **2026-11-02 Review／唯讀實測**：原始 Report **3,002,321 bytes**（18 Items、**83** Diagnostics.Samples、**5,115** 累積 Views；原紀錄 87／5,119 已校正）。在**記憶體中**清空 Samples.Views 後重序列化為約 **116,701 bytes**；僅 minify 為約 **1,514,104 bytes**。這確認重複保存全域 Views 是主要容量來源，但**尚未證實是 Issue-4 Timeout 根因**；原始 Report 未被修改。
-- **決策**：預設 **Compact Diagnostics**，按 phase 累積計數／可靠性／錯誤摘要及有界關鍵樣本；詳細全域 Views 僅以 **Full opt-in** 且有限額提供。保持即時完整 Shell Observation 供 Restore identity／歧義判斷，僅精簡持久化投影；不把 minify／壓縮視為主要修復。
-- **版本與安全**：建議**新 Report SchemaVersion=2**，Reader 同時接受 V1/V2，舊檔不遷移；保留 ReportPath、Run family、原始 Group/Item、Path、Status、ReasonCode、attempt flags、Fingerprint、OutcomeUnknown、PreviewRetry／Retry 判斷以及**副作用前原子 checkpoint**。診斷截斷只能丟棄非核心樣本，必須保留 dropped/truncated counters；不得截斷安全欄位或 JSON。
-- **量化目標／測試**：同規模 Compact 初始軟性目標 **≤300,000 bytes**，先用合成 18 Items／83 Samples／5,115 Views benchmark 與 offline mock／V1-V2 Retry family tests 驗證；量測 checkpoint 時間、累計寫入 bytes 與記憶體；Full 另設樣本與診斷 byte budget。不可在日常 Explorer／VDI 自動 E2E 壓測。
+- **2026-11-02 深入 Review 後的分段決策**：先以 **最小 Compact V2** 保留所有輕量 polling Samples，僅移除每筆重複持久化的全域 Views，保留必要錯誤 stage/HRESULT 與完整即時 Shell Observation。若大量輪詢／長錯誤造成超標，再按量測需要加入 PhaseSummaries、有界事件保留與 Retention；**Full opt-in 及 byte budget 為條件式後續功能**，非 MVP 前置要求。不以 minify／壓縮代替結構性修復。
+- **版本與安全**：新 Report 建議 `SchemaVersion=2`，Reader 同時接受 V1/V2，舊檔不遷移；嚴格檢查缺漏／非布林 attempted flags（避免未知結果被當可重試）、混合版本 Retry 家族與 Preview hash。保留 ReportPath、Run lineage、原始 Group/Item、Path、Status、ReasonCode、Fingerprint、OutcomeUnknown、以及**副作用前原子 checkpoint**。只有實際啟用取樣／容量淘汰才需保存相應 omitted/dropped/truncated counters；不可截斷核心欄位／JSON。既有外部 V1 JSON 消費者需明確適配 V2，回滾 writer 亦須留可讀 V2 的 reader。
+- **量化目標／測試**：同規模 Compact 初始軟性目標 **≤300,000 bytes**，先用合成 18 Items／83 Samples／5,115 Views benchmark 和 offline mock／V1-V2 混合 Retry tests 驗證；量測 checkpoint 時間、累計寫入 bytes、記憶體與長輪詢情況。現有 39 個 Issue-2 離線測試通過；RestoreSummary 測試在既有 S16 checkpoint-failure 訊息斷言中止，須先釐清並保留 V1→V2 版本斷言。不得在日常 Explorer／VDI 自動 E2E 壓測。
 - **狀態／詳細計畫**：**Reviewed / Proposed，尚未改程式碼**。見 [`plans/resume-explorer-Feature-Request-6-report-size-plan.md`](plans/resume-explorer-Feature-Request-6-report-size-plan.md)。
 
 ### Feature Request-1 — P2
