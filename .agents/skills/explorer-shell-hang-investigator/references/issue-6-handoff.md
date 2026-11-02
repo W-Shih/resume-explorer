@@ -1,6 +1,6 @@
-# Issue-6 Explorer Hang handoff (2026-11-02; legacy issue-5 filename)
+# Issue-6 Explorer Hang handoff (2026-11-02)
 
-- **Tracker:** `Backlog.md` **Issue-6 under Completed**, status **Closed (Mitigated)**. RCA notes: `plans/resume-explorer-Issue-5-drivefs-shell-hang-rca.md` (legacy filename preserved for link stability). **Issue-5 under Open** is now a separate, P2 Explorer Process-count/lifecycle issue.
+- **Tracker:** `Backlog.md` **Issue-6 under Completed**, status **Closed (Mitigated)**. RCA notes: `plans/DONE/resume-explorer-Issue-6-drivefs-shell-hang-rca.md` (archived as Issue-6). **Issue-5 under Open** is now a separate, P2 Explorer Process-count/lifecycle issue.
 - **Causal attribution:** **No evidence shows that `resume-explorer` Capture, Restore or Restart caused this Explorer `Not Responding` incident; it must not be described as a confirmed defect of this program.** No script-specific reproducible correlation or controlled before/after comparison has been recorded. This does **not** prove zero possible indirect involvement.
 - **Leading suspect:** Google Drive for desktop / Windows Shell integration. The direct thread stacks showed `drivefsext.dll → KERNELBASE!WaitNamedPipeW → ntdll!ZwFsControlFile`, and quitting Google Drive preceded recovery; exact IPC endpoint and root cause remain unknown.
 - **Environment:** Personal Dell G15 Windows PC, **not VMware Horizon VDI**.

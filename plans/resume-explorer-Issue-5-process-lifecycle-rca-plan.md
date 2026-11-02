@@ -5,7 +5,7 @@
 - **Priority:** P2（若證實資源耗盡或核心可靠性問題，重新評估為 P1）
 - **Repository:** `E:\_projects\tools\scripts\resume-explorer`
 - **Tracker:** [`../Backlog.md`](../Backlog.md) — Issue-5 under Open Issues
-- **Historical incident, NOT this issue:** [`resume-explorer-Issue-5-drivefs-shell-hang-rca.md`](resume-explorer-Issue-5-drivefs-shell-hang-rca.md)，該檔保留舊檔名，但內容為 **Issue-6 / Closed (Mitigated)** 的 Google Drive／Explorer Hang RCA。
+- **Historical incident, NOT this issue:** [`DONE/resume-explorer-Issue-6-drivefs-shell-hang-rca.md`](DONE/resume-explorer-Issue-6-drivefs-shell-hang-rca.md)，該檔已依 Issue-6 更名並歸檔於 `plans/DONE/`，狀態是 **Closed (Mitigated)**，仍保留未確認根因的 Google Drive／Explorer Hang 證據。
 - **Review baseline:** 撰寫時 repo HEAD 為 `43cee24`；先前離線測試在較早的 `2f3a361` 下執行，開始新調查時須記錄最新 Commit 並重跑 Baseline。
 
 > **硬性原則 — RCA first, no blind fix:** Phase 0–2 先確認是否存在真缺陷、收集唯讀證據並建立控制變因重現。若尚未能解釋異常，就先在可重設的隔離 Windows 測試環境進行必要的互動式 Debug（Breakpoints / Tracepoints、Process creation/exit、HWND/PID 對照及例外路徑），**定位具體的可重現錯誤機制後，才考慮修改正式 Restore 程式碼**。不能因看到很多 `explorer.exe` 就直接加入 Process cleanup、Kill Explorer、改變視窗合併語意或盲目重構 COM。
@@ -273,7 +273,7 @@ Get-Process explorer -ErrorAction SilentlyContinue |
 - **Issue-3**：前景／焦點是否影響 Tab 操作屬另一個維度；如有資料交叉使用，須有控制變因。
 - **Issue-4**：同步 Shell COM／UIA 超時屬專門的 Deadline/RCA 問題。若 Issue-5 觀察到被 COM 阻塞，只共享 Timing 證據，不能直接推導 Process Leak。
 - **Feature Request-6**：精簡大 JSON Report；若加入 Issue-5 診斷，須限制樣本容量且不重複保存敏感 Views。
-- **Issue-6 (Closed / Mitigated)**：Google Drive Shell extension／Explorer `Not Responding` 事件；其歷史文件仍叫 `resume-explorer-Issue-5-drivefs-shell-hang-rca.md`。這**不是** Issue-5 的修復計畫，亦**沒有**證據顯示 `resume-explorer` 造成當次 Hang。
+- **Issue-6 (Closed / Mitigated)**：Google Drive Shell extension／Explorer `Not Responding` 事件；其歷史 RCA 已更名並移至 `plans/DONE/resume-explorer-Issue-6-drivefs-shell-hang-rca.md`。這**不是** Issue-5 的修復計畫，亦**沒有**證據顯示 `resume-explorer` 造成當次 Hang。
 - **`restart-win-explorer-scripts`**：`.bat` 使用 `#` 註解造成 CMD `'#' is not recognized` 是另一專案的語法問題，**不是** Process Leak 根因；不在本 Issue 擅自修改。
 
 ## 12. 文件與作業約束

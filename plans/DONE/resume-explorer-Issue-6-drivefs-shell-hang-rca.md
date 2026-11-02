@@ -1,11 +1,11 @@
-# Issue-6 — Explorer Hang / Google Drive Shell Extension RCA (legacy Issue-5 filename)
+# Issue-6 — Explorer Hang / Google Drive Shell Extension RCA
 
-- **Status (2026-11-02):** **Closed (Mitigated)** in [`Backlog.md`](../Backlog.md), Issue-6 under Completed. The observed Explorer hang recovered after Quit Google Drive; **root cause has not been confirmed and no product/code fix is claimed**. The earlier P1/in-progress classification described the incident *before* it was split from Issue-5.
-- **Scope:** Windows File Explorer right-click / open / tab-loading hang on the user's **personal Windows PC (Dell-G15-Ryzen)**, **not** the VMware Horizon VDI. Kept as a historical RCA/reopen playbook; the filename still says Issue-5 solely to preserve existing links.
+- **Status (2026-11-02):** **Closed (Mitigated)** in [`Backlog.md`](../../Backlog.md), Issue-6 under Completed. The observed Explorer hang recovered after Quit Google Drive; **root cause has not been confirmed and no product/code fix is claimed**. The earlier P1/in-progress classification described the incident *before* it was split from Issue-5.
+- **Scope:** Windows File Explorer right-click / open / tab-loading hang on the user's **personal Windows PC (Dell-G15-Ryzen)**, **not** the VMware Horizon VDI. Archived in `plans/DONE/` as Issue-6's historical RCA and reopen playbook; `Closed (Mitigated)` does not mean permanent resolution.
 - **Causal attribution / ownership:** **There is no evidence showing that `resume-explorer` (Capture, Restore or Restart) caused this `Not Responding` incident. Do not label it as a confirmed `resume-explorer` defect.** The evidence instead points to a `drivefsext.dll` Named Pipe wait and recovery after quitting Google Drive, making Google Drive/Windows Shell integration the *leading suspect*, not a proven exclusive root cause. Without a controlled script before/after experiment, one cannot completely exclude an indirect contribution. Do **not** modify Restore logic without a specific reproducible correlation.
-- **Related but separate:** [`Backlog.md`](../Backlog.md) **Issue-5** remains **Open / P2** and tracks only unexpected Explorer process counts/lifecycle; this incident's recovery does not close Issue-5.
+- **Related but separate:** [`Backlog.md`](../../Backlog.md) **Issue-5** remains **Open / P2** and tracks only unexpected Explorer process counts/lifecycle; this incident's recovery does not close Issue-5.
 - **Reopen gate:** Only if the right-click/open hang recurs, or if fresh evidence specifically implicates `resume-explorer`, resume the low-risk A/B steps below. Do not trigger a new hang merely to justify closing or reopening a mitigated incident.
-- **Reusable workflow:** [`../.agents/skills/explorer-shell-hang-investigator/SKILL.md`](../.agents/skills/explorer-shell-hang-investigator/SKILL.md).
+- **Reusable workflow:** [`../../.agents/skills/explorer-shell-hang-investigator/SKILL.md`](../../.agents/skills/explorer-shell-hang-investigator/SKILL.md).
 
 ## 1. Verified observations (not hypotheses)
 
@@ -56,7 +56,7 @@ A Google Drive for desktop Explorer Shell extension (`drivefsext.dll`) participa
 
 ## 3. If Issue-6 recurs: prioritized, low-risk plan
 
-1. **Confirm a real recurrence and avoid repeat work.** Read this plan and **Issue-6 under Completed** in `Backlog.md`; keep unrelated **Issue-5 process counts** separate. If the hang has not recurred, leave Issue-6 Closed (Mitigated) and do not run potentially disruptive experiments merely to close its RCA. If new symptoms appear, record whether Drive was restarted since the previous observation; preserve newer evidence. PIDs/TIDs here are historical, not active identifiers.
+1. **Confirm a real recurrence and avoid repeat work.** Read this plan and **Issue-6 under Completed** in [`Backlog.md`](../../Backlog.md); keep unrelated **Issue-5 process counts** separate. If the hang has not recurred, leave Issue-6 Closed (Mitigated) and do not run potentially disruptive experiments merely to close its RCA. If new symptoms appear, record whether Drive was restarted since the previous observation; preserve newer evidence. PIDs/TIDs here are historical, not active identifiers.
 2. **Baseline while Drive is quit (A).** On the personal PC, confirm Drive process/tray state (read only). For a *small number* of non-sensitive **local** files, note right-click menu latency, double-click/open latency, navigation and new-tab/`This PC` load time. Avoid repeated hangs; use a normally operating Explorer process when possible. Log actual times and whether the same tab vs new tab was used.
 3. **Restart Drive (B) only when user is ready.** Ensure file sync/work is safe, launch from Start and verify Drive has initialized; note process IDs/start times. Recheck exactly the same small set of operations and local paths. Stop the experiment on a reproduced hang rather than repeatedly causing more; do not assert success from a single quick operation.
 4. **Observe outcome.**
