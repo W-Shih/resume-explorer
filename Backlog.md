@@ -11,11 +11,15 @@
 
 ## Open Issues
 
-### Issue-5 — P1 — 調查大量 Explorer Process 與重啟後持續卡頓／Not Responding（待 RCA）
+### Issue-5 — P1（優先調查）— Explorer 多 Process、持續卡頓與雙擊開檔 Not Responding（待 RCA）
 
 - **發現**：執行 `restart-win-explorer-scripts/scripts/restart-file-explorer.bat` 時，`taskkill /f /im explorer.exe` 回報成功終止 **38 個** `explorer.exe` PID（本次輸出）；異常數量是否由 `resume-explorer` 產生尚未證實。批次檔使用 `#` 作註解，CMD 將其當成命令而顯示 `'#' is not recognized`；這是該批次檔獨立的語法問題，不能當作 Explorer Process 增多的原因。
 - **新增症狀（2026-11-01）**：使用者回報即使已終止並重啟 Explorer，操作仍非常緩慢，甚至顯示 `Not Responding`。本次唯讀 `Get-Process explorer` 顯示 **9 個 Process**；其中 PID **10960** 的 `Responding=False`、`WorkingSet64=213049344` bytes（約 203 MiB）。單次 `Responding=False` 是需要進一步驗證的線索，並非診斷結果，亦不能據此認定 `resume-explorer` 或記憶體洩漏為根因。
+- **新增症狀（2026-11-02；嚴重程度上升）**：使用者回報 `Not Responding` 越來越頻繁／嚴重，尤其從 Explorer **雙擊檔案準備開啟時**（已觀察到 PDF、MP4 等不同檔案類型）容易發生。此現象已影響一般開檔操作，不能只當作 Restore 速度慢；已確認無回應的是 Explorer 視窗, 並非預設開啟程式. 尚未證實與 `resume-explorer` 有因果關係。
+- **優先級與風險**：保持 **P1**，但優先於便利性／新功能需求排查。若一般檔案操作已普遍不可用、持續無法恢復，或出現資料遺失風險，立即重新評估是否升為 P0；目前沒有足夠證據直接判定 P0。
 - **待查問題**：區分正常的 Windows Explorer 多 Process／多視窗架構，與 `resume-explorer` 的每 Group 建立新視窗、Restore／Retry 重複執行、未顯示視窗或遺留 Process 的可能影響；也要排除其他工具或系統行為。不可只依 `taskkill` 數量判定 Memory Leak 或 Process Leak。
+- **開檔路徑差異測試（先手動、避免破壞現場）**：以可公開／無敏感資料的本機 PDF 與 MP4 測試「Explorer 雙擊／右鍵 Open」對比「從既有播放器／PDF 閱讀器的 File > Open」及「直接啟動預設應用程式」，再比較其他副檔名、不同資料夾（本機磁碟 vs. OneDrive／網路路徑）、單視窗 vs. 多視窗／多 Tab、未執行 Capture／Restore vs. 執行後。記錄每組是否能重現、卡住的程序與 PID、耗時／是否需強制關閉；不要在已卡住時反覆雙擊造成更多開啟請求。
+- **診斷方向（均為假設）**：觀察 Shell 開檔／檔案關聯與預設應用程式啟動、第三方 Shell extension／右鍵選單／縮圖或 Preview handler、OneDrive／網路存取、Windows Search／防毒或 EDR、VDI／圖形會話、COM/UIA 同步阻塞及多 Process 資源競爭；先以事件紀錄與行為 A/B 測試縮小範圍，不能直接歸因於 PDF、MP4 解碼器或任何單一元件。
 - **安全、唯讀調查**：在下次 Restore **之前與之後**記錄 `explorer.exe` PID、Parent PID、StartTime、CommandLine、SessionId、MainWindowHandle、視窗是否可見／可列舉，以及 Shell COM 的 HWND／Tab 對應；比較新建視窗與 Process 數量的增量，釐清是否存在無對應可見視窗的 Process。先檢查 `resume-explorer` 的 `OpenWindow` 及 Issue-2 的 `-WindowStyle Hidden` regression 是否與此相關。
 - **重啟後 RCA**：先在未執行新 Capture／Restore 的情況下觀測 Explorer 是否持續卡頓，以區分 `resume-explorer` 呼叫期間的瞬時負載與重啟後獨立存在的系統問題。記錄 PID／啟動時間、個別視窗是否無回應、CPU／記憶體／I/O 隨時間的變化及 Windows Reliability Monitor／Event Viewer 的 Application Hang 或 Explorer crash 事件；必要時再評估 Shell extensions、Quick Access／Home、網路／OneDrive 路徑、索引或防毒掃描等外部因素。讀取事件紀錄時避免收集無關個人資料。
 - **影響分析**：量測 Process 數量、Explorer／COM observation 耗時、記憶體占用與 Issue-4 `NavigationTimeout` 的相關性，但不將相關視為因果；必要時於隔離環境做控制變因 E2E。
