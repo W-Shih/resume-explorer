@@ -1,12 +1,11 @@
-# Issue-5 handoff (2026-11-02)
+# Issue-6 Explorer Hang handoff (2026-11-02; legacy issue-5 filename)
 
-Authoritative ongoing RCA: `plans/resume-explorer-Issue-5-drivefs-shell-hang-rca.md` and `Backlog.md` Issue-5 in `E:\_projects\tools\scripts\resume-explorer`.
-
-- Personal PC (Dell G15), **not VMware Horizon VDI**.
-- Right-clicking a file alone caused its Explorer process to become Not Responding; other explorer.exe instances were usable. Double-click PDF/MP4 triggered it too; reader/player File > Open worked.
-- Historical hung Explorer PID 44244, 48 threads. Wait chains included `83032 → 77596 → 89092` and `48344 → 10152 → 51124`.
-- TIDs **89092** and **51124** had matching stacks: `drivefsext.dll → KERNELBASE!WaitNamedPipeW → ntdll!ZwFsControlFile`; strong association with Google Drive Shell extension; endpoint/server/root cause unknown.
-- Two GoogleDriveFS.exe processes 33000 (started 2026-10-29) and child 85840 (started 2026-11-01), both Session 1, matching Explorer session. Installed executable under Drive File Stream/133.0.2.0.
-- After user clicked Quit Google Drive from notification area, original hung Explorer recovered. New This PC tab displayed “正在處理...” for **3–5 minutes**, then open/navigation worked normally. Exact reason for delayed recovery unknown.
-- **Still untested**: Drive restart and re-challenge, sustained stability while Drive quit; whether right-click hang and new-tab delay have same cause. No proof of any `resume-explorer` regression.
-- Next: observe baseline with Drive off, then carefully retry with Drive on using a few same local files; record per-operation latency and new PID; stop on first hang; update RCA and Backlog.
+- **Tracker:** `Backlog.md` **Issue-6 under Completed**, status **Closed (Mitigated)**. RCA notes: `plans/resume-explorer-Issue-5-drivefs-shell-hang-rca.md` (legacy filename preserved for link stability). **Issue-5 under Open** is now a separate, P2 Explorer Process-count/lifecycle issue.
+- **Causal attribution:** **No evidence shows that `resume-explorer` Capture, Restore or Restart caused this Explorer `Not Responding` incident; it must not be described as a confirmed defect of this program.** No script-specific reproducible correlation or controlled before/after comparison has been recorded. This does **not** prove zero possible indirect involvement.
+- **Leading suspect:** Google Drive for desktop / Windows Shell integration. The direct thread stacks showed `drivefsext.dll → KERNELBASE!WaitNamedPipeW → ntdll!ZwFsControlFile`, and quitting Google Drive preceded recovery; exact IPC endpoint and root cause remain unknown.
+- **Environment:** Personal Dell G15 Windows PC, **not VMware Horizon VDI**.
+- **Symptoms:** Right-clicking a file alone caused only the operated Explorer process to hang; double-click PDF/MP4 could also trigger it. Other Explorer processes were usable; PDF reader/player `File > Open` worked.
+- **Historical samples:** Hung Explorer PID 44244 had 48 threads; wait chains `83032 → 77596 → 89092` and `48344 → 10152 → 51124`. Both TIDs 89092 and 51124 had `drivefsext.dll`/Named Pipe waits. DriveFS processes PIDs 33000, 85840 were in Session 1; executable was under `Drive File Stream/133.0.2.0`. **None of these IDs should be reused as live identifiers.**
+- **Observed mitigation:** User Quit Google Drive from tray; the hanging Explorer recovered without a force-kill. A new `This PC` tab loaded slowly for **3–5 minutes**, after which normal open/navigation was acceptably responsive. Right-click was not separately retested after recovery, and the tab delay may have another cause.
+- **Unresolved:** No documented Drive restart/rechallenge or sustained baseline; no proof that all hang paths have the same cause. **Keep mitigated/closed unless it recurs or substantive new evidence emerges.**
+- **If reopened:** Compare a few non-sensitive local-file actions with Drive off vs on, when safe; record timing/new PID and relevant stacks/wait chains, stop on first hang. Do not modify `resume-explorer` code absent a script-specific reproduction; update RCA and tracker.

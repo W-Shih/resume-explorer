@@ -11,22 +11,14 @@
 
 ## Open Issues
 
-### Issue-5 — P1（優先調查）— Explorer 多 Process、檔案右鍵／雙擊引發 Not Responding（待 RCA）
+### Issue-5 — P2 — Explorer 多 Process／異常累積是否與 Restore 有關（待確認）
 
-- **發現**：執行 `restart-win-explorer-scripts/scripts/restart-file-explorer.bat` 時，`taskkill /f /im explorer.exe` 回報成功終止 **38 個** `explorer.exe` PID（本次輸出）；異常數量是否由 `resume-explorer` 產生尚未證實。批次檔使用 `#` 作註解，CMD 將其當成命令而顯示 `'#' is not recognized`；這是該批次檔獨立的語法問題，不能當作 Explorer Process 增多的原因。
-- **新增症狀（2026-11-01）**：使用者回報即使已終止並重啟 Explorer，操作仍非常緩慢，甚至顯示 `Not Responding`。本次唯讀 `Get-Process explorer` 顯示 **9 個 Process**；其中 PID **10960** 的 `Responding=False`、`WorkingSet64=213049344` bytes（約 203 MiB）。單次 `Responding=False` 是需要進一步驗證的線索，並非診斷結果，亦不能據此認定 `resume-explorer` 或記憶體洩漏為根因。
-- **新增症狀（2026-11-02；嚴重程度上升，已補充確認）**：`Not Responding` 越來越頻繁／嚴重；從 Explorer **雙擊檔案準備開啟**（已觀察到 PDF、MP4 等不同類型）時容易發生。**最新關鍵補充：僅對檔案按滑鼠右鍵，就會觸發 Explorer `Not Responding`，尚未選擇任何右鍵選單指令、更未執行開檔動作。** 確定無回應的是 **Explorer 視窗**，而非預設開啟程式。相同檔案若改從**已開啟的 PDF 閱讀器／播放器使用 `File > Open`**，則不會出現問題。這表示問題不侷限於啟動 PDF／MP4 應用程式；應優先調查 Explorer 處理檔案右鍵／內容選單的流程，不能先假定發生在 `ShellExecute` 或預設程式內。尚未證實與 `resume-explorer` 的因果關係。
-- **新增截圖與 Process 隔離觀察（2026-11-02）**：使用者在 Process Explorer 中觀察到多個 `explorer.exe`；對檔案按右鍵後，**只有該 Explorer 視窗對應的 Process 變為 `Not Responding`**，其他 Explorer Process／視窗仍可正常操作。截圖中的異常 Process 為 **PID 44244**（事件當下的 PID，非固定重現 PID），其 `Threads` 分頁顯示 **48 Threads**；選取的 Thread **TID 71372** 顯示 `Wait:UserRequest`、Start Address `explorer.exe+0x495f0`。**此畫面並未提供 Call Stack，不能依 TID、Start Address 或 Wait State 認定該 Thread 就是被阻塞的 UI Thread 或找到根因。** 個別 Process Hang 使全系統同時凍結／單純總 Process 數過多的假設優先度降低，但仍可能是由共用的 Shell Extension 或環境條件在單一 Process 內觸發。
-- **最新 RCA 進展與處置（2026-11-02）**：**確認此案發生於個人 Dell G15 Windows PC，並非 VMware Horizon VDI**。在 Hang 的 Explorer PID `44244` 中，Wait Chain 有 `83032 → 77596 → 89092`、`48344 → 10152 → 51124` 等依賴；TID `89092` 和 `51124` 的 Stack 均顯示 `drivefsext.dll → KERNELBASE!WaitNamedPipeW → ntdll!ZwFsControlFile`（表示等待 Named Pipe 可用，不足以證實 pipe/server 或 Bug 根因）。`GoogleDriveFS.exe` 的 PID `33000`／`85840` 為同一 Session 1 的父子程序；這兩個程序本身不構成異常證據。**使用者由系統匣結束 Google Drive 後，原本卡住的 Explorer 恢復；新開 `This PC` Tab 仍顯示「正在處理...」約 3–5 分鐘，完成載入後開檔與導覽均恢復正常、速度可接受**。這是強力但尚未確認因果的介入觀察：尚未記錄重新啟動 Google Drive 後是否復發；無法確定 Tab 緩慢與右鍵 Hang 是否同一根因，也沒有證據歸因於 `resume-explorer`。**下一步**：Drive 關閉時先建立少量 A 基準，安全重啟後做同檔案／路徑 B 對照；有復發再收集關聯的 Stack/Wait Chain，避免反覆誘發 Hang。詳細資料及未解問題見 [`plans/resume-explorer-Issue-5-drivefs-shell-hang-rca.md`](plans/resume-explorer-Issue-5-drivefs-shell-hang-rca.md)。
-- **優先級與風險**：保持 **P1**，但優先於便利性／新功能需求排查。若一般檔案操作已普遍不可用、持續無法恢復，或出現資料遺失風險，立即重新評估是否升為 P0；目前沒有足夠證據直接判定 P0。
-- **待查問題**：區分正常的 Windows Explorer 多 Process／多視窗架構，與 `resume-explorer` 的每 Group 建立新視窗、Restore／Retry 重複執行、未顯示視窗或遺留 Process 的可能影響；也要排除其他工具或系統行為。不可只依 `taskkill` 數量判定 Memory Leak 或 Process Leak。
-- **右鍵／開檔 A/B 調查（先收集證據，避免重複造成 Hang）**：**已知**：Explorer 雙擊 PDF／MP4 容易無回應；**只要對檔案按右鍵即可能無回應（到不了選單上的 `Open`）**；已開啟的閱讀器／播放器以 `File > Open` 則正常。先收集既有 Windows Reliability Monitor／Event Viewer 的 Application Hang 資料（時間、PID、模組／事件資訊），確認右鍵後是否連內容選單都尚未顯示；**不將「右鍵 `Open`／`Open with`」列為當前可執行的測試**。若環境穩定、已有保全使用者工作階段，再用少量、非敏感測試檔逐項區分：選取檔案但不右鍵、檔案右鍵 vs. 資料夾右鍵 vs. 空白處右鍵、PDF／MP4 vs. 其他副檔名、本機 vs. OneDrive／網路、預覽／縮圖開關、單視窗 vs. 多 Tab，以及未執行 `resume-explorer` vs. Restore 後。每次記錄 Explorer HWND／PID、是否顯示選單、無回應時間及 CPU／I/O；**將同時仍可操作的其他 Explorer PID 當作控制組**，比較相同／不同路徑、檔案型別及已載入的 Shell 元件是否一致。避免反覆觸發 Hang，且勿為驗證刻意製造額外的多個卡死 Process。
-- **RCA 假設優先序（依右鍵直接 Hang 重新排序）**：**第一優先**調查 Explorer 檔案右鍵內容選單的建立／列舉及相關 Shell extension（特別是 context-menu handlers、第三方檔案整合／雲端同步／安全軟體掛鉤），並觀察 Explorer UI thread 是否等待 COM、I/O 或其他同步呼叫；同時留意檔案屬性／縮圖／Preview handler。**第二優先**再比對雙擊路徑（ShellExecute／檔案關聯）、OneDrive／網路存取、Windows Search／防毒或 EDR、VDI／圖形會話與多 Process／COM/UIA 資源競爭。右鍵還沒選擇 `Open` 就卡住，使「預設程式啟動／解碼」較不符合此觸發案例，但**不能由此單獨證明**某個 Shell extension 或 `resume-explorer` 是根因。若要隔離非 Microsoft shell handlers，先盤點再於可還原的測試環境逐批停用／還原；勿直接在工作中 VDI 批次停用或修改 Registry。
-- **單 Process Hang 的下一步診斷（唯讀優先）**：先把無回應視窗的 HWND 對應到當次 `explorer.exe` PID，與仍正常的 Explorer PID 配對記錄；在 Hang 發生期間，使用 Process Explorer／System Informer 的 **Threads → Stack**，優先辨識與卡住視窗關聯的 UI Thread／等待鏈、實際 Call Stack 和可能的 COM／Shell handler 模組，並與健康 Process 比較。**Threads 清單上的 Start Address 並非 Call Stack**，單純 `Wait:UserRequest` 不能證明 deadlock。若需 WER hang dump 或 Process dump，先評估 VDI 權限／安全政策、資料敏感性及效能成本，經核准後再採集，不應自動產生大量 Dump。保留 Hang 時間、PID／TID、關聯 DLL 和 Event Viewer／Reliability Monitor 事件，讓後續 RCA 有證據可追溯。
-- **安全、唯讀調查**：在下次 Restore **之前與之後**記錄 `explorer.exe` PID、Parent PID、StartTime、CommandLine、SessionId、MainWindowHandle、視窗是否可見／可列舉，以及 Shell COM 的 HWND／Tab 對應；比較新建視窗與 Process 數量的增量，釐清是否存在無對應可見視窗的 Process。先檢查 `resume-explorer` 的 `OpenWindow` 及 Issue-2 的 `-WindowStyle Hidden` regression 是否與此相關。
-- **重啟後 RCA**：先在未執行新 Capture／Restore 的情況下觀測 Explorer 是否持續卡頓，以區分 `resume-explorer` 呼叫期間的瞬時負載與重啟後獨立存在的系統問題。記錄 PID／啟動時間、個別視窗是否無回應、CPU／記憶體／I/O 隨時間的變化及 Windows Reliability Monitor／Event Viewer 的 Application Hang 或 Explorer crash 事件；必要時再評估 Shell extensions、Quick Access／Home、網路／OneDrive 路徑、索引或防毒掃描等外部因素。讀取事件紀錄時避免收集無關個人資料。
-- **影響分析**：量測 Process 數量、Explorer／COM observation 耗時、記憶體占用與 Issue-4 `NavigationTimeout` 的相關性，但不將相關視為因果；必要時於隔離環境做控制變因 E2E。
-- **安全限制／驗收**：不為診斷執行 `taskkill /f /im explorer.exe`、不自動關閉使用者視窗、不清理未知 PID；先確認是否異常，再提出最小修復並保留 Restore／Retry 的身份安全規則。`restart-file-explorer.bat` 的 `#` 註解問題應在該專案另行修正，不在本 Issue 擅自修改。
+- **原始問題**：執行 `restart-win-explorer-scripts/scripts/restart-file-explorer.bat` 時，`taskkill /f /im explorer.exe` 曾回報終止 **38 個** `explorer.exe` PID；另一次唯讀觀察顯示 **9 個** Process。兩次為不同時間的觀測，均缺乏操作前後基準、可見視窗／Tabs 對應及長期趨勢；**數量多不等於 Process／Memory Leak，也未證實由 `resume-explorer` 造成**。
+- **範圍與拆分（2026-11-02）**：本 Issue **僅追蹤 Explorer Process 數量、生命週期、可能的重複建立／遺留及 `resume-explorer` Restore 的關聯**。檔案右鍵／雙擊引發的 `Not Responding`、Google Drive Shell extension／Named Pipe 等待及退出 Drive 後的恢復，另列為 **Issue-6（Completed／Mitigated；見下方 Completed）**；不要以該 Hang 的解除證明本 Issue 已修復，也不要將 Process 多寡直接當成該 Hang 的根因。
+- **目前判斷／優先級**：尚未確認多 Process 是 Windows Explorer 正常的每視窗／隔離行為、其他工具所建立，還是 Restore 操作產生異常累積。因缺少可重現的資源成本或功能缺陷證據，**降為 P2**；若證實可重現的 Process 漏失、資源耗盡或核心操作受阻，再升為 P1。
+- **調查路徑（唯讀優先）**：在同一台機器／Session，於 **未執行 Restore、首次 Restore、重複 Restore、關閉已還原視窗後**分別記錄 `explorer.exe` PID、Parent PID、StartTime、CommandLine、SessionId、MainWindowHandle、CPU／Working Set；比對 HWND／Shell COM 的視窗與 Tab identity，確認有無不對應可見視窗的殘留 Process。分開量測每次操作的 **新增、退出與最終淨增加數量**，不要比較不同環境的一次性總數。
+- **程式碼檢查**：優先檢查 `OpenWindow`、每 Group 建立視窗的預期行為、Restore／Retry 再次執行、失敗或超時分支，以及 Issue-2 曾出現的 `-WindowStyle Hidden` 可見性 regression。驗證是否有重複建立或遺留，而非預先假定有 Bug。必要時在隔離測試環境重現並量測 Process／COM observation 成本，與 Issue-4 分開判斷因果。
+- **驗收／安全限制**：若多 Process 都能對應到預期視窗且生命週期正常，記錄基準並結案為非缺陷；若可證實異常累積，先提供最小重現與修復方案，再做隔離測試。**不可為診斷任意 `taskkill /f /im explorer.exe` 或清理未知 PID**。上述批次檔將 `#` 當 CMD 註解所產生的 `'#' is not recognized` 是**另一專案的獨立語法問題**，不納入本 Issue 的因果推論。
 
 ### Issue-4 — P1 — 同步 COM/UIA 呼叫超過 Restore deadline（待 RCA）
 
@@ -113,6 +105,16 @@
 ---
 
 ## Completed
+
+### Issue-6 — Closed (Mitigated) — Explorer `Not Responding`／Google Drive Shell 整合疑似相關
+
+- **Closed (operational recovery):** 2026-11-02。自 Issue-5 拆分；此處的 **Closed 僅表示當次 Explorer 無回應已解除、一般操作已恢復**，**不是根因已證實、程式修復完成或永久不再復發**。
+- **與本程式的因果關係／責任歸屬（截至 2026-11-02）**：**目前沒有證據顯示 `resume-explorer` 的 Capture、Restore 或 Restart 造成這次 Explorer `Not Responding`；此事件不得列為已確認的本程式 Bug。** 已取得的直接診斷線索是 `drivefsext.dll` 的 Named Pipe wait，且 Quit Google Drive 後 Explorer 恢復，故**優先懷疑 Google Drive／Windows Shell 整合**。但尚無受控的 Drive 重啟對照或 `resume-explorer` 操作前後對照，**不能宣稱已證明 Google Drive 為唯一根因，或完全排除本程式可能有間接影響**。在取得與本程式相關的可重現證據前，無須修改 Restore 程式碼；Issue-5 的多 Process 問題仍獨立調查。
+- **環境與症狀**：發生於個人 **Dell G15 Windows PC**，非 VMware Horizon VDI。對檔案**按右鍵（未選選單指令）**或雙擊 PDF／MP4 時，所操作的 Explorer 視窗／Process 會 `Not Responding`；其他 Explorer Process 仍可正常操作；由已開啟的閱讀器／播放器使用 `File > Open` 則正常。
+- **診斷證據**：曾卡住的 Explorer PID `44244` 之 Wait Chain 關聯 TID `89092`、`51124`，其 Stack 含 `drivefsext.dll → KERNELBASE!WaitNamedPipeW → ntdll!ZwFsControlFile`。支持 Google Drive Shell 整合／IPC 等待的關聯性，**未證實 pipe/server、精確故障機制或 Google Drive 本身的 Bug**。上述 PID／TID 僅為歷史觀測值。
+- **已觀察到的恢復**：使用者從系統匣 **Quit Google Drive** 後，先前無回應的 Explorer 恢復；新開 `This PC` Tab 曾持續「正在處理...」約 **3–5 分鐘**，完成後開檔與導覽恢復正常、反應速度可接受。沒有記錄退出 Drive 後再次獨立測試右鍵的結果，亦不能確認 Tab 緩慢與右鍵 Hang 是同一根因。
+- **未完成的 RCA／再開條件**：尚未記錄 Google Drive 重啟後的 A/B 對照或長期穩定性，也**沒有證據顯示 `resume-explorer` 造成此 Hang**。目前不把 RCA 當成本專案阻斷項目；**若右鍵／開檔無回應復發，重新開啟 Issue-6（當次影響嚴重時評估 P1）**，依既有計畫先做安全的 Drive off/on 對照，再採集新 PID／Stack／Wait Chain，避免反覆誘發卡死。
+- **歷史調查／後續手冊**：[`plans/resume-explorer-Issue-5-drivefs-shell-hang-rca.md`](plans/resume-explorer-Issue-5-drivefs-shell-hang-rca.md) 與 [`.agents/skills/explorer-shell-hang-investigator/SKILL.md`](.agents/skills/explorer-shell-hang-investigator/SKILL.md)；兩者**仍沿用拆分前 Issue-5 的檔名／識別**，作為 Incident 佐證與日後復發時的調查參考。與現存 **Issue-5（Process 數量／生命週期）**分開追蹤。
 
 ### Issue-2 — Closed (implementation complete)
 
