@@ -1,13 +1,15 @@
 # Resume Explorer — Task-1 Automated Tests 實作計畫
 
 日期：2026-11-01  
-狀態：**完整 Pester/CI 測試框架仍為設計提案；現有 39+17 deterministic tests 已存在，但真實 Explorer E2E 尚未執行（2026-11-02）**
+狀態：**完整 Pester/CI 測試框架仍為設計提案；現有 39+17 deterministic tests 與 Task-5 新增 21 項 harness 離線測試通過，真實 Explorer E2E 尚未執行（2026-11-02）**
 對應：[Backlog Task-1](../Backlog.md)、[Task-5 PS7 E2E Smoke](resume-explorer-Task-5-powershell7-explorer-e2e-smoke-plan.md)，以及「[resume-explorer] 迭代 - 1」的 Automated tests 建議
 目標：可重複的 Unit test gate + 安全、明確啟用的 Windows Explorer E2E smoke test
 
 > **2026-11-02 現況補充：**此計畫第 2、4、9 節含原始 2026-11-01 的歷史程式狀態／建議（例如「無 tests」、「單檔 CLI」、「必須先抽 Module」）；現已具有 `resume-explorer.core.ps1` 與 39+17 個 deterministic tests，不能把舊描述當成當前事實或前置要求。**PowerShell 7 真實 Explorer Capture/Restore/Retry 的最小驗收，優先依 [Task-5 E2E Smoke Plan](resume-explorer-Task-5-powershell7-explorer-e2e-smoke-plan.md) 實作**，不以 Pester 5 或全面重構阻塞；本文件保留作後續完整 Unit/CI/Pester 框架的設計參考。
 
 ## 1. 核心結論
+
+**Task-5 實作進度（2026-11-02）**：已新增 [安全預設 runner／操作 SOP](../tests/Integration/README.md)、獨立 COM/Win32/UIA observer 與 E01／E02 手動 fixture 流程。預設及 import 零 GUI 副作用，只有顯式 opt-in＋隔離／scope gates 通過才調用真實 public CLI；需額外人工目視 Confirm 才能 Passed。合成測試共 21 項、既有兩套 56 項皆通過，native helper／UIA type-load probe 通過；**缺少隔離 Windows 桌面，E01／E02 Live NotRun**。這不是本計畫完整 Pester/CI 框架或 GUI Release Gate 已完成。
 
 採用 **Pester 單元／元件測試 + 專用互動式 Windows 桌面上的 E2E smoke test**。這不是單純累積 JSON unit tests 的工作；現有程式最大風險是 Shell COM、UI Automation、非同步時間差與對錯誤分頁進行導覽。
 

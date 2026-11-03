@@ -127,14 +127,15 @@
 
 為 `resume-explorer.ps1` 建立自動化測試，涵蓋 Snapshot 讀寫與驗證等可單元測試的邏輯；並評估在支援的 Windows 環境中加入端對端測試，驗證 Explorer 視窗與 Tabs 的還原行為。**目前已有** `tests/Issue2.Tests.ps1`（39 tests）及 `tests/RestoreSummary.Tests.ps1`（17 tests）；較完整的 Pester/CI 測試基建仍為計畫。真實 PS7 Explorer 最小 E2E 驗收獨立列為 **Task-5**，避免被 Task-1 的完整框架建置阻塞。
 
-### Task-5 — P1 — PowerShell 7 Explorer E2E Smoke Test（Proposed／尚未實作）
+### Task-5 — P1 — PowerShell 7 Explorer E2E Smoke Test（Runner／離線測試已交付；Live NotRun）
 
 - **目標／原因**：2026-11-02 已決定正式支援 Windows 上的 **PowerShell 7-only**。既有 PS7.6.1 離線回歸（Issue2 **39/39**、RestoreSummary **17/17**，Exit 0）與 STA 模式載入 UIAutomation assemblies 已驗證，但**尚未執行真實 Shell COM / UIA / Explorer Tabs E2E**；不能把離線成功當成 PS7 GUI 相容性通過。
 - **E01 Capture / Restore**：在**獨立、可重設、互動式** Windows 11 測試使用者 Session 建立 2 個 fixture Explorer Windows、3 個 Tabs（A|B、C）；正式 CLI 以明確 Snapshot/ReportPath Capture → Preview → Restore，必須驗證新建立的 **2 個可見視窗、3 個 Tabs、原分組不變、原視窗未被修改、Report 3/3 Verified**，另以獨立 observer/人工核對 GUI。
 - **E02 PreviewRetry / Retry**：用**不同 RunId 的合法測試 Snapshot**（A 存在、B 暫不存在）使初次 Restore 得到 A Verified / B SkippedInvalidPath；建立 B 後執行 PreviewRetry，從 sidecar 驗證目標 fingerprint，再以明確 HWND／Group/Item 補做 B。驗證 child Report **1/1 Verified**、parent Report hash 不變、只在 A 測試 Window 新增 B Tab；禁止改寫報告、Path-only 猜選或使用 `-IncludeUncertain` 偷跑不明項目。
 - **安全 Gate**：必須明確 opt-in GUI 操作、先驗證專用互動桌面與所有 Explorer HWND 都是 fixture；Capture 會列舉**全部** Explorer Windows，故工作中的 Explorer Session、Remote 背景 Session 或有不明窗口時 **Blocked／NotRun**。禁止 kill/restart Explorer、SendKeys、繞過 Execution Policy、自動重跑有副作用的 Restore/Retry；失敗保留證據並人工清理測試 Window。
 - **實作次序／依賴**：先離線基線 → 獨立安全 Preflight/Runner → 真實 E01 → 真實 E02 → README/測試結果。**不依賴** Pester 5、全面 Module 重構或 Task-3 Single-Instance Lock；若 Task-3 先實作，本 Smoke 須遵守全域 Lock 且序列執行。本項是 PS7-only 真實 Explorer 發布驗收關卡，**不是** Task-1 全部 Unit/CI 建置的替代品，亦不宣稱修復 Issue-3/4。
-- **詳細計畫／驗收矩陣**：[`plans/resume-explorer-Task-5-powershell7-explorer-e2e-smoke-plan.md`](plans/resume-explorer-Task-5-powershell7-explorer-e2e-smoke-plan.md)。**狀態：僅規劃完成，E01/E02 尚未執行；不能標記 Completed。**
+- **2026-11-02 實作／離線驗證**：新增 `tests/Integration/Invoke-ExplorerSmoke.ps1`、獨立 observer／harness core、[隔離桌面 SOP](tests/Integration/README.md) 與 `tests/ExplorerSmoke.Tests.ps1`。提供唯讀預設、Session attestation＋實際 runtime／desktop／全域 scope gates、手動 fixture Prepare、E01／E02 真實 CLI 路由、證據 hash／原分頁不變檢查、per-fixture lock、防 replay、人工目視 Confirm；只有觀測及人工確認皆通過才能 Passed。預設實測 NotRun／Exit 2；native helper 編譯與 UIA assembly load 成功，**未列舉 Shell 或搜尋真實 AddButton**。PS7.6.1 原有 39＋17、新增 21 項離線測試共 **77 PASS**，三套 Exit 0；產品與原測試未修改。
+- **Live 限制／狀態**：使用者確認沒有隔離環境，agent 亦沒有可用的獨立 Windows VM／互動桌面；沙箱不能取代隔離 Explorer 桌面。本次依使用者指示只交付 runner 與離線測試。**E01/E02 NotRun，Task-5 保持開啟，不標記 Completed。** 真實 GUI／COM／UIA gate 須未來在隔離 Windows 11 session 依 [SOP](tests/Integration/README.md) 執行。[原計畫／矩陣](plans/resume-explorer-Task-5-powershell7-explorer-e2e-smoke-plan.md)。
 
 ### Task-4 — P1 — RestoreSummary S16 JSON 格式敏感斷言（Completed／2026-11-02）
 

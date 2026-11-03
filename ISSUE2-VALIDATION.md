@@ -36,6 +36,14 @@ Only S16's whitespace-sensitive fallback JSON assertion changed. The test now ex
 
 Final native-process results: PS5.1.22621.6931 Summary **17/17**, Issue2 **39/39**; PS7.6.1 Summary **17/17**, Issue2 **39/39**, all four **Exit Code 0**, with actual PASS records counted. Production core, CLI and schemas remain unchanged, and no real Explorer operation was performed. This closes Task-4's test-baseline gate, not Explorer E2E or Task-3 lock acceptance. See [Task-4 archived evidence](plans/DONE/resume-explorer-Task-4-restore-summary-s16-regression-plan.md).
 
+## Task-5 harness delivery; live E2E remains NotRun (2026-11-02)
+
+Standalone runner, independent observer, operator SOP and deterministic safety tests were added under `tests/Integration` and `tests/ExplorerSmoke.Tests.ps1`. Production CLI/core and existing tests are unchanged. The user requested runner/offline delivery because no isolated environment is available; the agent also has no separate Windows VM or dedicated interactive desktop. The execution sandbox is not GUI isolation.
+
+PowerShell 7.6.1 suites: Issue2 **39/39**, RestoreSummary **17/17**, smoke harness **21/21**, all **Exit 0**, with actual PASS records counted. Harness tests cover denied consent, runtime/session mismatch, foreign/incomplete/hidden scope, original identity/path/fingerprint preservation, duplicate/grouped paths, snapshot/report assertions, RCW-free evidence, fresh owned roots, replay/active-lock rejection, missing visual review, synthetic E01/E02 command routing, first-error stop, tampered evidence and safe default/import behavior. Synthetic routing stops at AwaitingVisualReview and is not live evidence.
+
+Actual default public entry returned **NotRun / NotAuthorized, Exit 2** without invoking COM/UIA or any CLI. A separate `pwsh -Sta` load-only probe compiled the Win32 helper and loaded UIAutomationClient/UIAutomationTypes, resolving AutomationElement successfully. **No Shell enumeration, AddButton search, Invoke, Navigate or real Capture/Restore/Retry was performed.** E01 and E02 remain **NotRun**, and Task-5 stays open. Future isolated execution and manual review follow the [SOP](tests/Integration/README.md); no execution-policy change, Explorer cleanup or automatic commit was performed.
+
 ## Live acceptance still required
 
 - Reproduce the original failure with the diagnostic candidate; record Windows build, PowerShell version, group sizes, load, concurrent interaction and raw/root grouping.

@@ -1,11 +1,13 @@
 # Task-5 — PowerShell 7 / Windows Explorer E2E Smoke Test：調查與實作計畫
 
 - **建立日期：** 2026-11-02
-- **狀態：** Proposed / **Plan only；尚未實作 E2E runner，也未執行真實 Explorer E2E**
+- **狀態：** **Runner／離線驗證已交付（2026-11-02）；Live E01/E02 NotRun，Task 保持開啟**。使用者與 agent 均無可用隔離 Windows 互動桌面，本輪依使用者指示只實作 runner 與離線測試
 - **優先級：** P1（PowerShell 7-only Runtime Support 的實際 GUI／COM 驗收關卡）
 - **對應：** [Backlog / Tasks](../Backlog.md) 的 Task-5；[Task-1 Automated Tests Plan](resume-explorer-Task-1-automated-tests-plan.md)
 - **測試對象：** Windows 11 + `pwsh.exe` 7.x + 真實 Explorer Tabs；不再要求 Windows PowerShell 5.1
 - **範圍原則：** 先證明現有 CLI 行為；只在有可重現缺陷證據後，另案進行最小 production 修復
+
+**本輪交付**：[Integration SOP](../tests/Integration/README.md)、`Invoke-ExplorerSmoke.ps1`／`ExplorerSmoke.Core.ps1` 與 21 項 harness 離線測試已建立。PS7.6.1 原有 39＋17、新增 21，三套 Exit 0，共 77 PASS；預設 public entry 實測 NotRun／Exit 2。Win32 helper 編譯及 STA managed UIA type-load probe 通過，**未對目前桌面呼叫 Shell enumeration、UIA element search 或真實 CLI**。合成 E01/E02 路由測試不是 Live Passed；缺少隔離環境時不能解除 GUI Release Gate。
 
 ## 1. 決策摘要與目標
 
@@ -59,14 +61,15 @@
 
 **優先採用「獨立、安全 gated 的 smoke harness + 既有 CLI」**，而非先重構 Core 或引入 Pester 硬依賴。
 
-候選檔案（**本次規劃未建立**）：
+已建立的 harness 檔案（**真實桌面驗收仍未執行**）：
 
 ```text
 tests/
   Integration/
     Invoke-ExplorerSmoke.ps1        # explicit Preflight / E01 / E02，預設只讀
+    ExplorerSmoke.Core.ps1          # 獨立 observer、安全 gates、CLI 路由／證據驗證
     README.md                       # 專用桌面與人工操作 SOP
-    # 小型 read-only observer/helper 可按需求加入
+  ExplorerSmoke.Tests.ps1           # 21 項離線安全／合成流程測試，不冒充 Live Passed
 plans/
   resume-explorer-Task-5-powershell7-explorer-e2e-smoke-plan.md
 ```
@@ -150,8 +153,8 @@ TestRoot\
 | --- | --- | --- | --- |
 | T5-00 | PS7 STA / UIAutomation assembly load | 版本、Thread apartment、assembly 載入 | 已完成 read-only runtime probe；非 E2E |
 | T5-01 | Offline 39+17 | Exit 0、無 Explorer 副作用 | 已完成本輪回歸；非 E2E |
-| T5-02 | 不加授權或非互動 Session | `NotRun/Blocked`、無 Explorer GUI 副作用 | Runner 待實作 |
-| T5-03 | 外來 Explorer HWND、觀測不可信 | Preflight fail closed，拒絕 Capture/Restore | Runner 待實作 |
+| T5-02 | 不加授權或非互動 Session | `NotRun/Blocked`、無 Explorer GUI 副作用 | Runner 已實作；default/import 實測安全，非互動/session mismatch 離線測試通過 |
+| T5-03 | 外來 Explorer HWND、觀測不可信 | Preflight fail closed，拒絕 Capture/Restore | Runner 已實作；外來／隱藏／不完整 scope 離線測試通過，live 未執行 |
 | T5-04 | PS7 真實 Shell COM/UIA | 正確讀取 Tabs、可找到 AddButton；不混淆 Raw/Root HWND | 未執行 |
 | T5-05 | E01 Capture / Preview | 2 Groups、3 Paths、預覽無修改 | 未執行 |
 | T5-06 | E01 Restore + 獨立觀測 | 新增 2 可見 Windows、3 Tabs、3/3 Verified；原 fixture 不變 | 未執行 |
@@ -181,15 +184,15 @@ TestRoot\
 
 ## 9. Definition of Done
 
-- [ ] E2E harness 具有安全的唯讀預設與顯式 GUI opt-in；Unit／CI／import 不能意外啟動 Explorer。
+- [x] E2E harness 具有安全的唯讀預設與顯式 GUI opt-in；Unit／CI／import 不能意外啟動 Explorer（本輪 default/import 實測與離線 gate 測試通過）。
 - [ ] 在**獨立、真正互動式**的 Windows 11 測試桌面，確認 PS7 STA、Shell COM observation、UIA AddButton 可用；完整記錄 Windows Build/PS7 版本。
 - [ ] Capture 全域 scope preflight 通過；未知視窗、觀測不可信時拒絕，絕不把使用中視窗還原到測試結果。
 - [ ] E01：Capture / Preview 得到 2 組 3 Paths；Restore 另外建立**可見** 2 Windows／3 Tabs，3/3 Verified，原 fixture 不變；獨立觀測及人工核對。
 - [ ] E02：以真實 `SkippedInvalidPath` 報告為基礎，對 test-owned HWND 補做 Item 2，child 1/1 Verified、原 report hash 不變、原 A Tab 不變且只新增 B。
 - [ ] GUI 失敗、歧義、硬體／VDI 限制有 `Failed/Blocked/NotRun` 與足夠 evidence；不自動重跑 Restore／Retry。
-- [ ] 現有 39+17 deterministic tests 維持通過；不得為「過測」削弱原斷言。
-- [ ] 無真實 Explorer 強制終止、Restart、Registry/ExecutionPolicy 改動、跨 repo 變更或自動清理未知窗口。
-- [ ] README、Backlog、Task-1 cross-reference 與實測結果同步；E2E 不能在沒有真實 GUI 證據時標記 Completed。
+- [x] 現有 39+17 deterministic tests 維持通過；未修改或削弱原斷言；新增 21 項 harness 離線測試通過。
+- [x] 無真實 Explorer 強制終止、Restart、Registry/ExecutionPolicy 改動、跨 repo 變更或自動清理未知窗口。
+- [x] README、Backlog、Task-1 cross-reference 與本次離線結果同步；E01/E02 Live NotRun，Task-5 未標記 Completed。
 
 ## 10. 重要風險／應對
 
@@ -208,4 +211,22 @@ TestRoot\
 - `resume-explorer.ps1` / `resume-explorer.core.ps1`：當前具體行為及 Snapshot/Report/Retry 不變條件。
 - `tests/Issue2.Tests.ps1` / `tests/RestoreSummary.Tests.ps1`：現有 deterministic regression。
 
-**狀態聲明：**本次工作僅完成 Review 與 Markdown 規劃；未建置 harness、未呼叫真實 Explorer COM/UIA API 或執行 Capture/Restore/Retry 的 E2E。
+## 12. 本輪實作驗證與限制（2026-11-02）
+
+基準 HEAD `b795dfa`，工作樹乾淨。產品 CLI/core 與兩套既有測試未變。採手動 E01 fixture、E02 由合法缺失路徑建立 skip 條件的實作；沒有新增 Pester／生產 debug bypass 或動態改寫報告。
+
+| 驗證 | 實際結果 |
+| --- | --- |
+| PowerShell 7.6.1 `Issue2.Tests.ps1` | 39/39 PASS，Exit 0 |
+| PowerShell 7.6.1 `RestoreSummary.Tests.ps1` | 17/17 PASS，Exit 0 |
+| PowerShell 7.6.1 `ExplorerSmoke.Tests.ps1` | 21/21 PASS，Exit 0；只含合成／安全斷言 |
+| 實際 public runner 的無參數執行 | NotRun / NotAuthorized，E01/E02 NotRun，Exit 2，無 COM/UIA／CLI 呼叫 |
+| import | 零 dispatch，無 GUI 操作 |
+| `pwsh -Sta` load-only probe | STA、Win32 helper 編譯、AutomationElement 型別載入成功；不執行 Win32 desktop 查詢、Shell enumeration 或 element search |
+| Live E01／E02 | **NotRun — 無隔離 Windows VM／專用互動桌面** |
+
+21 項測試覆蓋 consent、實際環境資訊與 operator attestation 不匹配、MTA／Session0／非互動桌面、外來／隱藏／不完整 scope、原 identity/path/fingerprint 不變、分組 multiset（含重複路徑）、Snapshot／Report 欄位、COM 參考不序列化、唯一 root ownership、active harness lock、replay、缺少目視 evidence、E01/E02 合成路由、CLI 首次失敗停止及 JSON hash tamper。合成路由僅驗證 harness，停在 AwaitingVisualReview；不能用它宣稱實機 Passed。
+
+新 runner 提供 `Preflight / Prepare / Run / Confirm` 四階段：Prepare 只建立唯一 TEMP 目錄和手動 fixture，Run 顯式 GUI opt-in，Confirm 以重新觀測＋人工聲明才可 Passed。狀態碼為 Passed=0、Failed=1、NotRun/Ready/Prepared/AwaitingVisualReview=2、Blocked=3。fixture-local 排他鎖只防同一 root 的 concurrent harness/replay，不代替或繞過 production Task-3 lock。保留 stdout/stderr、phase-start、JSON hashes 與觀測，不自動關閉窗口或刪除真實證據。
+
+**限制／後續 Gate：**attestation 綁定 SID/機器/Session/desktop 並配合自動 scope 檢查，但不是自動 VM 認證。原生 Cabinet window/COM 映射、真實 AddButton/Invoke、同步阻塞、畫面與操作者證據均待隔離桌面驗證，preflight 沒有 hard timeout。執行沙箱不能取代 GUI 隔離；使用者本輪明確要求先交付 runner／離線測試，故沒有在工作桌面執行，Task-5 保持開啟。沒有 commit、版本變更或 Production 修復。
