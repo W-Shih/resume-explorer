@@ -1,10 +1,10 @@
 # Task-5 — 多視窗關閉中斷：Review 與修復計畫
 
 - 日期：2026-11-03。
-- 狀態：Reviewed / Proposed；**尚未實作**。
+- 狀態：**Implemented / Offline Verified；專用 VM 驗收待執行**。不標記 Completed、不移入 DONE。
 - Review 基準：`75477f3`（新增一鍵自動驗證與關窗流程）；本次開始時工作樹乾淨。
 - 範圍：一鍵 smoke 的既有視窗關閉、E01／E02 fixture 清理、觀測診斷與回歸測試。
-- 本次交付僅本計畫；不修改 runner、產品、測試或系統設定，不執行真實 Explorer 操作，不建立 commit。
+- 初始交付為 Review-only；使用者後續明確要求按計畫實施，已修改 harness／回歸測試及文件。產品、系統設定未改，不執行目前工作桌面的真實 Explorer 操作，不建立 commit。
 - 關聯：[原 Task-5 結案計畫](DONE/resume-explorer-Task-5-powershell7-explorer-e2e-smoke-plan.md)、[目前操作文件](../tests/Integration/ONE-CLICK.md)、[驗證紀錄](../ISSUE2-VALIDATION.md)。
 
 ## 1. Review 結論
@@ -15,7 +15,7 @@
 
 建議採用**逐窗送出一次關窗要求，等待該窗消失且全域觀測恢復可靠，再處理下一窗**。保留原授權範圍、未知視窗拒絕、fingerprint 檢查及正常關窗方式；不靠忽略 Errors、重新發送 WM_CLOSE、固定 sleep 或終止程序修補。
 
-原 Task-5 的舊版手動流程結案證據保留；本次自動關窗 regression 尚未修復／驗收，不以舊紀錄宣稱已通過。
+原 Task-5 的舊版手動流程結案證據保留；本次控制流程缺陷已實作修正並離線驗證，**真實多組關窗尚未驗收**，不以舊紀錄宣稱已通過。
 
 ## 2. 已知事實、重現與未決問題
 
@@ -187,15 +187,49 @@ V05 不以故意掛死 Explorer 或強殺程序製造條件；能 deterministic 
 
 ## 8. 完成標準、風險與回退
 
-- [ ] 原控制流程 defect 有先 red 後 green 的 regression 證據。
-- [ ] C01–C12 的適用子項覆蓋且四套離線回歸通過；expected count 依真正新增數更新。
-- [ ] 原 snapshot/report/Retry 與人工作業契約不變，native helper compile/load 通過。
-- [ ] 啟動及 E01／E02 清理均採同一修復，不再遇單筆關窗過渡即立即退出。
-- [ ] 一筆不可靠或空 sample 不能導致誤關其他視窗或誤判成功；每原目標至多一次副作用。
-- [ ] 紀錄可回答「哪個 root 已投遞／已消失／未送、Errors 是什麼、何時停止、Snapshot 在哪裡」。
+- [x] 原控制流程 defect 有先 red 後 green 的 regression 證據（下節；不等於真實 GUI 重現）。
+- [x] C01–C12 的適用子項已有離線覆蓋且四套回歸通過；expected count 依新增數更新。
+- [x] 原 snapshot/report/Retry 與人工作業契約不變，native helper compile/load 通過。
+- [x] 啟動及 E01／E02 清理均採同一修復；合成過渡樣本不再立即終止。
+- [x] 離線驗證一筆不可靠或空 sample 不導致誤關或誤判成功；每原目標至多一次副作用。
+- [x] ledger／JSONL／suite error 可追溯各目標、原 Errors、停止時間及 Snapshot 路徑。
 - [ ] V01–V04 有新版本 VM 證據，V05 的安全負向驗證及未實測限制明確記錄。
 - [ ] 文件、計畫狀態與實測範圍一致後才標記 Completed，依使用者要求再歸檔／commit。
 
 殘餘風險：COM／Win32 仍非原子快照；同一進程內 COM identity 在特定 build 可能不穩定；同步呼叫可能超過預算；WM_CLOSE 可能被應用程式延遲或拒絕。這些情況須停止並保留證據，不能以增加無限等待／重送／殺程序掩蓋。若證據顯示 observer 對穩定剩餘窗長期誤判，再另評估受控觀測修正，不能直接將所有不完整 sample 視為安全。
 
 回退時保留目前所有 run、Capture Snapshot 與關窗紀錄，改用既有手動 runner／手動整理測試窗。已關閉的視窗無法藉程式回退自動復原；是否使用保存的 Snapshot Restore 由操作者另行決定，不在失敗處理中偷偷執行。修復不得干擾工作桌面的 Explorer。
+
+## 9. 本次實作與驗證紀錄（2026-11-03）
+
+實作基準為 `1862ba1`，開始時工作樹乾淨。未取得原 VM 的 private JSON；步驟 A 的原始錯誤歸因仍待資料，但不阻擋已證實機制的合成修復。沒有在 agent 桌面重跑案例或關閉視窗。
+
+### Red → Green
+
+先在 `ExplorerSmoke.OneClick.Tests.ps1` 新增 `multi-root close waits through incomplete observations and posts each root once`：兩 root 10／20，第一窗及最後一窗投遞後各兩筆不可靠 sample。未修改 lifecycle 時測試 **Exit 1 / ExplorerObservationIncomplete**；第一窗已進入 native mock，下一次 Assert 立即失敗。實作後該測試通過，斷言發送順序 10、20 各一次，第二次投遞不得早於 fake-clock 600ms；JSONL 保留四筆原始不完整觀測及 HRESULT=123，ledger 兩目標皆 Closed。
+
+### 實際修改與相容性
+
+- `ExplorerSmoke.Lifecycle.ps1`：固定 ledger、逐窗投遞／收斂、共同 deadline、兩筆穩定觀測、partial sample 的正向矛盾拒絕、持久化及失敗摘要。保留原嚴格 `Assert-SmokeClosable`，沒有將不完整結果改成可靠。
+- `ExplorerSmoke.OneClick.Core.ps1`：Stopwatch／elapsed adapters、唯讀 Gone／StillPresent／Changed probe、發送前最後 gate、PostMessage 原生 error 保存、suite Error 附 CloseSummary／ExistingSnapshot，baseline expected 23 → 43。
+- `ExplorerSmoke.Core.ps1`：僅加 harness observer 的 Stage／RawHwnd／RootHwnd 診斷與 COM／Win32 roots／EnumWindowsSucceeded 序列化；`Reliable`、Run／Verify／Confirm 判斷條件不變。
+- `ExplorerSmoke.OneClick.Tests.ps1`：保留原 23 項斷言；adapter 改成明確 Posted outcome、fake elapsed／probe，正常 Wait 改為推進 fake clock，KeepWindows 的原 Wait 例外路徑保留。這些是新內部 adapter 契約及收斂等待需要的 fixture 變更，不是放寬測試。
+- 新增 20 項 deterministic 測試（合計 43），涵蓋 C01–C12 適用子項；同一測試以多個排程覆蓋部分邊界，不以合成值宣稱 native GUI 行為已驗證。
+- 更新操作 SOP、README、Backlog、驗證紀錄及本計畫；產品 CLI／core、原 39／17 測試、snapshot/report 格式均未改。無新 public CLI 參數或依賴。
+
+### 離線結果與矩陣對照
+
+| 項目 | 結果／覆蓋 |
+| --- | --- |
+| 真正的 `Invoke-SmokeOfflineBaseline`（PS7.6.1） | Issue2 39、RestoreSummary 17、Smoke 23、OneClick 43，**122 PASS，四套 Exit 0** |
+| C01／C02／C03／C04 | 零窗／多 root 多 tab／重複路徑；過渡不完整；COM 與 Win32 兩種先後消失；延後消失、Observe 拋錯後恢復 |
+| C05／C06 | 共用預算含觀測時間；原窗不消失；長期不可靠；fake 9800ms 成功／10000ms 不足兩筆穩定觀測則停止；單筆空後未知窗阻止成功 |
+| C07／C08 | partial sample 出現未知 Win32 root；未送窗 tab 消失；原有 identity/path/PID/session/start 變更測試保留；probe Unknown／Changed；自行消失與 native 最後 gate 回 Gone |
+| C09 | Post 失敗保留 error=5；Posting／Posted 寫入失敗不重送；Observe／probe 例外保留；原 Wait 例外路徑保留 |
+| C10 | 原授權、預設、Capture 失敗／不完整、取消、初始不可靠與人工驗收 gates 全數保留 |
+| C11 | 啟動、E01、E02 各測短暫恢復與長期觀測逾時；後續階段不執行，原案例結果／失敗 suite 正確保留 |
+| C12 | JSONL/HRESULT、RCW 排除、256 行上限、prefix replay 拒絕、import/default 無副作用 |
+| STA load-only | PS7.6.1，native helper 編譯、PostMessage 宣告及 UIAutomationClient／UIAutomationTypes 載入通過；不列舉 Shell、不做 target probe／發送 |
+| V01–V05 | **NotRun／Pending**；agent 無專用 Windows 11 VM 互動桌面，尚無新版使用者實機證據 |
+
+實作保留 10 秒整次作業預算／約 200ms 輪詢，JSONL 額外硬限 256 行；不因 history 達上限而抹掉最後 actions／after。同步呼叫仍無 hard timeout，已披露。最後 VM gate 未通過前，本 follow-up 留在 `plans/`，不稱真實多組關窗已驗收，也不套用先前 Task-5 的完成截圖。

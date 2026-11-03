@@ -23,7 +23,7 @@ Launcher 使用自身位置定位檔案，無須切換工作目錄。不要求�
 ## 執行流程
 
 1. 取得上述一次 GUI 授權，檢查實際 PS7／Win11／STA／互動式 desktop 與 session。建立唯一 TEMP suite root，並取得同 TEMP 的 launcher 排他鎖。
-2. 執行四套離線基準（39＋17＋23＋23＝**102 項**）；失敗時不關閉任何視窗。
+2. 執行四套離線基準（39＋17＋23＋43＝**122 項**）；失敗時不關閉任何視窗。
 3. 獨立觀測既有 Explorer。已有視窗本身不阻擋測試；依你的 `S`／`C` 選擇處理。
 4. 若選 `S`，以正式 CLI `Capture` 產生 `existing-snapshot.json`，核對與獨立觀測的視窗／路徑分組一致，重新確認原視窗未變。任何儲存失敗、不完整或過程中變更都停止，尚不關閉視窗。
 5. 對明確授權且身分仍符合的既有視窗送出正常關窗要求，確認所有視窗已消失，再做空桌面 Preflight。
@@ -46,15 +46,18 @@ E01 檢查 4 個可見視窗／6 分頁：原有 A|B 與 C，另有還原的 A|B
 ## 關窗、保存配置與停止條件
 
 - 只關閉 Explorer 視窗，使用 `WM_CLOSE`，**不終止／重啟 `explorer.exe`**，不關閉桌面與工作列，不處理其他應用程式。請先完成檔案操作；測試桌面執行中不要新增／操作視窗。
-- 每個 root HWND 最多送出一次關窗要求；每次前重新觀測整個 scope、核對 identity、路徑、PID、process start time、session 與 HWND，原生發送前再次核對 fingerprint。遇到新視窗或身分不明立即停止，不擴大授權範圍。已自行關閉的視窗不再操作。
+- 每個原 root／fingerprint 最多送出一次關窗要求；每次前重新觀測整個 scope、核對 identity、路徑、PID、process start time、session 與 HWND，原生發送前再次核對 fingerprint。**逐窗關閉：當前窗消失且取得兩筆相隔至少 200ms 的可靠一致觀測，才處理下一窗。** 已自行關閉的視窗不再操作；遇到已確認的新視窗、分頁變更或 HWND 重用立即停止，不擴大授權範圍。
 - 測試視窗的清理清單來自驗證結果，路徑須屬本次 case root。測試失敗時不自動清理，方便調查；清理失敗則保留案例結果，但整體測試失敗，不進入下一案例。
-- 正常關窗後最多輪詢 10 秒確認清空。殘留時顯示 `ExplorerCloseIncomplete`，請檢查最後的 close-after JSON 與測試桌面對話框，手動處理後重新啟動測試。不會因 timeout 而殺程序。此期限不保證同步 COM／CLI 呼叫能在 10 秒內返回。
+- **每次關窗作業共用 10 秒預算**，從第一筆觀測前開始，包含全部目標及最後穩定空桌面檢查，不是每個視窗重新計時。既有視窗、E01、E02 各自是一次作業。已開始關窗後，暫時不完整／COM 與 Win32 不同步時只等待重新觀測，不向下一窗發送要求、不重送，也不把不可靠的空結果當成功。開始前觀測不可靠仍停止。
+- 持續不可靠顯示 `CloseObservationTimedOut`；可靠觀測下原窗仍在則為 `ExplorerCloseIncomplete`。`Error.CloseSummary` 說明原定視窗數、確認消失數、未嘗試投遞數及紀錄位置；`Error.ExistingSnapshot` 保存先前配置路徑。可能已部分關窗，不要假設全部沒關。手動檢查殘留／對話框後另開新 run；不因 timeout 而殺程序。同步 COM／native 呼叫本身仍沒有 hard timeout 保證。
 - Snapshot 僅保存工具支援的資料夾／分頁配置，不保存檔案操作、選取／捲動位置或所有 Shell namespace。若 Capture 遺漏 Home 等不支援路徑，完整性比對會停止並說明原因。可手動整理後重跑，或自行選擇 `C` 放棄保存；不默默降級成未備份關閉。
 - 完整觀測失敗時，`existing-observation.json` 的 Errors 記錄原因；未知或未被 COM 曝露的視窗無法安全自動關閉。手動整理測試桌面後重跑。測試中 scope 不符的錯誤會說明實際視窗／分頁數及預期分組。
 
 ## 證據與結果
 
 Suite root：`%TEMP%\ResumeExplorer-E2E-Suite-<GUID>`，包含 session-evidence、suite-result、既有視窗觀測、選用 Snapshot／驗證 hash、Capture stdout/stderr，以及 existing／E01／E02 關窗前後觀測與每次關窗嘗試。case roots 仍各自使用 `%TEMP%\ResumeExplorer-E2E-<GUID>`，保留既有 Snapshot／Report／Retry sidecar／hash／stdout/stderr。
+
+每次關窗的 `<prefix>-actions.json` 保存固定目標 ledger：Planned、Posting、Posted、Closed、AlreadyGone、Failed 或 TimedOut，以及原始 fingerprints、分頁、Posted 布林值、最後 probe 狀態／錯誤。Posting 可能已進入 native 呼叫而未確認成功，不能重送。`<prefix>-observations.jsonl` 保留逐筆觀測、原 Errors／HRESULT、COM／Win32 roots 與唯讀 target probes，每行可獨立解析；最多 256 行。即使達上限，after JSON 與 actions 仍保存最後狀態。Posted 只代表成功投遞，不代表視窗已消失。
 
 Exit codes：0 Passed；1 GUI 操作開始後失敗；2 未授權、取消或待目視；3 runtime／觀測／備份等前置條件阻擋。`suite-result.json` 的 `Phase`、`Reason`、`Error` 與 case statuses 可判別停止位置；自動模式的 `VisualReview` 明確為 `NotRun`。
 
@@ -69,4 +72,4 @@ pwsh -NoProfile -Sta -File .\resume-explorer.ps1 -Action Restore -Snapshot '<sui
 
 ## 驗證範圍
 
-原版一鍵流程已由使用者 VM 完成並關閉 Task-5，見[原驗收紀錄](TASK5-VM-ACCEPTANCE.md)。**該紀錄不涵蓋本次新增的自動關窗／自動 Verify 流程。** 本次變更的離線回歸與 native load-only 檢查見[驗證紀錄](../../ISSUE2-VALIDATION.md)；新版仍需在專用 VM 重跑真實 GUI，不能將合成測試當作實機驗收。
+原版一鍵流程已由使用者 VM 完成並關閉 Task-5，見[原驗收紀錄](TASK5-VM-ACCEPTANCE.md)。**該紀錄不涵蓋後續自動關窗／自動 Verify。** 其後使用者 VM 回報多組關窗中斷，本次已完成逐窗收斂修正與離線驗證；詳見[修復計畫及驗證進度](../../plans/resume-explorer-Task-5-multi-group-close-regression-plan.md)、[驗證紀錄](../../ISSUE2-VALIDATION.md)。新版仍待專用 VM 的 V01–V05 驗收，不以 122 項合成 PASS 宣稱實機 regression 已排除。

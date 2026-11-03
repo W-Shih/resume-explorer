@@ -14,22 +14,34 @@ function Get-SmokeOneClickLockPath { Join-Path $script:storage 'coordinator.lock
 function New-WizardFixture {
     $state=@{ Calls=@(); Views=@(); Consent=$true; Review=$true; Cleanup=$true; KeepWindows=$false
         SetupExit=0; SetupUnverified=$false; RunFailed=$false; BaselineFailed=$false; FactsReads=0; CliCalls=0
-        ExistingChoice='Close'; CaptureExit=0; CaptureMismatch=$false; Closes=@(); Reliable=$true }
+        ExistingChoice='Close'; CaptureExit=0; CaptureMismatch=$false; Closes=@(); Reliable=$true; Elapsed=0
+        TransientCase=''; PermanentCase=''; BadSamples=0 }
     $facts=[pscustomobject]@{ Windows=$true; Build=22631; Edition='Core'; Major=7; Version='Synthetic'; Apartment='STA'
         Interactive=$true; SessionId=10; ComputerName='SYNTHETIC-VM'; UserSid='SYNTHETIC-SID'
         DesktopAccessible=$true; DesktopName='Default'; CurrentDesktopName='Default' }
     $write=${function:Write-SmokeJson}; $invokeHarness=${function:Invoke-ExplorerSmoke}; $owned=$script:owned
     $native=@{
         Facts={ $state.FactsReads++; $facts }.GetNewClosure()
-        Observe={ [pscustomobject]@{ Reliable=$state.Reliable; Views=@($state.Views); Errors=@(); ObservedAtUtc='synthetic'; ForegroundHwnd=0 } }.GetNewClosure()
+        Observe={
+            $bad=$state.BadSamples -gt 0; if ($bad) { $state.BadSamples-- }
+            [pscustomobject]@{ Reliable=($state.Reliable -and -not $bad); Views=@($state.Views)
+                Errors=@(if ($bad) { @{ Message='SyntheticClosingTransition'; HResult=9 } }); ObservedAtUtc='synthetic'; ForegroundHwnd=0 }
+        }.GetNewClosure()
         Uia={ param($views) $state.Calls+='Uia' }.GetNewClosure()
+        NewCloseClock={ [pscustomobject]@{ Start=$state.Elapsed } }.GetNewClosure()
+        Elapsed={ param($clock) $state.Elapsed-$clock.Start }.GetNewClosure()
+        ProbeWindow={ param($fp) if ($fp.RootHwnd -in @($state.Views.RootHwnd)) { 'StillPresent' } else { 'Gone' } }.GetNewClosure()
         CloseWindow={
             param($view)
             if (-not $state.Cleanup) { throw 'SyntheticCloseRejected' }
             $state.Closes+=$view.RootHwnd; $state.Calls+='CloseWindow'
             if (-not $state.KeepWindows) { $state.Views=@($state.Views | Where-Object RootHwnd -ne $view.RootHwnd) }
+            $stage='Existing'; if ($view.Path -match '[\\/]E01[\\/]') { $stage='E01' } elseif ($view.Path -match '[\\/]E02[\\/]') { $stage='E02' }
+            if ($stage -eq $state.TransientCase) { $state.BadSamples=2 }
+            if ($stage -eq $state.PermanentCase) { $state.BadSamples=1000 }
+            return 'Posted'
         }.GetNewClosure()
-        Wait={ throw 'SyntheticCloseStillPending' }
+        Wait={ if ($state.KeepWindows) { throw 'SyntheticCloseStillPending' }; $state.Elapsed+=200 }.GetNewClosure()
         Cli={
             param($arguments,$prefix)
             $state.CliCalls++
@@ -117,7 +129,252 @@ function New-WizardExistingView {
     [pscustomobject]@{ Identity='existing'; RawHwnd=90; RootHwnd=90; Path='C:\existing'; Visible=$true
         Fingerprint=[pscustomobject]@{ Hwnd=90; RootHwnd=90; PID=42; SessionId=10; ProcessStartedAtUtc='2026-11-02T00:00:00Z' } }
 }
+function New-CloseFixture([int[]]$Roots=@(10,20)) {
+    $views=@(foreach ($n in $Roots) {
+        $v=New-WizardExistingView; $v.Identity="view-$n"; $v.RootHwnd=$n; $v.RawHwnd=$n
+        $v.Fingerprint.Hwnd=$n; $v.Fingerprint.RootHwnd=$n; $v
+    })
+    $state=@{ Views=$views; Elapsed=0; Posts=@(); PostedAt=@(); Waits=0; BadSamples=0; TransientAfterClose=0
+        ObserveCalls=0; BeforeObserve=$null; AfterPost=$null; KeepWindows=$false }
+    $native=@{
+        NewCloseClock={ [pscustomobject]@{ Start=$state.Elapsed } }.GetNewClosure()
+        Elapsed={ param($clock) $state.Elapsed-$clock.Start }.GetNewClosure()
+        Observe={
+            $state.ObserveCalls++
+            if ($state.BeforeObserve) { & $state.BeforeObserve $state }
+            $bad=$state.BadSamples -gt 0
+            if ($bad) { $state.BadSamples-- }
+            [pscustomobject]@{ Reliable=(-not $bad); Views=@($state.Views); Errors=@(
+                if ($bad) { [pscustomobject]@{ Message='TopLevelExplorerAndComScopeMismatch'; HResult=123 } }) }
+        }.GetNewClosure()
+        ProbeWindow={ param($fp) if ($fp.RootHwnd -in @($state.Views.RootHwnd)) { 'StillPresent' } else { 'Gone' } }.GetNewClosure()
+        CloseWindow={
+            param($view)
+            $state.Posts+=$view.RootHwnd; $state.PostedAt+=$state.Elapsed
+            if (-not $state.KeepWindows) { $state.Views=@($state.Views | Where-Object RootHwnd -ne $view.RootHwnd) }
+            $state.BadSamples=$state.TransientAfterClose
+            if ($state.AfterPost) { & $state.AfterPost $state $view }
+            'Posted'
+        }.GetNewClosure()
+        Wait={ $state.Elapsed+=200; $state.Waits++ }.GetNewClosure()
+    }
+    @{ State=$state; Native=$native; Expected=[pscustomobject]@{ Reliable=$true; Views=$views; Errors=@() }
+        Prefix=(Join-Path $script:storage ([guid]::NewGuid().ToString('N'))) }
+}
 try {
+    Test 'multi-root close waits through incomplete observations and posts each root once' {
+        $f=New-CloseFixture; $f.State.TransientAfterClose=2
+        Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix
+        Assert (($f.State.Posts -join ',') -eq '10,20' -and $f.State.Views.Count -eq 0 -and $f.State.Waits -ge 4)
+        Assert ($f.State.PostedAt[1] -ge 600) 'Second post must wait for recovery and two separated reliable samples'
+        $trace=@(Get-Content -LiteralPath ($f.Prefix+'-observations.jsonl') | ForEach-Object { $_ | ConvertFrom-Json })
+        $bad=@($trace | Where-Object { $_.Event -eq 'Observe' -and -not $_.Detail.Observation.Reliable })
+        Assert ($bad.Count -eq 4 -and $bad[0].Detail.Observation.Errors[0].HResult -eq 123)
+        $ledger=Get-Content -LiteralPath ($f.Prefix+'-actions.json') -Raw | ConvertFrom-Json
+        Assert (@($ledger | Where-Object State -eq 'Closed').Count -eq 2 -and @($ledger | Where-Object Posted).Count -eq 2)
+    }
+    Test 'zero, single and many roots preserve duplicate paths and close all tabs by root once' {
+        foreach ($roots in @(@(),@(10),@(10,20,30))) {
+            $f=New-CloseFixture -Roots $roots
+            $extra=@(foreach ($v in $f.State.Views) { $copy=$v | Select-Object *; $copy.Identity+='-tab2'; $copy })
+            $f.State.Views=@($f.State.Views)+$extra; $f.Expected.Views=$f.State.Views
+            Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix
+            Assert ($f.State.Posts.Count -eq $roots.Count -and @($f.State.Posts | Select-Object -Unique).Count -eq $roots.Count)
+            Assert ($f.State.Views.Count -eq 0 -and $f.State.Waits -ge 1)
+        }
+    }
+    Test 'initial incomplete scope never starts posting or retries observation' {
+        $f=New-CloseFixture; $f.State.BadSamples=1; $caught=$false
+        try { Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix } catch { $caught=$_.Exception.Message -like 'ExplorerObservationIncomplete:*' }
+        Assert ($caught -and $f.State.Posts.Count -eq 0 -and $f.State.Waits -eq 0)
+    }
+    Test 'permanent incomplete observation expires once and leaves all later roots unsent' {
+        $f=New-CloseFixture; $f.State.TransientAfterClose=1000; $exception=$null
+        try { Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix } catch { $exception=$_.Exception }
+        Assert ($exception.Message -like 'CloseObservationTimedOut:*' -and ($f.State.Posts -join ',') -eq '10')
+        Assert ($f.State.Elapsed -eq 10000 -and $f.State.Waits -eq 50)
+        Assert ($exception.Data['CloseSummary'] -like '*尚未嘗試投遞 1 個*')
+        $ledger=Get-Content -LiteralPath ($f.Prefix+'-actions.json') -Raw | ConvertFrom-Json
+        Assert ($ledger[0].State -eq 'TimedOut' -and $ledger[1].State -eq 'Planned')
+    }
+    Test 'live original target expires without a second close request' {
+        $f=New-CloseFixture; $f.State.KeepWindows=$true; $exception=$null
+        try { Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix } catch { $exception=$_.Exception }
+        Assert ($exception.Message -like 'ExplorerCloseIncomplete:*' -and ($f.State.Posts -join ',') -eq '10' -and $f.State.Elapsed -eq 10000)
+    }
+    Test 'the deadline includes first observation time and is not reset per root' {
+        $f=New-CloseFixture
+        $f.State.BeforeObserve={ param($s) $s.Elapsed+=1000 }
+        $f.State.AfterPost={ param($s,$v) if ($v.RootHwnd -eq 20) { $s.BadSamples=1000 } }
+        $exception=$null
+        try { Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix } catch { $exception=$_.Exception }
+        Assert ($exception.Message -like 'CloseObservationTimedOut:*' -and $f.State.Elapsed -ge 10000 -and $f.State.Elapsed -lt 11200)
+        Assert (($f.State.Posts -join ',') -eq '10,20')
+    }
+    Test 'temporary original presence and thrown observation recover before the next post' {
+        $f=New-CloseFixture; $f.State.KeepWindows=$true
+        $f.State.BeforeObserve={ param($s)
+            if ($s.Posts.Count -eq 1 -and $s.Elapsed -lt 400) { throw 'SyntheticComWindowGone' }
+            if ($s.Posts.Count -gt 0 -and $s.Elapsed -ge 400) { $s.Views=@($s.Views | Where-Object RootHwnd -notin $s.Posts) }
+        }
+        Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix
+        Assert (($f.State.Posts -join ',') -eq '10,20' -and $f.State.PostedAt[1] -ge 600)
+        $trace=Get-Content -LiteralPath ($f.Prefix+'-observations.jsonl') -Raw
+        Assert ($trace.Contains('SyntheticComWindowGone') -and $trace.Contains('"Stage":"Observe"'))
+    }
+    Test 'COM-first and Win32-first disappearance must agree before declaring a target gone' {
+        foreach ($stale in @('Com','Win32')) {
+            $f=New-CloseFixture; $state=$f.State
+            $f.State.BeforeObserve={ param($s)
+                if ($stale -eq 'Com' -and $s.Posts.Count -gt 0 -and $s.Elapsed -lt 400) { $s.Views=@($f.Expected.Views) }
+                else { $s.Views=@($s.Views | Where-Object RootHwnd -notin $s.Posts) }
+            }.GetNewClosure()
+            $f.Native.ProbeWindow={ param($fp)
+                if ($fp.RootHwnd -notin $state.Posts -or ($stale -eq 'Win32' -and $state.Elapsed -lt 400)) { 'StillPresent' } else { 'Gone' }
+            }.GetNewClosure()
+            Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix
+            Assert ($f.State.PostedAt[1] -ge 600 -and ($f.State.Posts -join ',') -eq '10,20')
+        }
+    }
+    Test 'one empty sample followed by an unknown window cannot be reported as success' {
+        $f=New-CloseFixture -Roots @(10)
+        $f.State.BeforeObserve={ param($s)
+            if ($s.Posts.Count -eq 1 -and $s.Elapsed -ge 200) { $s.Views=@(New-WizardExistingView) }
+        }
+        $caught=$false
+        try { Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix } catch { $caught=$_.Exception.Message -like 'CloseScopeChanged:*' }
+        Assert ($caught -and ($f.State.Posts -join ',') -eq '10' -and $f.State.Views[0].RootHwnd -eq 90)
+    }
+    Test 'incomplete samples with a known foreign Win32 root stop without waiting or sending more' {
+        $f=New-CloseFixture; $state=$f.State
+        $f.Native.Observe={ [pscustomobject]@{ Reliable=($state.Posts.Count -eq 0); Views=@($state.Views); Errors=@()
+            Win32Roots=$(if ($state.Posts.Count) { @(20,99) } else { @(10,20) }) } }.GetNewClosure()
+        $caught=$false
+        try { Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix } catch { $caught=$_.Exception.Message -like 'CloseScopeChanged:*' }
+        Assert ($caught -and ($state.Posts -join ',') -eq '10' -and $state.Waits -eq 0)
+    }
+    Test 'a missing tab in an unsent window remains a terminal original-fixture change' {
+        $f=New-CloseFixture
+        $copy=$f.Expected.Views[1] | Select-Object *; $copy.Identity='second-tab'
+        $f.Expected.Views+=@($copy); $f.State.Views=$f.Expected.Views
+        $f.State.AfterPost={ param($s,$v) $s.Views=@($s.Views | Where-Object Identity -ne 'second-tab') }
+        $caught=$false
+        try { Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix } catch { $caught=$_.Exception.Message -eq 'OriginalFixtureChanged' }
+        Assert ($caught -and ($f.State.Posts -join ',') -eq '10')
+    }
+    Test 'unknown probes are never interpreted as Gone and a reused HWND stops immediately' {
+        foreach ($status in @('Unknown','Changed')) {
+            $f=New-CloseFixture; $state=$f.State
+            $f.Native.ProbeWindow={ param($fp)
+                if ($state.Posts.Count) { if ($status -eq 'Unknown') { throw 'SyntheticAccessDenied' }; return 'Changed' }
+                'StillPresent'
+            }.GetNewClosure()
+            $exception=$null
+            try { Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix } catch { $exception=$_.Exception }
+            Assert (($state.Posts -join ',') -eq '10')
+            if ($status -eq 'Unknown') { Assert ($exception.Message -like 'CloseObservationTimedOut:*' -and $state.Elapsed -eq 10000) }
+            else { Assert ($exception.Message -like 'CloseFingerprintChanged:*' -and $state.Waits -eq 0) }
+        }
+    }
+    Test 'already-gone windows including disappearance at the final native gate are never posted' {
+        foreach ($finalGate in @($false,$true)) {
+            $f=New-CloseFixture -Roots @(10)
+            if ($finalGate) {
+                $state=$f.State
+                $f.Native.CloseWindow={ param($view) $state.Views=@(); 'Gone' }.GetNewClosure()
+            } else { $f.State.Views=@() }
+            Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix
+            Assert ($f.State.Posts.Count -eq 0)
+            $ledger=Get-Content -LiteralPath ($f.Prefix+'-actions.json') -Raw | ConvertFrom-Json
+            Assert ($ledger[0].State -eq 'AlreadyGone' -and -not $ledger[0].Posted)
+        }
+        $f=New-CloseFixture -Roots @(10); $f.State.Views=@()
+        $f.State.BeforeObserve={ param($s) if ($s.Elapsed -ge 200) { $s.Views=@(New-WizardExistingView) } }
+        $exception=$null
+        try { Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix } catch { $exception=$_.Exception }
+        Assert ($exception.Message -like 'CloseScopeChanged:*' -and $f.State.Posts.Count -eq 0)
+        Assert ($exception.Data['CloseSummary'] -like '*已確認消失 0 個*') 'One native Gone sample must not become a terminal AlreadyGone claim'
+    }
+    Test 'posting failure preserves native error and never retries any window' {
+        $f=New-CloseFixture; $state=$f.State
+        $f.Native.CloseWindow={ param($view)
+            $state.Posts+=$view.RootHwnd
+            $closeException=[InvalidOperationException]::new('SyntheticPostFailure'); $closeException.Data['NativeErrorCode']=5; throw $closeException
+        }.GetNewClosure()
+        $exception=$null
+        try { Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix } catch { $exception=$_.Exception }
+        Assert ($exception.Message -eq 'SyntheticPostFailure' -and $exception.Data['NativeErrorCode'] -eq 5 -and ($state.Posts -join ',') -eq '10')
+        $ledger=Get-Content -LiteralPath ($f.Prefix+'-actions.json') -Raw | ConvertFrom-Json
+        Assert ($ledger[0].State -eq 'Failed' -and $ledger[1].State -eq 'Planned')
+    }
+    Test 'Posting and Posted persistence failures stop without resending and retain uncertainty' {
+        foreach ($failState in @('Posting','Posted')) {
+            $f=New-CloseFixture
+            $write=${function:Write-SmokeJson}
+            & {
+                function Write-SmokeJson {
+                    param($Path,$Value,[switch]$New)
+                    if ($Path.EndsWith('-actions.json') -and @($Value | Where-Object State -eq $failState).Count) { throw "SyntheticWrite-$failState" }
+                    & $write $Path $Value -New:$New
+                }
+                $exception=$null
+                try { Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix } catch { $exception=$_.Exception }
+                Assert ($exception.Message -eq "SyntheticWrite-$failState")
+                $expectedCount=0; if ($failState -eq 'Posted') { $expectedCount=1 }
+                Assert ($f.State.Posts.Count -eq $expectedCount)
+            }
+        }
+    }
+    Test 'close evidence rejects replay and never serializes COM references' {
+        $f=New-CloseFixture
+        $f.Expected.Views[0] | Add-Member ComObject 'synthetic-secret-RCW'
+        Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix
+        $count=$f.State.Posts.Count; $caught=$false
+        try { Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix } catch { $caught=$true }
+        Assert ($caught -and $f.State.Posts.Count -eq $count)
+        $text=(@(Get-ChildItem -LiteralPath $script:storage -Filter ([IO.Path]::GetFileName($f.Prefix)+'*') |
+            ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw }) -join '')
+        Assert (-not $text.Contains('synthetic-secret-RCW') -and -not $text.Contains('ComObject'))
+    }
+    Test 'recovery just before the common deadline succeeds only with two stable samples' {
+        foreach ($badSamples in @(47,48)) {
+            $f=New-CloseFixture; $f.State.TransientAfterClose=$badSamples
+            $f.State.AfterPost={ param($s,$v) if ($v.RootHwnd -eq 20) { $s.BadSamples=0 } }
+            $exception=$null
+            try { Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix } catch { $exception=$_.Exception }
+            Assert (($f.State.Posts -join ',') -eq '10,20')
+            if ($badSamples -eq 47) { Assert ($null -eq $exception -and $f.State.Elapsed -eq 9800) }
+            else { Assert ($exception.Message -like 'CloseObservationTimedOut:*' -and $f.State.Elapsed -eq 10000) }
+        }
+    }
+    Test 'observation history is bounded and each retained row is independently readable JSON' {
+        $f=New-CloseFixture
+        $context=@{ Native=$f.Native; Clock=(& $f.Native.NewCloseClock); Prefix=$f.Prefix; TraceCount=0 }
+        foreach ($n in 1..300) { Write-SmokeCloseTrace $context 'Synthetic' @{ Number=$n } }
+        $rows=@(Get-Content -LiteralPath ($f.Prefix+'-observations.jsonl') | ForEach-Object { $_ | ConvertFrom-Json })
+        Assert ($rows.Count -eq 256 -and $context.TraceCount -eq 256 -and $rows[255].Sequence -eq 255)
+    }
+    Test 'startup E01 and E02 cleanup all recover from closing transitions before advancing' {
+        foreach ($stage in @('Existing','E01','E02')) {
+            $f=New-WizardFixture; $f.State.Views=@(New-WizardExistingView); $f.State.TransientCase=$stage
+            $r=Invoke-SmokeOneClick $true $f.Adapter; Remember-WizardSuite $r
+            Assert ($r.Status -eq 'Passed' -and $f.State.Closes.Count -eq 6 -and $f.State.Views.Count -eq 0) $r.Reason
+            $saved=Get-Content -LiteralPath (Join-Path $r.SuiteRoot 'suite-result.json') -Raw | ConvertFrom-Json
+            Assert ($saved.Phase -eq 'Complete' -and $saved.Status -eq 'Passed')
+        }
+    }
+    Test 'startup E01 and E02 cleanup timeouts stop all later actions and preserve case results' {
+        foreach ($stage in @('Existing','E01','E02')) {
+            $f=New-WizardFixture; $f.State.Views=@(New-WizardExistingView); $f.State.PermanentCase=$stage
+            $r=Invoke-SmokeOneClick $true $f.Adapter; Remember-WizardSuite $r
+            Assert ($r.Status -eq 'Failed' -and $r.Reason -like 'CloseObservationTimedOut:*' -and $r.Error.CloseSummary)
+            if ($stage -eq 'Existing') { Assert (-not $r.E01Root -and $f.State.Closes.Count -eq 1) }
+            if ($stage -eq 'E01') { Assert ($r.E01 -eq 'Passed' -and -not $r.E02Root -and 'Prepare:E02' -notin $f.State.Calls) }
+            if ($stage -eq 'E02') { Assert ($r.E02 -eq 'Passed' -and $r.Phase -eq 'E02-AutomaticClose') }
+            $saved=Get-Content -LiteralPath (Join-Path $r.SuiteRoot 'suite-result.json') -Raw | ConvertFrom-Json
+            Assert ($saved.Status -eq 'Failed' -and @($saved.Steps | Where-Object Phase -eq 'Complete').Count -eq 0)
+        }
+    }
     Test 'default wizard does not prompt, read runtime, create files or call CLI' {
         $f=New-WizardFixture; $r=Invoke-SmokeOneClick $false $f.Adapter
         Assert ($r.Status -eq 'NotRun' -and $f.State.Calls.Count -eq 0 -and $f.State.FactsReads -eq 0 -and -not $r.SuiteRoot)

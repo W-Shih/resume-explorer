@@ -91,21 +91,26 @@ function Get-SmokeObservation {
     try {
         $shell=New-Object -ComObject Shell.Application
         foreach ($window in $shell.Windows()) {
+            $hwnd=$null; $fp=$null; $stage='FullName'
             try {
                 if ([IO.Path]::GetFileName([string]$window.FullName) -ine 'explorer.exe') { continue }
+                $stage='Fingerprint'
                 $hwnd=[long]$window.HWND; $fp=Get-SmokeFingerprint $hwnd
+                $stage='ComIdentity'
                 $ptr=[Runtime.InteropServices.Marshal]::GetIUnknownForObject($window)
                 try { $id=$ptr.ToInt64().ToString('X') } finally { [void][Runtime.InteropServices.Marshal]::Release($ptr) }
                 Assert-Smoke (-not $seen.ContainsKey($id)) 'DuplicateOrConflictingIdentity'
                 $seen[$id]=$true
+                $stage='Path'
                 $path=[string]$window.Document.Folder.Self.Path
                 Assert-Smoke (-not [string]::IsNullOrWhiteSpace($path)) 'UnreadablePath'
                 [void]$views.Add([pscustomobject]@{ Identity=$id; RawHwnd=$hwnd; RootHwnd=$fp.RootHwnd
                     Path=$path; Fingerprint=$fp; Visible=[ExplorerSmokeNative]::IsWindowVisible([IntPtr]::new($fp.RootHwnd))
                     ComObject=$window }) # Retain RCW for this observer process's before/after comparison only.
-            } catch { [void]$errors.Add([pscustomobject]@{ Message=$_.Exception.Message; HResult=$_.Exception.HResult }) }
+            } catch { [void]$errors.Add([pscustomobject]@{ Stage=$stage; RawHwnd=$hwnd; RootHwnd=$fp.RootHwnd
+                Message=$_.Exception.Message; HResult=$_.Exception.HResult }) }
         }
-    } catch { [void]$errors.Add([pscustomobject]@{ Message=$_.Exception.Message; HResult=$_.Exception.HResult }) }
+    } catch { [void]$errors.Add([pscustomobject]@{ Stage='ShellEnumeration'; Message=$_.Exception.Message; HResult=$_.Exception.HResult }) }
     # Cross-check COM exposure against top-level Explorer windows on this desktop.
     # This detects hidden/foreign Cabinet windows omitted by the COM view list.
     $topRoots=New-Object System.Collections.ArrayList
@@ -119,9 +124,10 @@ function Get-SmokeObservation {
     $enumOk=[ExplorerSmokeNative]::EnumWindows($callback,[IntPtr]::Zero)
     $comRoots=@($views | ForEach-Object { $_.RootHwnd } | Sort-Object -Unique)
     if (-not $enumOk -or (@($topRoots | Sort-Object) -join ',') -cne ($comRoots -join ',')) {
-        [void]$errors.Add([pscustomobject]@{ Message='TopLevelExplorerAndComScopeMismatch'; HResult=0 })
+        [void]$errors.Add([pscustomobject]@{ Stage='RootCrossCheck'; Message='TopLevelExplorerAndComScopeMismatch'; HResult=0 })
     }
     [pscustomobject]@{ Reliable=($errors.Count -eq 0); Views=@($views.ToArray()); Errors=@($errors.ToArray())
+        ComRoots=$comRoots; Win32Roots=@($topRoots.ToArray()); EnumWindowsSucceeded=$enumOk
         ObservedAtUtc=[DateTime]::UtcNow.ToString('o'); ForegroundHwnd=[ExplorerSmokeNative]::GetForegroundWindow().ToInt64() }
 }
 
@@ -143,6 +149,7 @@ function Assert-SmokeUia($Views) {
 function ConvertTo-SmokeEvidence($Observation) {
     [pscustomobject]@{ Reliable=$Observation.Reliable; ObservedAtUtc=$Observation.ObservedAtUtc
         ForegroundHwnd=$Observation.ForegroundHwnd; Errors=@($Observation.Errors)
+        ComRoots=@($Observation.ComRoots); Win32Roots=@($Observation.Win32Roots); EnumWindowsSucceeded=$Observation.EnumWindowsSucceeded
         Views=@($Observation.Views | Select-Object Identity,RawHwnd,RootHwnd,Path,Fingerprint,Visible) }
 }
 

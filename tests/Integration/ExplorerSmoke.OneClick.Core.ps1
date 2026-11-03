@@ -6,7 +6,7 @@ function Invoke-SmokeOfflineBaseline {
     $engine=(Get-Process -Id $PID).Path
     $tests=Split-Path $PSScriptRoot -Parent; $rows=@()
     foreach ($suite in @(@{ File='Issue2.Tests.ps1'; Expected=39 },@{ File='RestoreSummary.Tests.ps1'; Expected=17 },
-        @{ File='ExplorerSmoke.Tests.ps1'; Expected=23 },@{ File='ExplorerSmoke.OneClick.Tests.ps1'; Expected=23 })) {
+        @{ File='ExplorerSmoke.Tests.ps1'; Expected=23 },@{ File='ExplorerSmoke.OneClick.Tests.ps1'; Expected=43 })) {
         $output=@(& $engine -NoProfile -NonInteractive -File (Join-Path $tests $suite.File) 2>&1)
         $code=$LASTEXITCODE
         $count=@($output | Where-Object { $_.ToString().StartsWith('PASS ') }).Count
@@ -17,14 +17,40 @@ function Invoke-SmokeOfflineBaseline {
     return $rows
 }
 
+function Get-SmokeCloseTarget($Fingerprint) {
+    Initialize-SmokeNative
+    $handle=[IntPtr]::new($Fingerprint.RootHwnd)
+    if (-not [ExplorerSmokeNative]::IsWindow($handle)) { return 'Gone' }
+    $root=[ExplorerSmokeNative]::GetAncestor($handle,2).ToInt64()
+    [uint32]$processId=0
+    [void][ExplorerSmokeNative]::GetWindowThreadProcessId($handle,[ref]$processId)
+    if (-not [ExplorerSmokeNative]::IsWindow($handle)) { return 'Gone' }
+    if ($root -ne $Fingerprint.RootHwnd -or $processId -ne $Fingerprint.PID) { return 'Changed' }
+    $process=Get-Process -Id $processId -ErrorAction Stop
+    $current=[pscustomobject]@{ Hwnd=$handle.ToInt64(); RootHwnd=$root; PID=$processId; SessionId=$process.SessionId
+        ProcessStartedAtUtc=$process.StartTime.ToUniversalTime().ToString('o') }
+    if ($process.ProcessName -ne 'explorer' -or -not (Test-SmokeFingerprint $Fingerprint $current)) { return 'Changed' }
+    return 'StillPresent'
+}
+
 function New-SmokeOneClickAdapter {
     $native=New-SmokeAdapter
+    $native.NewCloseClock={ [Diagnostics.Stopwatch]::StartNew() }
+    $native.Elapsed={ param($clock) $clock.ElapsedMilliseconds }
+    $native.ProbeWindow={ param($fingerprint) Get-SmokeCloseTarget $fingerprint }
     $native.CloseWindow={
         param($view)
-        $current=Get-SmokeFingerprint $view.RootHwnd
-        Assert-Smoke (Test-SmokeFingerprint $view.Fingerprint $current) 'CloseFingerprintChanged: 發送關窗要求前視窗身分已改變；未發送，請檢查測試桌面後重跑。'
+        $status=Get-SmokeCloseTarget $view.Fingerprint
+        if ($status -eq 'Gone') { return 'Gone' }
+        Assert-Smoke ($status -eq 'StillPresent') 'CloseFingerprintChanged: 發送關窗要求前視窗身分已改變；未發送，請檢查測試桌面後重跑。'
         # WM_CLOSE to the verified Explorer window only; never terminate explorer.exe.
-        Assert-Smoke ([ExplorerSmokeNative]::PostMessage([IntPtr]::new($view.RootHwnd),0x0010,[IntPtr]::Zero,[IntPtr]::Zero)) 'CloseMessageFailed: 系統未接受此視窗的關閉要求；請檢查測試桌面與權限，未終止程序。'
+        if (-not [ExplorerSmokeNative]::PostMessage([IntPtr]::new($view.RootHwnd),0x0010,[IntPtr]::Zero,[IntPtr]::Zero)) {
+            $code=[Runtime.InteropServices.Marshal]::GetLastWin32Error()
+            $closeException=[ComponentModel.Win32Exception]::new($code,'CloseMessageFailed: 系統未接受此視窗的關閉要求；未終止程序。')
+            $closeException.Data['NativeErrorCode']=$code
+            throw $closeException
+        }
+        return 'Posted'
     }
     $native.Wait={ Start-Sleep -Milliseconds 200 }
     @{
@@ -217,7 +243,9 @@ function Invoke-SmokeOneClick([bool]$Run,$Adapter,[bool]$RequireVisualReview=$fa
         & $save 'Complete' '' 0
     } catch {
         $suite.Status=$(if ($uiAttempted) { 'Failed' } else { 'Blocked' }); $suite.Reason=$_.Exception.Message
-        $suite.Error=[pscustomobject]@{ Message=$_.Exception.Message; HResult=$_.Exception.HResult }
+        $suite.Error=[pscustomobject]@{ Message=$_.Exception.Message; HResult=$_.Exception.HResult
+            CloseSummary=$_.Exception.Data['CloseSummary']; NativeErrorCode=$_.Exception.Data['NativeErrorCode']
+            CloseEvidenceWriteError=$_.Exception.Data['CloseEvidenceWriteError']; ExistingSnapshot=$suite.ExistingSnapshot }
     } finally {
         try { if ($null -ne $save) { & $save $suite.Phase '' $null } }
         finally {
