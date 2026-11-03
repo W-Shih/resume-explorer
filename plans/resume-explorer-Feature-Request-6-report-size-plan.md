@@ -7,6 +7,30 @@
 - 分工：[FR-9 診斷等級](resume-explorer-Feature-Request-9-diagnostic-level-plan.md) 負責未來 Compact／Full；**本 FR 只決定 Report 保留與容量證據，不要求改變診斷 Schema**
 - 原始真實 Report 可能包含個人／公司路徑，**不得加入公開 repo**；量測結果只放去識別化摘要
 
+## Implementation Order & Dependency Gate（2026-11-02 決策）
+
+**優先實作建議：Task-3 Single-Instance CLI Guard，然後才允許 FR-6 的實際清理功能上線。** 這是 **FR-6 工作流內的相對優先序**，並不覆蓋全專案已存在的 P1 Issue-4／Task-1 或提高本 FR 的 P2 優先級。
+
+| 工作線／順序 | 工作項目 | 先決條件 | 可獨立交付／驗收 |
+| --- | --- | --- | --- |
+| **優先獨立實作（Track A）** | **Task-3：整個 CLI 的跨 Shell Single-Instance Guard**（本計畫 Phase 2A） | **不依賴 FR-6 Phase 0–2**、無需修改 Report Schema，也不依賴 Issue-6 | 兩個不同 Shell／Process 同時執行時，只有一個 Action 可以進入；第二個 fail fast、無副作用；正常與異常退出後能再次取得鎖 |
+| **可先做／平行（Track B）** | **FR-6 Phase 0 → 1 → 2**：唯讀容量量測 → Family graph／分類 → Review/Pin／DryRun | Phase 1 需 Phase 0 基線／fixtures；Phase 2 需可靠分類；**不需要 Task-3** | 完全不刪檔的容量基線、A/B/C/Unknown 分類與 deterministic DryRun |
+| **兩條線合流後** | **FR-6 Phase 3：顯式 Opt-in Family Cleanup** | **Task-3 驗收通過 AND Phase 0–2 驗收通過 AND 跨檔刪除／中斷恢復安全 Gate 通過** | 在受控範圍中可安全清理完整 Family；任何疑點 fail-closed |
+| **最後** | **FR-6 Phase 4：Restore／Retry 結束後的同步 Cleanup** | **Phase 3 已通過驗收**，以及確認 final checkpoint／summary／Retry family lock／Single-Instance lock 順序 | 本次命令內有界清理、維護失敗不改 Restore／Retry 結果；不使用 Scheduler 或背景程序 |
+
+```text
+Track A: Task-3 single-instance (可先實作) ---------+
+                                                  +--> FR-6 Phase 3: Safe Cleanup --> Phase 4: Post-run Sync
+Track B: FR-6 Phase 0 --> Phase 1 --> Phase 2 -----+
+                       + Phase 3 的跨檔 crash-recovery safety gate
+```
+
+**Dependency 分界**：
+- **Issue-6 ≠ Feature Request-6**：Issue-6 為 Google DriveFS Shell Hang 的歷史已緩解事件（已歸檔在 `plans/DONE`），**不是 Task-3 或 FR-6 的前置條件**。
+- **FR-9 Compact/Full 不阻塞 FR-6**：FR-6 的 Family 分類與保留不能依賴診斷詳細程度，繼續以當前 V1 Full Report 量測和設計；若 FR-9 另行改 Schema，才安排相容性回歸。
+- **Task-3 是 Phase 3/4 的必要前置，不是 Phase 0–2 的前置**：原 Phase 2A 只是分段編號，**不代表必須等 Phase 2 結束才能做 Task-3**。
+- **嚴格安全 Gate**：若 Phase 3 的完整 Family 刪除無法安全處理 crash／部分檔案遺失，仍可保留 Task-3、Phase 0–2 的獨立成果；不得因已有鎖就認定 Cleanup 可上線。
+
 ## 1. 決策摘要與範圍
 
 使用者確認的初始 Retention Policy：
@@ -227,21 +251,21 @@ CLI 取得 single-instance lock（失敗則立即退出，不做副作用）
 3. 在不同 Report 狀態、缺漏 metadata、數量邊界（0／1／5／6／100）、時間相同、跨時區、Grace period、Pin／Unpin 下驗證排序與保護邏輯。
 4. **Gate**：DryRun 多次執行結果決定性、沒有對檔案的副作用，且能清楚說明「為什麼這個 Family 被保留／候選清理」。
 
-### Phase 2A — Single-instance 執行保護（可獨立於 Cleanup 先交付）
+### Phase 2A — Single-instance 執行保護（Task-3：建議優先獨立實作，不必等待 Phase 0–2）
 
 1. 先寫**不接觸 Explorer** 的兩個 PowerShell process 排他測試，涵蓋所有 `-Action`、新舊 `powershell.exe`／`pwsh.exe`（如環境支援）、第二個命令 fail fast、無等待及錯誤訊息；使用隔離的測試 lock path，**不得在測試時佔用使用者的真實 instance lock**。
 2. 在 `resume-explorer.ps1` 最外層加一個共享所有 Action 的 `FileShare.None` guard（helper 可小型化、與 Report Retention 邏輯分離），並以 `try/finally` 保證釋放。鎖檔位於 `Runs` 之外，永久不列入清理；測試檔案存在但 handle 已釋放時**可以重新取得**。
 3. Regression：驗證 lock 已持有時 `Capture`／`Preview`／`Restore`／`PreviewRetry`／`Retry` 不進入任何 Action；第一個命令正常、拋例外、Ctrl+C／程序被終止後，第二個命令能在 OS 釋放 handle 後繼續；針對不可建立鎖與權限失敗應 fail-closed。保留現有 CLI 合法輸出、Report Schema、既有 Retry family lock 與測試行為。
 4. **Gate**：已證明同一 Windows 使用者的新版本 CLI 一次只執行一個；第二個命令不造成 Explorer 或 Report 副作用；不同使用者／舊版不在此保證範圍，使用者文件清楚告知。**此階段不實作任何刪除**。
 
-### Phase 3 — 顯式 Family 清理（**有條件，先完成 Single-instance Gate**）
+### Phase 3 — 顯式 Family 清理（**有條件：Task-3 + Phase 0–2 + 跨檔恢復安全 Gate 均通過**）
 
 1. 依靠已驗證的**單一 CLI 執行鎖**防止新版本的 Restore／Retry 與 Cleanup 同時進行；**不建立額外 Lock Manager**。另外驗證 Family 成員與 hash／metadata、受管路徑，對舊版／外部修改採保守跳過。
 2. 單獨評估「多個 Root／Child JSON 清理到一半失敗」的最小 fail-closed／recoverable 設計；若無法確保殘留 Report 不會錯誤允許 Retry，**拒絕本 Phase**，保留 DryRun。
 3. 實作有限範圍、顯式授權的手動 Cleanup；保留可核對的結果與 audit，發現任何資料差異直接 skip，不推測或繼續刪。驗證 B 最新 5、C 最新 1 的 soft target，永不清理 A／Unknown／Pin、本次新 Run、自訂 ReportPath 或 Snapshot。
 4. **Gate**：獨立測試 single-instance 排他、未知／舊版存取、子代變更、磁碟／權限／鎖、crash-recovery 與現有 PreviewRetry／Retry safety 全部通過；禁止在日常 Explorer/VDI 直接測試真實刪檔。
 
-### Phase 4 — **Restore／Retry 後同步整合**（取代自動排程；安全 Gate 通過後實作）
+### Phase 4 — **Restore／Retry 後同步整合**（必須先完成並驗收 Phase 3；取代自動排程）
 
 1. **整合點**：在外層 `resume-explorer.ps1` 呼叫 `Start-RestoreRun`／`Start-RetryRun` 正常返回後，才進入可選的同步 Cleanup；**不置於 `Complete-Run` 的 `finally`**，避免最後 checkpoint 失敗仍清理、或 Retry family lock 尚未釋放。實作時需要**內部可取得的 RunId／ReportPath context**，不得以正規表示式讀取主控台 Summary，亦不得改變對外 Pipeline 輸出或造成額外的 `Write-Host`。此整合點僅是建議，先寫呼叫順序與輸出相容測試。
 2. **條件式啟用**：先新增明確 opt-in 的 post-run maintenance（CLI 名稱待定），並保留獨立手動 `Cleanup`／`DryRun` 入口；後續如要預設啟用，必須另完成相容性與可停用設計的發布審核，不視為無影響變更。
@@ -305,16 +329,18 @@ CLI 取得 single-instance lock（失敗則立即退出，不做副作用）
 - **失敗與隔離**：Try-lock 失敗、無候選、超出軟預算及 cleanup error 可以顯示 Deferred／Warning，但不改原 Restore／Retry 的 exception/exit code，不得刪除 A／Unknown／Pin 或跳過 revalidation。
 - **發布前**：若未來實作 Cleanup，更新 README、Backlog、CLI 用法、啟用／停用策略、測試與版本資訊；**首次只 opt-in**，後續如改成預設同步清理必須先明確評估向後相容性並告知使用者。離線回歸後再在**隔離的可重設環境**驗證。絕不在日常 Explorer/VDI 用大規模 Restore、強制結束 Explorer 或真實 Report 刪除做壓測。
 
-## 9. 建議工作單元與文件一致性
+## 9. 建議工作單元（依相對優先序與依賴整理）
 
-1. `docs(fr6): define error-aware family retention policy` — 本次計畫、Backlog、與 FR-9 邊界（**只改文件，不 Commit，除非使用者指定**）。
-2. `test(fr6): add synthetic family classification fixtures` — 新增最小 schema/lineage/flags/State tests，既有測試不削弱。
-3. `feat(fr6): add read-only report family inventory and dry run` — 先交付**沒有 Delete 權限**的列舉／判斷功能。
-4. `feat(fr6): add explicit review and pin metadata` — 只有確認 A→B 與 metadata 變更可被安全驗證時才實作。
-5. `feat(fr6): single-instance CLI guard` — **優先獨立實作一次一個命令**（穩定 per-user 檔案鎖、fail-fast、全命令 `try/finally`、離線雙 Process 回歸測試），不引入額外 lock manager。
-6. `design(fr6): prove minimal fail-closed family cleanup` — 單例鎖不能防止多檔中斷；僅設計**可證明安全的最小刪除／恢復機制**，若不合理則留在 DryRun。
-7. `feat(fr6): opt-in family cleanup` — 所有 Gate 通過後選做手動顯式 Cleanup，附故障注入與 recovery tests。
-8. `feat(fr6): opt-in synchronous post-run cleanup` — 同一個 single-instance lock 保護完整命令；只在 `Restore`／`Retry` 成功返回及 Retry family lock 釋放後進行有界、非背景清理；維護錯誤不改主命令結果，先寫離線順序／相容性測試。
+**Track A：優先獨立交付 Task-3；Track B 可在 Track A 之前或同時進行，但兩條工作線都通過驗收後才能清理。** 以下編號只是建議推進順序，不表示只能嚴格依序執行，也不改變其他 P1 問題的全專案優先級。
+
+1. **Track A / 下一個建議實作** — `feat(task3): single-instance CLI guard`：最先可獨立交付，一次一個命令、跨 Shell fail-fast、全命令 `try/finally` 與雙 Process 離線回歸；**不依賴 FR-6 Phase 0–2**，仍保持既有 Retry family lock。
+2. **Track B / 可先或並行** — `investigate(fr6): measure report inventory and costs`：Phase 0 唯讀統計容量／checkpoint 成本、收集去識別化基線；**不依賴 Task-3**。
+3. **Track B** — `test(fr6): add synthetic family classification fixtures`：Phase 1，建立 Root/Child graph、未知資料 fail-closed 與 deterministic tests，勿削弱既有測試。
+4. **Track B** — `feat(fr6): read-only family inventory and dry run`：Phase 1–2，只提供分類／容量／候選預覽，不刪檔；後續補最小 Review/Pin metadata，確保 A→B 必須人工確認。
+5. **合流／必要安全 Gate** — `design(fr6): prove minimal fail-closed family cleanup`：**前提：Task-3 + Phase 0–2 均通過驗收**；再證明完整 Family 清理與多檔中斷恢復，不合理則保留 DryRun。
+6. **合流／有條件交付** — `feat(fr6): opt-in family cleanup`：Phase 3，只有 Gate 通過才交付顯式安全刪除，並做故障注入與 Retry lineage 回歸測試。
+7. **最後整合** — `feat(fr6): opt-in synchronous post-run cleanup`：Phase 4，**依賴 Phase 3**，只在 `Restore`／`Retry` 正常返回並釋放 Retry family lock 後清理；instance lock 覆蓋整個命令，不使用 Scheduler／背景 job。
+8. **文件維護（隨交付更新）** — `docs(fr6): keep Backlog/plan/README/version/tests in sync`：本次只更新規劃；實作時記錄有意的第二命令 fail-fast 相容性變更及每階段驗收，**除非明確要求，保留 Git Working Tree、不建立 Commit**。
 
 **與 FR-9 的關係**：FR-9 仍追求日常 Compact／調查 Full，但不應讓「保留哪個 Family」取決於診斷詳細程度；不論 V1 Full 或未來 V2 Compact，保留分類均以**安全的 Run/Item 狀態與完整 lineage**為準。
 

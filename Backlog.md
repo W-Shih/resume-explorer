@@ -53,6 +53,15 @@
 - **同步清理方式（無排程／背景工作）**：在同一 CLI **已持有 single-instance lock** 的情況下正常執行 Restore／Retry → 最後 checkpoint 成功 → 原 Summary 顯示 → 原有 Retry family lock 釋放 → 同步有界清理其他合資格舊 Families → 最後才釋放全命令鎖並返回。主操作 Aborted／checkpoint 失敗就略過 Cleanup、保留原例外；無候選／預算不足只 Deferred。其他 Action **仍取得全命令鎖，但不觸發 post-run 清理**。Cleanup 失敗不得改變 Restore／Retry 的 Status 或 exit code。**先 opt-in；未來若預設同步清理須另做相容性審核與 opt-out**，不使用 Scheduler、Timer、Background Job。
 - **詳細階段／狀態**：**Reviewed / Proposed，尚未改程式碼、未刪除 Report**。Phase 0 唯讀量測；Phase 1 Family graph／異常分類；Phase 2 Review/Pin + DryRun；**Phase 2A 全 CLI 單一執行保護**；Phase 3 只有跨檔中斷等最小安全 Gate 通過才提供顯式手動 Cleanup；Phase 4 Restore／Retry 後同步整合。無 Scheduler／Background Worker／Lock Manager；若安全或回傳延遲無法接受則只保留 DryRun／手動能力。優先級 P2。詳見 [`plans/resume-explorer-Feature-Request-6-report-size-plan.md`](plans/resume-explorer-Feature-Request-6-report-size-plan.md)。
 
+**實作優先序／明確依賴（2026-11-02）**：
+
+1. **下一個建議獨立實作項目：Task-3（Single-Instance CLI Guard）**。它不需要等待 FR-6 的 Report 容量量測、分類／DryRun，也**不依賴 Issue-6**；先以隔離、跨 Shell 雙 Process 測試驗證，完成後可單獨交付。
+2. **FR-6 Phase 0 → Phase 1 → Phase 2**：唯讀容量基線 → Family graph／分類 → Review/Pin／DryRun。這條**不刪檔**的工作線可以在 Task-3 **之前或並行**進行，**不以 Task-3 為前置條件**。
+3. **FR-6 Phase 3（Opt-in Safe Cleanup）**：**必要前置 = Task-3 驗收通過 + FR-6 Phase 0–2 的分類／DryRun 證據與驗收 + 跨檔中斷恢復安全 Gate**；不符合其中任一條件即不實作 Delete。
+4. **FR-6 Phase 4（Post-Run Synchronous Cleanup）**：**必要前置 = FR-6 Phase 3 已通過驗收**，再整合 Restore／Retry 成功結束後同步執行，並維持 Single-Instance Lock 覆蓋整個命令。**FR-9 Compact／Full 不是以上任何階段的前置條件**。
+
+此順序是**Task-3 與 FR-6 之間的相對實作次序**，不代表把兩者提升為全專案 P1；既有 Issue-4／Task-1 的 P1 仍照既有優先級判斷。**Issue-6** 指 Google DriveFS Explorer Hang 的已緩解歷史事件（Completed），與本處 **Feature Request-6** 是不同項目，互不依賴。詳細計畫見 [`plans/resume-explorer-Feature-Request-6-report-size-plan.md`](plans/resume-explorer-Feature-Request-6-report-size-plan.md)。
+
 ### Feature Request-9 — P2 — JSON Report 診斷等級：Compact Default／Full Opt-in（待設計）
 
 - **功能需求**：**保留 JSON Report 作為 Restore／Retry 的核心功能**；本需求實作後，日常預設 `Compact`，需要深入 RCA 時可明確選擇 `Full`，不以關閉安全 Report 交換容量或效能。
@@ -110,7 +119,7 @@
 
 為 `resume-explorer.ps1` 建立自動化測試，涵蓋 Snapshot 讀寫與驗證等可單元測試的邏輯；並評估在支援的 Windows 環境中加入端對端測試，驗證 Explorer 視窗與 Tabs 的還原行為。
 
-### Task-3 — P2 — Single-Instance CLI Guard（FR-6 同步清理的前置條件）
+### Task-3 — P2 — Single-Instance CLI Guard（建議下一個獨立實作；FR-6 Phase 3/4 前置條件）
 
 - **需求（跨 Shell）**：同一 Windows 使用者、**共用相同鎖檔實際路徑**的新版 `resume-explorer.ps1`，不論透過 Windows PowerShell 5.1、PowerShell 7、CMD→PowerShell、Windows Terminal、VS Code Terminal 或不同工作目錄啟動，所有 Action（`Capture`／`Preview`／`Restore`／`PreviewRetry`／`Retry`，未來含 `Cleanup`）**同一時間只允許一個執行**。第二個命令在執行任何 Explorer／Snapshot／Report 副作用前 fail fast，**不等待、不排隊、不背景重試**。跨帳號／機器、舊版 CLI 或未共用鎖路徑不保證互斥。
 - **建議最小實作**：從 Windows 使用者的 LocalApplicationData 取得**固定絕對路徑**（候選 `%LOCALAPPDATA%\ResumeExplorer\resume-explorer.instance.lock`），不依賴 `$PWD`、Script 目錄、`-ReportPath`；在 CLI 最外層透過 OS 排他檔案開啟（`.NET FileStream`、`FileShare.None`）取得鎖。從 Action 開始到 **final checkpoint → summary → Retry family lock 釋放 → 同步 Cleanup 完成／跳過** 都保持 handle 開啟，最後在 `finally` 關閉；程序被終止時 OS 釋放 handle。檔案位於 `Runs` 之外，**不刪除 lock anchor，也不以 `.lock` 檔是否存在判定 Busy**；sharing violation 與 ACL／磁碟錯誤分開報告並 fail-closed。
