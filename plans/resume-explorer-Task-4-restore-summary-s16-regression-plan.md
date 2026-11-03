@@ -2,7 +2,7 @@
 
 - **Review 日期：** 2026-11-02
 - **優先級：** **P1（測試基線完整性）**；建議在 Task-3 Single-Instance CLI Guard 實作前以獨立變更處置
-- **狀態：** **RCA Confirmed / Fix Planned**；本次僅更新 Markdown，**尚未修改測試或 Production Code**
+- **狀態：** **Completed / Test-only Fix Verified（2026-11-02）**；僅修改 S16 assertion 與相關文件，PS5.1／PS7 完整回歸通過，沒有 Production 變更
 - **追蹤來源：** [Backlog.md — Task-4](../Backlog.md)
 - **關聯：** [Task-3 Single-Instance Guard](resume-explorer-Task-3-single-instance-cli-guard-plan.md)、[Task-1 Automated Tests](resume-explorer-Task-1-automated-tests-plan.md)
 - **範圍：** `tests/RestoreSummary.Tests.ps1` 中 S16 對 fallback JSON 的格式敏感 assertion；**不涉及真實 Explorer 的 Capture/Restore**
@@ -48,7 +48,7 @@ Assert ($text.Contains('"SchemaVersion": 1') -and
 | JSON 文字精確字串比對 | `"SchemaVersion": 1` → **False**；`"SchemaVersion":  1` → **True** |
 | 相同診斷中獨立 S17 原例外保護 | ReferenceEquals **True** |
 
-**證據界線：** PS5.1 完整測試的失敗點和獨立診斷一致，足以支持格式敏感斷言為直接原因；S17 在 PS5.1 以獨立受控診斷驗證原始 Exception Preservation，但尚未有**修正後完整 PS5.1 S01–S17 一次跑完**的結果。不能宣稱本任務已修復或全部 PS5.1 測試已通過。
+**歷史證據界線：**上表是修復前的 RCA，當時尚無修正後完整 PS5.1 S01–S17 結果。修正後完整跨版本結果已於本文件第 9 節記錄，沒有以先前受控診斷取代完整測試。
 
 ### 2.3 Root Cause vs. Product Contract
 
@@ -67,7 +67,7 @@ Assert ($text.Contains('"SchemaVersion": 1') -and
 | 刪除／Skip S16 或放鬆 Exception／Warning assertion | 可以快速綠燈 | **禁止**：破壞原本的安全回歸保護 |
 | 重構整個 Summary／Checkpoint 架構 | 可能改善設計 | **不採用**：缺乏 Production Bug 證據，超出本 Task |
 
-## 4. 建議的最小修復方案（僅計畫，未實作）
+## 4. 最小修復方案（已依此實作，結果見第 9 節）
 
 ### 4.1 修改範圍及保護契約
 
@@ -89,11 +89,11 @@ Assert ($text.Contains('"SchemaVersion": 1') -and
 # 保留目前 $caught / WarningRecord / 報告路徑 / 假成功文字等斷言。
 $jsonRecords = @($records | Where-Object {
     $_ -is [Management.Automation.InformationRecord] -and
-    $_.MessageData -is [string] -and
-    $_.MessageData.TrimStart().StartsWith('{')
+    $null -ne $_.MessageData -and
+    $_.MessageData.ToString().TrimStart().StartsWith('{')
 })
 Assert ($jsonRecords.Count -eq 1) 'Expected one in-memory fallback JSON'
-$memoryRun = $jsonRecords[0].MessageData | ConvertFrom-Json -ErrorAction Stop
+$memoryRun = $jsonRecords[0].MessageData.ToString() | ConvertFrom-Json -ErrorAction Stop
 Assert ($memoryRun.SchemaVersion -eq 1)
 Assert ($memoryRun.RunId -eq $run.RunId)
 Assert ($memoryRun.State -eq $run.State)
@@ -167,14 +167,14 @@ git diff -- tests/RestoreSummary.Tests.ps1
 
 ## 7. Definition of Done
 
-- [ ] 只修改經核實為錯誤假設的 S16 JSON 字串 assertion；任何既有測試變更都有明確 RCA，沒有刪除、Skip、放寬原始 Exception／Warning／Summary 安全檢查。
-- [ ] 在獨立 test fixture 中對合法 fallback JSON 成功解析，並驗證 SchemaVersion、RunId、State、Items/Status；無效／缺漏 fallback 會 fail。
-- [ ] PS5.1 完整 `tests/RestoreSummary.Tests.ps1`：**17/17 Passed、Exit Code 0**。
-- [ ] PS7 完整 `tests/RestoreSummary.Tests.ps1`：**17/17 Passed、Exit Code 0**（或清楚標記 NotRun）。
-- [ ] `tests/Issue2.Tests.ps1` 在支援的 PowerShell 版本中回歸通過，沒有新功能或舊安全契約退化。
-- [ ] 沒有變更 Production Checkpoint、Restore/Retry safety、Report Schema、CLI 或實際 Explorer 狀態。
-- [ ] 記錄新舊測試輸出、PowerShell 版本、修正前後根因證據與 Git Diff；檢查 `git diff --check`。
-- [ ] Backlog／Task-3 Plan 的 S16 狀態與實際結果一致；未達上述條件前不得 Closed 或宣稱全部測試通過。
+- [x] 只修改經核實為錯誤假設的 S16 JSON 字串 assertion；任何既有測試變更都有明確 RCA，沒有刪除、Skip、放寬原始 Exception／Warning／Summary 安全檢查。
+- [x] 在獨立 test fixture 中對合法 fallback JSON 成功解析，並驗證 SchemaVersion、RunId、State、Items/Status；無效／缺漏 fallback 會 fail。
+- [x] PS5.1 完整 `tests/RestoreSummary.Tests.ps1`：**17/17 Passed、Exit Code 0**。
+- [x] PS7 完整 `tests/RestoreSummary.Tests.ps1`：**17/17 Passed、Exit Code 0**。
+- [x] `tests/Issue2.Tests.ps1` 在兩個 PowerShell 版本均 **39/39 Passed、Exit Code 0**。
+- [x] 沒有變更 Production Checkpoint、Restore/Retry safety、Report Schema、CLI 或實際 Explorer 狀態。
+- [x] 記錄新舊測試輸出、PowerShell 版本、修正前後根因證據與 Git Diff；檢查 `git diff --check`。
+- [x] Backlog／Task-3 Plan 的 S16 狀態與實際結果一致；Task-4 已 Closed，Task-3 功能仍未實作。
 
 ## 8. Remaining Risks／重要限制
 
@@ -183,10 +183,21 @@ git diff -- tests/RestoreSummary.Tests.ps1
 - **不要誤判根因層級：**本次明確定位為 S16 斷言缺陷；不得據此宣稱所有 Summary、Checkpoint 或 Exception 過程都已實機驗證。
 - **避免順手重構：**本次不建議改動 `Complete-Run()`、新增 Pester/Mock Framework、調整 `-WarningAction`、修改 Snapshot/Report Schema、調整 Restore 狀態定義或版本號。
 
-## 9. 本次文件交付狀態
+## 9. 實作與結案證據（2026-11-02）
 
-**已完成：**S16 跨版本受控重現與根因辨識；建立 Backlog 任務與詳細修復／測試計畫。
+基準分支 `codex/fr6-retention-plan`，HEAD `5636864`，修改前工作樹乾淨。PS7 修復前 Summary 17/17、Issue2 39/39（均 Exit 0）；PS5.1 修復前 Summary S01–S15 PASS、S16 失敗（Exit 1），Issue2 39/39（Exit 0）。本輪重新重現了原始問題，未先改 assertions。
 
-**尚未完成：**實際修改 S16 assertion、完成修正後 PS5.1 17/17 回歸、Close Task-4；本次未實作任何 Production 或 Test 變更，沒有 Commit。
+**實作範圍與理由：**僅調整 `tests/RestoreSummary.Tests.ps1` 的 S16 區塊，將單空格 substring 換成唯一 InformationRecord JSON 的嚴格解析；MessageData 使用 `.ToString()` 支援 Write-Host 的 HostInformationMessage／字串表示。檢查 SchemaVersion、原 RunId、State、Items 數量、首項 GroupIndex／ItemIndex／NotAttempted Status／RequestedPath。原 Exception ReferenceEquals、恰好一筆 checkpoint warning、原始 Report 路徑、禁止假成功文字的 assertions 均保留，其他 S01–S15／S17 及 Issue2 tests 不變。
 
-**後續最小 Patch 理想範圍：**`tests/RestoreSummary.Tests.ps1` 的 S16 區塊，以及修正完成後 Backlog／本計畫／Task-3 Plan 的狀態註記。若出現意料外的 Production Bug，應停止此 Test-only Patch、記錄新證據並另開獨立修復範圍。
+S16 內的獨立負向 fixture 使用同一局部驗證 scriptblock，要求以下 **12 組**全部被拒絕：缺少 JSON、重複 JSON、非法 JSON、無關 `{}`、錯誤 SchemaVersion、RunId、State、Items 數量、GroupIndex、ItemIndex、Status、RequestedPath。沒有重跑 Complete-Run，沒有跨測試共享新增 Mock，沒有 Skip；Summary 測試總數仍是 17。
+
+| 引擎 | 指令（均含 `-NoProfile -NonInteractive -File`） | 實際 PASS count | Exit Code |
+| --- | --- | ---: | ---: |
+| PowerShell 7.6.1 | `tests/RestoreSummary.Tests.ps1` | **17/17**，含 S16／S17 | **0** |
+| PowerShell 7.6.1 | `tests/Issue2.Tests.ps1` | **39/39** | **0** |
+| Windows PowerShell 5.1.22621.6931 | `tests/RestoreSummary.Tests.ps1` | **17/17**，含 S16／S17 | **0** |
+| Windows PowerShell 5.1.22621.6931 | `tests/Issue2.Tests.ps1` | **39/39** | **0** |
+
+每套均以獨立 native process 執行，逐筆計算 `PASS ` 行並核對 `$LASTEXITCODE`，不是只讀最後一行。PS5.1 在沙箱內顯示 Restricted、無法載入腳本；沙箱外可以讀到既有 CurrentUser **RemoteSigned**，故在沙箱外依原政策完成修復前／後回歸。沒有 `Set-ExecutionPolicy`、`-ExecutionPolicy Bypass` 或其他政策繞過。
+
+**交付：**S16 測試與 Backlog／本計畫／Task-3 plan／`ISSUE2-VALIDATION.md` 狀態同步。Production core、CLI、Schema、Snapshot／正式 Report 和真實 Explorer 均未改動。沒有調整版本號或自動 Commit。Task-4 Closed；Task-3 的 S16 測試基線 Gate 解除，但 Task-3 的 Lock 與跨 Process 驗收仍 Pending，且不代表 Explorer E2E 通過。

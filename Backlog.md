@@ -121,13 +121,14 @@
 
 為 `resume-explorer.ps1` 建立自動化測試，涵蓋 Snapshot 讀寫與驗證等可單元測試的邏輯；並評估在支援的 Windows 環境中加入端對端測試，驗證 Explorer 視窗與 Tabs 的還原行為。
 
-### Task-4 — P1 — RestoreSummary S16 JSON 格式敏感斷言（RCA Confirmed／待修復）
+### Task-4 — P1 — RestoreSummary S16 JSON 格式敏感斷言（Completed／2026-11-02）
 
 - **已重現／確認（2026-11-02）**：`tests/RestoreSummary.Tests.ps1` 在 Windows PowerShell **5.1** 執行時，S01–S15 通過但 **S16 Assertion Failed**；PowerShell **7** 則 **17/17 通過（Exit Code 0）**。受控診斷確認原始 `IOException` 物件保持一致、`Checkpoint failed` Warning 恰好 1 筆、Console fallback JSON 可解析且 `SchemaVersion=1`；S17 的原始 Exception 保護亦經獨立診斷驗證。
 - **已確認根因**：S16 使用 `$text.Contains('"SchemaVersion": 1')` 鎖定單一空格，但 PowerShell 5.1 的 `ConvertTo-Json` 實際輸出 `"SchemaVersion":  1`（兩個空格）。這是**測試把合法 JSON 排版空白當成契約**，不是已證實的 Production Checkpoint／Schema 缺陷；不得為配合斷言去修改 Production JSON。
-- **建議最小修復**：只針對已證實錯誤的 S16 格式敏感 assertion，改從 InformationRecord 取得 fallback JSON，以 `ConvertFrom-Json` 驗證 `SchemaVersion`、`RunId`、`State`、`Items` 與必要 Item Status。**保留**原 Exception identity、唯一 checkpoint warning、Report 路徑、不得誤報 `Report saved/updated` 等安全契約；不得刪除／Skip／弱化既有測試來讓測試通過。
+- **已實作（Test-only）**：僅替換 S16 的格式敏感 JSON substring assertion，從 InformationRecord 的 MessageData 文字取得唯一 fallback，以 `ConvertFrom-Json` 驗證 SchemaVersion、RunId、State、Items 數量及首項 Group／Item／Status／RequestedPath。保留原 Exception identity、唯一 checkpoint warning、Report 路徑、禁止假成功文字等 assertions；同一 S16 內新增 12 組缺失／重複／非法／錯誤欄位負向 fixture，均須被拒絕。沒有修改 Production、Schema 或其他測試行為。
 - **優先序與驗收**：先以獨立 Test-only 變更處理本 Task，再進行 Task-3（Single-Instance CLI Guard）的實作基線驗證；需 `RestoreSummary.Tests.ps1` 在 PS5.1 與 PS7 **17/17 Passed、Exit Code 0**，既有 `Issue2.Tests.ps1` 回歸通過，且**不操作真實 Explorer**。本項 P1 是測試可靠性／後續開發基線，非已證實 P1 Production 缺陷。
-- **詳細 RCA 與修復計畫**：[`plans/resume-explorer-Task-4-restore-summary-s16-regression-plan.md`](plans/resume-explorer-Task-4-restore-summary-s16-regression-plan.md)（**RCA Confirmed / Fix Planned；尚未修改任何測試或 Production Code**）。
+- **驗收結果**：PowerShell **5.1.22621.6931** 與 **7.6.1** 各自完整執行 Summary **17/17**、Issue2 **39/39**，四次 Exit Code 均 **0**。沙箱內 PS5.1 看不到使用者 RemoteSigned 政策；沙箱外依現有 CurrentUser RemoteSigned 完成實跑，沒有更改／繞過政策，沒有真實 Explorer 操作。Task-3 的 S16 baseline gate 已解除，Task-3 功能仍未實作。
+- **詳細 RCA 與結案證據**：[`plans/resume-explorer-Task-4-restore-summary-s16-regression-plan.md`](plans/resume-explorer-Task-4-restore-summary-s16-regression-plan.md)（**Completed；Test-only，未自動 commit**）。
 
 ### Task-3 — P2 — Single-Instance CLI Guard（Task-4 測試基線處置後建議獨立實作；FR-6 Phase 3/4 前置條件）
 

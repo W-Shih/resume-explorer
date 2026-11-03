@@ -43,10 +43,10 @@
 | Test | 本次觀察 | 注意 |
 | --- | --- | --- |
 | `tests/Issue2.Tests.ps1` | **39/39 Passed** | fake adapter；無真實 Explorer 動作 |
-| `tests/RestoreSummary.Tests.ps1` | PS5.1 S01–S15 Passed、S16 Assertion Failed；PS7 **17/17 Passed** | **Task-4 已確認根因**：S16 對 `ConvertTo-Json` 空白格式作不穩定字串斷言；測試修正**尚未實作** |
+| `tests/RestoreSummary.Tests.ps1` | 修復前 PS5.1 S16 Failed；**Task-4 修正後 PS5.1.22621.6931／PS7.6.1 均 17/17 Passed、Exit 0** | 2026-11-02 Test-only 修正，保留原安全 assertions；12 組負向 fixture 於 S16 內拒絕；Issue2 亦兩版本各 39/39、Exit 0 |
 | 真實 Explorer E2E／Task-3 跨 Process | **NotRun** | 此功能尚未實作 |
 
-在 Task-3 開發前應先完成 [Task-4 S16 專項修復計畫](resume-explorer-Task-4-restore-summary-s16-regression-plan.md)：**RCA 已確認是 PS5.1 的 JSON 排版空白與 S16 字串比對不一致**，原 Exception、Warning 與可解析 JSON 已由受控診斷驗證；**修復尚未實作**。僅應在有證據的 S16 assertion 改為 JSON 語意解析，保留原安全契約，並驗證 PS5.1／PS7 完整通過。不可為了讓測試綠燈任意刪改 Assertions 或修改 Production JSON。
+**Task-4 baseline gate 已於 2026-11-02 解除**：[Task-4 結案證據](resume-explorer-Task-4-restore-summary-s16-regression-plan.md)記錄 JSON 語意斷言修正與 PS5.1／PS7 完整回歸，原 Exception identity、Warning 與 Report 語意契約保留，未修改 Production JSON。Task-3 自身的互斥功能與跨 Process 驗收仍未實作；開始時仍應重跑當前基準，不因這次結案視為 Lock 或 Explorer E2E 已通過。
 
 ## 3. Alternatives／取捨
 
@@ -179,7 +179,7 @@ Acquire global instance lock
 
 ### 5.3 原測試回歸完整性
 
-- **Task-4 已完成 S16 RCA，尚未實作修正**：PS5.1 的 `ConvertTo-Json` 冒號後為兩個空格，S16 錯誤要求單一空格；詳見 [Task-4 Plan](resume-explorer-Task-4-restore-summary-s16-regression-plan.md)。**既有測試不是為了讓新版程式通過而可以任意改寫的目標**；Task-4 僅在已驗證的錯誤斷言做最小、語意更強的修正，且保留原例外／Warning 等契約。
+- **Task-4 已完成 S16 修正與跨版本驗收**：將已驗證錯誤的空格假設替換為 JSON 語意檢查，保留例外 identity／唯一 Warning／Report 路徑／禁止假成功契約，新增負向 fixture；詳見 [Task-4 Plan](resume-explorer-Task-4-restore-summary-s16-regression-plan.md)。這不是任意改寫既有測試的授權；Task-3 仍須保留並重跑全部原有測試。
 - 建議新增 `tests/InstanceLock.Tests.ps1` 及必要的 test worker／fixture；沿用現有 deterministic testing style，不為本功能強制引入 Pester 5 或重寫整個架構。
 - 實作後重跑 `tests/Issue2.Tests.ps1`、`tests/RestoreSummary.Tests.ps1`、新的 Lock Tests，記錄 Exit Codes、通過／失敗／NotRun 與使用的 PowerShell 版本。
 - 沒有執行真實 Explorer E2E，不得宣稱 E2E Passed。

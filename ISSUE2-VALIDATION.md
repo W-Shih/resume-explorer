@@ -28,6 +28,14 @@ PowerShell 7.6.1 results: **39 existing Issue2 tests plus 17 new RestoreSummary 
 
 Windows PowerShell 5.1 execution of the summary suite was blocked by the existing execution policy; no policy was changed or bypassed. No actual Restore or live Explorer visibility test was performed for this presentation-only enhancement. Original Issue-2 and visible-window live acceptance remain pending.
 
+## Task-4 test-only cross-version correction (2026-11-02)
+
+The historical Windows PowerShell 5.1 runtime limitation was resolved for this validation by running outside the restricted agent sandbox under the existing CurrentUser RemoteSigned policy; no execution policy was changed or bypassed. Baseline on PS5.1.22621.6931 reproduced S01-S15 passing then S16 failing (Exit 1), while PS7.6.1 passed 17/17 (Exit 0). Issue2 baseline passed 39/39 on both versions.
+
+Only S16's whitespace-sensitive fallback JSON assertion changed. The test now extracts exactly one InformationRecord JSON body, parses it, and verifies schema, RunId, state, item count, group/item indices, status and requested path. Original exception identity, one checkpoint warning, report-path display and no false saved/updated message checks remain intact. Twelve negative fixtures must be rejected (missing, duplicate, malformed, unrelated/missing schema, wrong schema/run/state/count/group/index/status/path). They execute within S16, preserving the suite's 17-test count.
+
+Final native-process results: PS5.1.22621.6931 Summary **17/17**, Issue2 **39/39**; PS7.6.1 Summary **17/17**, Issue2 **39/39**, all four **Exit Code 0**, with actual PASS records counted. Production core, CLI and schemas remain unchanged, and no real Explorer operation was performed. This closes Task-4's test-baseline gate, not Explorer E2E or Task-3 lock acceptance. See [Task-4 evidence](plans/resume-explorer-Task-4-restore-summary-s16-regression-plan.md).
+
 ## Live acceptance still required
 
 - Reproduce the original failure with the diagnostic candidate; record Windows build, PowerShell version, group sizes, load, concurrent interaction and raw/root grouping.

@@ -156,8 +156,60 @@ Test 'S16 failed final checkpoint retains warning, memory JSON and original thro
     Assert ([object]::ReferenceEquals($caught,$expected))
     Assert (@($records | Where-Object { $_ -is [Management.Automation.WarningRecord] -and $_.Message.Contains('Checkpoint failed') }).Count -eq 1)
     $text=($records | ForEach-Object { $_.ToString() }) -join "`n"
-    Assert ($text.Contains('"SchemaVersion": 1') -and $text.Contains('Report: C:\runs\stale.json'))
+    # Task-4: JSON whitespace differs across PS5.1/7; validate the fallback's
+    # semantics, not formatter spacing. Write-Host MessageData may be a
+    # HostInformationMessage rather than a string, so use its text representation.
+    $assertFallback = {
+        param($informationRecords, $expectedRun)
+        $jsonRecords=@($informationRecords | Where-Object {
+            $_ -is [Management.Automation.InformationRecord] -and
+            $null -ne $_.MessageData -and $_.MessageData.ToString().TrimStart().StartsWith('{')
+        })
+        Assert ($jsonRecords.Count -eq 1) 'Expected exactly one in-memory fallback JSON record'
+        $memoryRun=$jsonRecords[0].MessageData.ToString() | ConvertFrom-Json -ErrorAction Stop
+        Assert ($memoryRun.SchemaVersion -eq 1) 'Fallback schema mismatch'
+        Assert ($memoryRun.RunId -ceq $expectedRun.RunId) 'Fallback run identity mismatch'
+        Assert ($memoryRun.State -ceq $expectedRun.State) 'Fallback state mismatch'
+        Assert (@($memoryRun.Items).Count -eq @($expectedRun.Items).Count) 'Fallback item count mismatch'
+        Assert ($memoryRun.Items[0].GroupIndex -eq $expectedRun.Items[0].GroupIndex) 'Fallback group mismatch'
+        Assert ($memoryRun.Items[0].ItemIndex -eq $expectedRun.Items[0].ItemIndex) 'Fallback item index mismatch'
+        Assert ($memoryRun.Items[0].Status -ceq 'NotAttempted') 'Fallback item status mismatch'
+        Assert ($memoryRun.Items[0].RequestedPath -ceq $expectedRun.Items[0].RequestedPath) 'Fallback path mismatch'
+    }
+    & $assertFallback $records $run
+    Assert ($text.Contains('Report: C:\runs\stale.json'))
     Assert (-not $text.Contains('Report saved') -and -not $text.Contains('Report updated'))
+
+    # Independent negative fixtures exercise the same assertion without calling
+    # Complete-Run again or sharing mocks with any other test.
+    $validJson=ConvertTo-Json -InputObject $run -Depth 32
+    $invalidPayloads=@('{ invalid JSON', '{}')
+    foreach ($field in @('SchemaVersion','RunId','State','Items','GroupIndex','ItemIndex','Status','RequestedPath')) {
+        $wrong=$validJson | ConvertFrom-Json
+        switch ($field) {
+            'SchemaVersion' { $wrong.SchemaVersion=2 }
+            'RunId' { $wrong.RunId='different-run' }
+            'State' { $wrong.State='Aborted' }
+            'Items' { $wrong.Items=@() }
+            'GroupIndex' { $wrong.Items[0].GroupIndex=99 }
+            'ItemIndex' { $wrong.Items[0].ItemIndex=99 }
+            'Status' { $wrong.Items[0].Status='Verified' }
+            'RequestedPath' { $wrong.Items[0].RequestedPath='C:\wrong' }
+        }
+        $invalidPayloads+=ConvertTo-Json -InputObject $wrong -Depth 32
+    }
+    $negativeCases=@(@{ Name='missing'; Records=@() })
+    foreach ($payload in $invalidPayloads) {
+        $record=[Management.Automation.InformationRecord]::new($payload,'S16-negative-fixture')
+        $negativeCases+=@{ Name='invalid or mismatched payload'; Records=@($record) }
+    }
+    $duplicate=[Management.Automation.InformationRecord]::new($validJson,'S16-negative-fixture')
+    $negativeCases+=@{ Name='duplicate JSON'; Records=@($duplicate,$duplicate) }
+    foreach ($case in $negativeCases) {
+        $rejected=$false
+        try { & $assertFallback $case.Records $run } catch { $rejected=$true }
+        Assert $rejected ("Fallback validation accepted " + $case.Name)
+    }
 }
 Test 'S17 WarningPreference Stop does not terminate summary or mask restore exception' {
     $WarningPreference='Stop'
