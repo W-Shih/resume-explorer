@@ -1,8 +1,8 @@
 # Task-5 — PowerShell 7 Explorer smoke harness
 
-For the guided single-launch workflow in a test VM, double-click **`Run-ExplorerSmoke.cmd`** or run `pwsh -NoProfile -Sta -File .\tests\Integration\Start-ExplorerSmoke.ps1 -Run`. See [one-click instructions](ONE-CLICK.md). This automates session evidence, offline checks, verified fixture bootstrap and both cases; actual visual review and manual E01 window closure remain required. The manual workflow below is preserved for diagnosis. One-click live acceptance is also NotRun.
+For the guided single-launch workflow in a test VM, double-click **`Run-ExplorerSmoke.cmd`** or run `pwsh -NoProfile -Sta -File .\tests\Integration\Start-ExplorerSmoke.ps1 -Run`. See [one-click instructions](ONE-CLICK.md). This automates session evidence, offline checks, verified fixture bootstrap and both cases; actual visual review and manual E01 window closure remain required. The manual workflow below is preserved for diagnosis. The user's completed one-click VM run now supplies the minimal live acceptance; see [evidence and limits](TASK5-VM-ACCEPTANCE.md).
 
-Implementation and offline tests are available. **Live E01 and E02 are NotRun**: neither the user nor the agent has an isolated Windows desktop available for this delivery. The agent execution sandbox is not a disposable Windows VM or an isolated Explorer desktop. Do not run GUI cases on the current working desktop/VDI.
+**Task-5 is Closed on user-provided Windows 11 VM acceptance (2026-11-02): E01/E02 Passed, overall exit 0.** Initial development had no isolated desktop and live cases were NotRun; the later user run supersedes that status. Exact VM build/PS minor and raw artifacts have not been independently re-audited by the agent. This is not universal build compatibility or agent-run GUI proof. The execution sandbox is not GUI isolation; do not rerun on a working desktop/VDI.
 
 This harness does not modify the production CLI or install dependencies. It uses a manual-fixture workflow, real public CLI subprocesses for live cases, and a separate Shell COM/Win32/UIA observer. Offline synthetic orchestration tests are tests of the harness, not evidence of Windows GUI success.
 
@@ -116,4 +116,4 @@ Expected: `Ready`, E01/E02 `NotRun`, exit 2. With foreign Explorer windows, stop
 - Actual public-entry default: NotRun/NotAuthorized, E01/E02 NotRun, exit 2. Import-only test performs no dispatch.
 - Harness tests use synthetic observations/CLI substitutes for orchestration and safety assertions. Their AwaitingVisualReview values are not live results and are never promoted as release evidence.
 - Native helper compilation and managed assembly-load probe may be recorded separately; neither enumerates Shell Windows nor searches an actual AddButton.
-- **Live E01/E02 NotRun: no isolated interactive Windows desktop available. Task-5 remains open.**
+- **Subsequent live acceptance: E01/E02 completed in the user's VM, overall exit 0. Task-5 Closed; [provenance and version/traceability limits](TASK5-VM-ACCEPTANCE.md).**

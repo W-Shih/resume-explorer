@@ -51,4 +51,4 @@ If a synchronous CLI/COM/UIA operation hangs, there is no hard timeout and no au
 
 Four suites pass on PowerShell 7.6.1: **39+17+21+14 = 91 offline tests**, including 14 new orchestration tests. New tests use synthetic CLI/observer/prompt adapters, including synthetic terminal Passed states solely to test suite transitions; they are **not live E01/E02 evidence**. Existing tests and production code remain unchanged.
 
-**Live one-click bootstrap, E01 and E02 are NotRun** because no isolated Windows GUI environment is available. Task-5 remains open; this convenience entry does not change its release gate.
+**Subsequent user VM acceptance (2026-11-02): the one-click workflow reached Complete / Error null / overall exit 0 after both operator reviews. Task-5 is Closed on that evidence.** This is user-executed acceptance, not an agent GUI rerun or universal Windows/PS7/VDI certification. Exact VM versions and original reports were not independently inspected by the agent; preserve the raw VM evidence. See [acceptance record](TASK5-VM-ACCEPTANCE.md).
