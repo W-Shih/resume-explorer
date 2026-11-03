@@ -9,7 +9,7 @@
 
 ## Implementation Order & Dependency Gate（2026-11-02 決策）
 
-**優先實作建議：Task-3 Single-Instance CLI Guard，然後才允許 FR-6 的實際清理功能上線。** 這是 **FR-6 工作流內的相對優先序**，並不覆蓋全專案已存在的 P1 Issue-4／Task-1 或提高本 FR 的 P2 優先級。
+**優先實作建議：先處置 [Task-4 S16 測試基線修復](resume-explorer-Task-4-restore-summary-s16-regression-plan.md)（P1，RCA Confirmed／Fix Planned），再獨立實作 Task-3 Single-Instance CLI Guard，然後才允許 FR-6 的實際清理功能上線。** 這是 **FR-6 工作流內的相對優先序**，並不覆蓋全專案已存在的 P1 Issue-4／Task-1 或提高本 FR 的 P2 優先級。
 
 **Task-3 詳細設計／測試計畫：** [`resume-explorer-Task-3-single-instance-cli-guard-plan.md`](resume-explorer-Task-3-single-instance-cli-guard-plan.md)（2026-11-02 Reviewed / Proposed；**尚未實作**）。本 FR §5.2／Phase 2A 保留依賴與 Cleanup 整合界線；實作／驗收 Global CLI Guard 的詳細依據以 Task-3 獨立計畫為準。
 

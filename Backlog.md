@@ -57,7 +57,7 @@
 
 **實作優先序／明確依賴（2026-11-02）**：
 
-1. **下一個建議獨立實作項目：Task-3（Single-Instance CLI Guard）**。它不需要等待 FR-6 的 Report 容量量測、分類／DryRun，也**不依賴 Issue-6**；先以隔離、跨 Shell 雙 Process 測試驗證，完成後可單獨交付。
+1. **Task-4（S16 測試基線）修復並跨版本驗收後，下一個建議獨立實作項目：Task-3（Single-Instance CLI Guard）**。Task-3 不需要等待 FR-6 的 Report 容量量測、分類／DryRun，也**不依賴 Issue-6**；先以隔離、跨 Shell 雙 Process 測試驗證，完成後可單獨交付。
 2. **FR-6 Phase 0 → Phase 1 → Phase 2**：唯讀容量基線 → Family graph／分類 → Review/Pin／DryRun。這條**不刪檔**的工作線可以在 Task-3 **之前或並行**進行，**不以 Task-3 為前置條件**。
 3. **FR-6 Phase 3（Opt-in Safe Cleanup）**：**必要前置 = Task-3 驗收通過 + FR-6 Phase 0–2 的分類／DryRun 證據與驗收 + 跨檔中斷恢復安全 Gate**；不符合其中任一條件即不實作 Delete。
 4. **FR-6 Phase 4（Post-Run Synchronous Cleanup）**：**必要前置 = FR-6 Phase 3 已通過驗收**，再整合 Restore／Retry 成功結束後同步執行，並維持 Single-Instance Lock 覆蓋整個命令。**FR-9 Compact／Full 不是以上任何階段的前置條件**。
@@ -121,7 +121,15 @@
 
 為 `resume-explorer.ps1` 建立自動化測試，涵蓋 Snapshot 讀寫與驗證等可單元測試的邏輯；並評估在支援的 Windows 環境中加入端對端測試，驗證 Explorer 視窗與 Tabs 的還原行為。
 
-### Task-3 — P2 — Single-Instance CLI Guard（建議下一個獨立實作；FR-6 Phase 3/4 前置條件）
+### Task-4 — P1 — RestoreSummary S16 JSON 格式敏感斷言（RCA Confirmed／待修復）
+
+- **已重現／確認（2026-11-02）**：`tests/RestoreSummary.Tests.ps1` 在 Windows PowerShell **5.1** 執行時，S01–S15 通過但 **S16 Assertion Failed**；PowerShell **7** 則 **17/17 通過（Exit Code 0）**。受控診斷確認原始 `IOException` 物件保持一致、`Checkpoint failed` Warning 恰好 1 筆、Console fallback JSON 可解析且 `SchemaVersion=1`；S17 的原始 Exception 保護亦經獨立診斷驗證。
+- **已確認根因**：S16 使用 `$text.Contains('"SchemaVersion": 1')` 鎖定單一空格，但 PowerShell 5.1 的 `ConvertTo-Json` 實際輸出 `"SchemaVersion":  1`（兩個空格）。這是**測試把合法 JSON 排版空白當成契約**，不是已證實的 Production Checkpoint／Schema 缺陷；不得為配合斷言去修改 Production JSON。
+- **建議最小修復**：只針對已證實錯誤的 S16 格式敏感 assertion，改從 InformationRecord 取得 fallback JSON，以 `ConvertFrom-Json` 驗證 `SchemaVersion`、`RunId`、`State`、`Items` 與必要 Item Status。**保留**原 Exception identity、唯一 checkpoint warning、Report 路徑、不得誤報 `Report saved/updated` 等安全契約；不得刪除／Skip／弱化既有測試來讓測試通過。
+- **優先序與驗收**：先以獨立 Test-only 變更處理本 Task，再進行 Task-3（Single-Instance CLI Guard）的實作基線驗證；需 `RestoreSummary.Tests.ps1` 在 PS5.1 與 PS7 **17/17 Passed、Exit Code 0**，既有 `Issue2.Tests.ps1` 回歸通過，且**不操作真實 Explorer**。本項 P1 是測試可靠性／後續開發基線，非已證實 P1 Production 缺陷。
+- **詳細 RCA 與修復計畫**：[`plans/resume-explorer-Task-4-restore-summary-s16-regression-plan.md`](plans/resume-explorer-Task-4-restore-summary-s16-regression-plan.md)（**RCA Confirmed / Fix Planned；尚未修改任何測試或 Production Code**）。
+
+### Task-3 — P2 — Single-Instance CLI Guard（Task-4 測試基線處置後建議獨立實作；FR-6 Phase 3/4 前置條件）
 
 - **需求（跨 Shell）**：同一 Windows 使用者、**共用相同鎖檔實際路徑**的新版 `resume-explorer.ps1`，不論透過 Windows PowerShell 5.1、PowerShell 7、CMD→PowerShell、Windows Terminal、VS Code Terminal 或不同工作目錄啟動，所有 Action（`Capture`／`Preview`／`Restore`／`PreviewRetry`／`Retry`，未來含 `Cleanup`）**同一時間只允許一個執行**。第二個命令在執行任何 Explorer／Snapshot／Report 副作用前 fail fast，**不等待、不排隊、不背景重試**。跨帳號／機器、舊版 CLI 或未共用鎖路徑不保證互斥。
 - **建議最小實作**：從 Windows 使用者的 LocalApplicationData 取得**固定絕對路徑**（候選 `%LOCALAPPDATA%\ResumeExplorer\resume-explorer.instance.lock`），不依賴 `$PWD`、Script 目錄、`-ReportPath`；在 CLI 最外層透過 OS 排他檔案開啟（`.NET FileStream`、`FileShare.None`）取得鎖。從 Action 開始到 **final checkpoint → summary → Retry family lock 釋放 → 同步 Cleanup 完成／跳過** 都保持 handle 開啟，最後在 `finally` 關閉；程序被終止時 OS 釋放 handle。檔案位於 `Runs` 之外，**不刪除 lock anchor，也不以 `.lock` 檔是否存在判定 Busy**；sharing violation 與 ACL／磁碟錯誤分開報告並 fail-closed。

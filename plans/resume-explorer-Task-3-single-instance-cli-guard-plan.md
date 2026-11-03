@@ -1,7 +1,7 @@
 # Task-3 — Single-Instance CLI Guard：Review 與詳細實作計畫
 
 - **Review 日期：** 2026-11-02
-- **優先級：** P2；建議下一個獨立實作，FR-6 Phase 3/4 的必要前置
+- **優先級：** P2；先完成 [Task-4 S16 測試基線修復](resume-explorer-Task-4-restore-summary-s16-regression-plan.md) 後，建議作為下一個獨立實作；FR-6 Phase 3/4 的必要前置
 - **狀態：** **Reviewed / Proposed；僅規劃，尚未實作**
 - **來源：** [Backlog.md — Task-3](../Backlog.md)（原 Review 範圍 L122–L128）
 - **對應：** [FR-6 Report Retention Plan](resume-explorer-Feature-Request-6-report-size-plan.md) §5.2 / Phase 2A；[Task-1 Tests Plan](resume-explorer-Task-1-automated-tests-plan.md)
@@ -43,10 +43,10 @@
 | Test | 本次觀察 | 注意 |
 | --- | --- | --- |
 | `tests/Issue2.Tests.ps1` | **39/39 Passed** | fake adapter；無真實 Explorer 動作 |
-| `tests/RestoreSummary.Tests.ps1` | S01–S15 顯示 Passed，接著在 S16 附近 **Assertion Failed** | 根因尚未確定；不能單純修改 Assertions |
+| `tests/RestoreSummary.Tests.ps1` | PS5.1 S01–S15 Passed、S16 Assertion Failed；PS7 **17/17 Passed** | **Task-4 已確認根因**：S16 對 `ConvertTo-Json` 空白格式作不穩定字串斷言；測試修正**尚未實作** |
 | 真實 Explorer E2E／Task-3 跨 Process | **NotRun** | 此功能尚未實作 |
 
-在 Task-3 開發前**先獨立診斷 S16**（期望 exception identity、Warning／記憶體 JSON fallback、函式覆寫與執行環境），分清 Production Bug、測試錯誤或環境因素；不得為了讓測試綠燈而任意刪改測試。若是獨立的既有問題，應分開修正並記錄，避免將無關變更混入 Task-3。
+在 Task-3 開發前應先完成 [Task-4 S16 專項修復計畫](resume-explorer-Task-4-restore-summary-s16-regression-plan.md)：**RCA 已確認是 PS5.1 的 JSON 排版空白與 S16 字串比對不一致**，原 Exception、Warning 與可解析 JSON 已由受控診斷驗證；**修復尚未實作**。僅應在有證據的 S16 assertion 改為 JSON 語意解析，保留原安全契約，並驗證 PS5.1／PS7 完整通過。不可為了讓測試綠燈任意刪改 Assertions 或修改 Production JSON。
 
 ## 3. Alternatives／取捨
 
@@ -179,7 +179,7 @@ Acquire global instance lock
 
 ### 5.3 原測試回歸完整性
 
-- 先確認 `RestoreSummary.Tests.ps1` 的 S16 baseline fail 原因。**既有測試不是為了讓新版程式通過而可以任意改寫的目標**；合法修改必須證明舊期待錯誤並有等價／更強測試。
+- **Task-4 已完成 S16 RCA，尚未實作修正**：PS5.1 的 `ConvertTo-Json` 冒號後為兩個空格，S16 錯誤要求單一空格；詳見 [Task-4 Plan](resume-explorer-Task-4-restore-summary-s16-regression-plan.md)。**既有測試不是為了讓新版程式通過而可以任意改寫的目標**；Task-4 僅在已驗證的錯誤斷言做最小、語意更強的修正，且保留原例外／Warning 等契約。
 - 建議新增 `tests/InstanceLock.Tests.ps1` 及必要的 test worker／fixture；沿用現有 deterministic testing style，不為本功能強制引入 Pester 5 或重寫整個架構。
 - 實作後重跑 `tests/Issue2.Tests.ps1`、`tests/RestoreSummary.Tests.ps1`、新的 Lock Tests，記錄 Exit Codes、通過／失敗／NotRun 與使用的 PowerShell 版本。
 - 沒有執行真實 Explorer E2E，不得宣稱 E2E Passed。
@@ -188,7 +188,7 @@ Acquire global instance lock
 
 | Phase | 內容 | Exit Gate |
 | --- | --- | --- |
-| **0. Baseline** | 核對 Git 狀態、既有測試；獨立調查 S16 | 原有 Assertion Failure 原因或未解決風險清楚記錄 |
+| **0. Baseline** | 核對 Git 狀態、既有測試；依 Task-4 修正已確認的 S16 格式敏感斷言並完成跨版本回歸 | Task-4 驗收：PS5.1／PS7 RestoreSummary 17/17 Passed、原安全檢查不弱化 |
 | **1. Lock Helper** | Known Folder、檔案排他 Open、Busy／I/O 分類、內部 Path Injection | L01–L06、L09–L12 的 deterministic／cross-process tests |
 | **2. CLI Guard** | 在薄 CLI 的最外層 `try/finally` 包 Action Dispatch；不更動 Restore/Retry core safety | L07–L08、L13–L14、L17 和原回歸測試 |
 | **3. Docs / Version / Validation** | 更新 README／Backlog／FR-6 references／版本，留存測試證據 | 全部可交付 Gate 與聚焦 Git Diff |
@@ -225,7 +225,7 @@ Track B: FR-6 Phase 0 --> Phase 1 --> Phase 2 ---------+
 
 ## 8. Risks／限界
 
-1. **已存在的 S16 測試異常**：僅觀察到 Assertion Failure，尚未有 RCA；不得無證據歸因 Task-3。
+1. **已存在的 S16 測試異常**：Task-4 已驗證是跨 PowerShell 版本的 JSON 排版格式敏感斷言，**尚未修正**；不得無證據歸因 Task-3 或把測試修正視為已完成。
 2. **只有合作的新 CLI 受限**：舊版、直接 Core Caller、第三方、不同帳號或機器不受約束；跨帳號共用 ReportPath 的 Cleanup 應禁止／保守處理。
 3. **Explorer Hang 不會因 Lock 消失**：COM/UIA 若卡住，CLI 長時間持鎖並拒絕其他 Action；不得刪 Lock 或強制殺 Explorer 作為修復。
 4. **跨 PS 版本／RDP Session**：須實際驗證，未測就記錄 NotRun；無法僅憑設計宣稱相容。
