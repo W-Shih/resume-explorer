@@ -15,7 +15,7 @@
 3. **Full（明確 opt-in）**：盡可能保留現行診斷能力，包括詳細 Views／Errors（可能包含其他視窗敏感 Path）；是否限制總筆數／大小須由效能與故障診斷需求量測決定，若有截斷需顯式標記，**不能宣稱無界或 100% 無損**。
 4. 兩種模式**同一個 Report 契約、同一套 Reader／Retry 安全邏輯**，每個 Run 只產生一份 JSON Report；不應為一種模式另外製作缺少安全欄位的第二份檔案。
 5. Full **不能事後補回** Compact 當時沒有保存的資料。因此 Compact 必須足以調查常見的失敗類型；若需要完整事故前 Views，使用者須在重現前選擇 Full。
-6. 與 **FR-6 的 file retention 獨立**：FR-6 已採用 **Error-aware／Run-family-aware** 的 A（未解決異常全保護）／B（已審核異常最新 5 個）／C（完全成功最新 1 個 Baseline）保留提案；不論是 V1 Full 或未來 Compact/Full，均應按相同的完整 Root／Retry Family 與安全狀態分類。切換診斷等級本身不會刪除或輪替歷史檔案，也不能為了節省容量而移除 Retry 證據。**FR-6 的清理功能目前也尚未實作。**
+6. 與 **FR-6 的 file retention 獨立**：FR-6 已採用 **Error-aware／Run-family-aware** 的 A（未解決異常全保護）／B（已審核異常最新 5 個）／C（完全成功最新 1 個 Baseline）保留提案；不論是 V1 Full 或未來 Compact/Full，均應按相同的完整 Root／Retry Family 與安全狀態分類。**FR-6 的清理目標是受控的 Restore／Retry 結束後同步、機會式處理，而非定時排程或背景 job**；切換診斷等級本身不會刪除或輪替歷史檔案，也不能為了節省容量而移除 Retry 證據。**FR-6 的清理功能目前也尚未實作。**
 
 ## 2. 對外介面（提案，非現有功能）
 

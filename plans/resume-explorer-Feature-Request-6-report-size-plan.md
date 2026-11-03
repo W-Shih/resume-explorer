@@ -1,9 +1,9 @@
-# Feature Request-6 — Error-aware / Run-family-aware JSON Report Retention：詳細調查與實作計畫
+# Feature Request-6 — Error-aware / Run-family-aware JSON Report Retention：同步清理詳細計畫
 
 - 初稿：2026-11-01；本次決策更新：2026-11-02
 - 優先級：**P2**（若證實儲存耗盡或 checkpoint 效能嚴重退化，再依證據升級）
 - 狀態：**Reviewed / Proposed；本次只有文件規劃，尚未實作 Retention／清理**
-- 主要決策：**優先保存有價值的異常紀錄**，同時留下少量正常 Baseline；以完整 **Root Run Family** 為單位，而不是以單個 JSON 或單純時間排序清理
+- 主要決策：**優先保存有價值的異常紀錄**，以完整 **Root Run Family** 為單位；**同步／機會式清理（Synchronous, post-run cleanup）**，不使用 Task Scheduler、背景排程、服務或常駐程序
 - 分工：[FR-9 診斷等級](resume-explorer-Feature-Request-9-diagnostic-level-plan.md) 負責未來 Compact／Full；**本 FR 只決定 Report 保留與容量證據，不要求改變診斷 Schema**
 - 原始真實 Report 可能包含個人／公司路徑，**不得加入公開 repo**；量測結果只放去識別化摘要
 
@@ -21,7 +21,9 @@
 
 本 FR 不處理 Snapshot 的定時保留（FR-3／FR-8）、Explorer Process／Hang（Issue-5／Issue-6）、同步 COM/UIA 超時根因（Issue-4）；也不修改 Restore／Retry 的 Invoke／Navigate 或原子 checkpoint 流程。
 
-**量測先行仍然有效**：若實際磁碟負擔很小，Phase 0/1 可僅交付分類、DryRun 與觀察結果，**不強行推出自動清理**。自動套用 Retention 是後續有條件功能，而不是這份計畫的既定承諾。
+**量測先行仍然有效**：若實際磁碟負擔很小，Phase 0/1 可僅交付分類、DryRun 與觀察結果，**不強行推出刪檔功能**。若之後完成安全清理能力，**目標整合方式**是在一次成功完成的 Restore／Retry 命令尾端、且所有必要的 checkpoint 已持久化及相關 Retry lock 已釋放後，**於相同程序同步檢查並執行有界維護**，然後才返回 CLI。此為 post-run maintenance，**不是排程**；清理必須通過獨立安全與效能驗收，初版不得默默啟用刪除。
+
+**術語區分**：「同步」是**與這次 Restore／Retry 同一個呼叫流程、並於回傳前完成或跳過維護**，不表示「每次必定刪除」或「清理一定有嚴格 wall-clock deadline」。它也不等於 Run 的同步 checkpoint：**清理不得介入單次 Restore／Retry 的任何副作用前 checkpoint**。
 
 ## 2. 現況與證據（直接對照現有程式碼）
 
@@ -34,7 +36,7 @@
 - `Completed` **不等於**全部 `Verified`；`Get-RunSummary` 依每個 Item 的 `Status` 計算結果，沒有在 JSON 裡持久化「已處理／已確認」的 Retention 狀態。
 - 舊案例的 V1 Full Report 為 **3,002,321 bytes**（18 Items、83 Samples、5,115 累積 Views）。記憶體中清空 `Samples.Views` 後重序列化約 **116,701 bytes**；僅 minify 約 **1,514,104 bytes**。已證實「重複記錄 Views」是**單份容量來源**，**尚未證實**它造成 Issue-4 Timeout，也未量測實際歷史總量。
 
-**重要結論**：目前既無「異常已處理」欄位，也沒有可安全原子刪除整個 Family 的儲存佈局。**不可直接寫一個只看 Status 或保留最近五個 `*.json` 的刪檔迴圈**。
+**重要結論**：目前既無「異常已處理」欄位，也沒有可安全原子刪除整個 Family 的儲存佈局。**不可直接寫一個只看 Status 或保留最近五個 `*.json` 的刪檔迴圈**。同步時機本身不提供檔案交易原子性，也不會消除其他 CLI 程序、舊版本程序或既有 PreviewRetry／Retry 的競態。
 
 ## 3. 定義：哪些 Family 有錯、哪些算已處理？
 
@@ -84,7 +86,7 @@
 
 ## 5. 工作階段與安全清理：先設 Gate，不能直接實作 `Remove-Item`
 
-**目前檔案分散在共享 Runs 目錄與遞迴 RetryRuns，沒有「單一目錄原子刪除整個 Family」的保證**。`Retry` 使用排他 family lock，但 `PreviewRetry` 不保證取得相同鎖，Restore 起始的 root checkpoint 也不是與 Retention 共用的全程鎖。僅依當下 `State=Completed` 或檔案 `.retry.lock` 是否存在不能排除競態。
+**目前檔案分散在共享 Runs 目錄與遞迴 RetryRuns，沒有「單一目錄原子刪除整個 Family」的保證**。目前 `Retry` 只有 Family 排他鎖，`PreviewRetry`／`Restore` 並未取得全命令鎖。新計畫先增加**一個** CLI single-instance guard，從進入命令到 Cleanup 完成始終持有；如此同一使用者的新版本 CLI 不會同時執行 Retry 與 Cleanup。即使完成單例保護，**跨檔刪除失敗及舊版／外部讀寫者仍要獨立保護**，但不必預設設計大型 Lock Manager。
 
 ### 5.1 先比較三個替代方案
 
@@ -94,14 +96,91 @@
 | 直接依 5 個 Root Family 同步刪除 | 清理量容易理解 | **拒絕立即實作**：不能區分 A/B/C，且跨檔案刪除不具原子性 |
 | **A/B/C 分類 + 預覽 + 有條件 Family 清理** | 符合診斷價值，允許保護異常及成功 Baseline | **採用作為設計方向**，但刪除需先證明排他性與 crash recovery；否則停留在 DryRun |
 
-### 5.2 清理功能必要前置條件（未通過即不實作自動清理）
+### 5.2 **Single-Instance Execution：任何時間僅允許一個 `resume-explorer` 命令**
 
-- **同一 Family 的 Restore/PreviewRetry/Retry/清理協調**：評估統一的生命週期鎖／交易守門方式；任何調整都必須測試不影響既有 CLI 與 Retry lock 保障。特別驗證「使用者剛 Preview，另一程序準備 Retry」的時序。
-- **Revalidate-before-delete**：以掃描時產生的 candidate manifest／hash、完整 family 成員列表／狀態／Pinned metadata／目錄身份，在真正清理前**重新掃描驗證**；有新 Child、檔案變動、異常或鎖爭用就整個 Family 跳過。
-- **多檔失敗一致性**：先設計可恢復的保守清理交易（如受控保留區＋manifest／recovery log），並證明對 crash、拒絕存取、磁碟不足、部分刪除、重啟後的恢復正確。**不能假設搬移共享 Root/Child 檔案或跨檔刪除是原子操作；搬移也會影響 `RootReportPath` 及 Retry**。
-- **只處理可確認的完整閉合 Family**：任何未知 Child、Sidecar、外部依賴、檔案 reparse point／hard-link 風險等，在沒有可靠支援前都**跳過**。不能刪除共享 `RetryRuns` 目錄、其他 Family 的 Preview／Lock 或使用者自訂 ReportPath。
-- **安全中斷**：清理過程失敗，不得默默留下會被當成合法可重試的殘缺 Family；如不能提供安全恢復機制，**退回只提供預覽／人工決策，不實作刪除**。
-- **明確啟用**：初版僅 DryRun，後續即使有實作 Cleanup 也應 `WhatIf`／`Confirm` 或等價顯式 opt-in，不能在一般 `Restore`／`Retry` 完成時默默執行。自動定時清理另開驗收 Gate。
+**核心規格（建議獨立於 Retention 先實作）**：同一 Windows 使用者／機器中，透過新版 `resume-explorer.ps1` 啟動的命令（`Capture`、`Preview`、`Restore`、`PreviewRetry`、`Retry`，以及未來的 `Cleanup`）**一次只能有一個正在執行**。此規格包含正常 Restore／Retry 和尾端同步 Cleanup 的**整個命令生命週期**，不是「僅 Cleanup 互斥」。
+
+**推薦最小實作：穩定位置的 OS 排他檔案鎖（`FileStream` + `FileShare.None`）**：
+
+1. 在 CLI entry point、任何 action 可能列舉 Explorer／讀寫 Snapshot／Report **之前**，先取得固定的每使用者鎖，例如 `%LOCALAPPDATA%\ResumeExplorer\resume-explorer.instance.lock`（候選名稱）。它位於 **`Runs` 目錄外面**、由程式擁有，**永遠不參與 Report Retention／刪檔**；無論 `-ReportPath` 指向何處，使用相同 lock anchor。
+2. 用 .NET `[IO.File]::Open(path, OpenOrCreate, ReadWrite, FileShare.None)` 取得排他開啟的 `FileStream`，**持有開啟的 handle 才是鎖**；檔案存在不代表仍有命令在執行。建立父目錄需受控／可重入，失敗時 **fail-closed**，不得略過鎖繼續 Restore。
+3. 第二個 CLI 在 lock 被持有時**立即拒絕執行（fail fast）**，輸出可理解的「已有 resume-explorer 命令執行中；稍後重試」；**不排隊、不阻塞等待、不啟動背景 retry**。必須區分 sharing violation 與權限／磁碟錯誤，不應將所有 I/O 例外都誤報為「已有命令」。
+4. 最外層 `try/finally` 包覆完整 action dispatch **及可選 post-run Cleanup**，最後才 `Dispose()` handle。正常結束、內部 `throw` 或 `Ctrl+C` 等可處理終止均應釋放；程序遭終止時 Windows 會關閉 handle。**不要用「偵測檔案是否存在」或「定期刪除過期 .lock」推定鎖狀態**。
+5. `Start-RetryRun` 現有的 **family `.retry.lock` 保持不變**，先在其 `finally` 釋放；外層 instance lock 仍持有，接著同步 Cleanup，**Cleanup 完成／略過後**才釋放 instance lock。不要引入新的 Lock Manager、輪詢式工作佇列、背景 worker 或每個 Family 額外協調鎖來解決「本工具的新命令」互斥。
+6. **範圍界線**：相同 Windows 使用者、共用相同 `LOCALAPPDATA`／鎖檔路徑的新版本 CLI 會互斥；不保證不同 Windows 帳號、不同機器、**舊版本腳本**、第三方工具或直接 dot-source core 函式也遵守本鎖。跨帳號共用的自訂 ReportPath **不納入自動清理**；遇到無法確認的舊版／外部讀寫者，跳過正式刪除，不能宣稱絕對全機單例。
+7. **相容性**：以前可同時執行的 `Preview`／`Capture` 也會被拒絕，屬**有意的可觀察行為變更**。先測試並更新 README、版本、使用指引與必要 CLI 測試；保留既有 Action 名稱、參數、正常輸出、Report Schema、Retry 安全判斷。可考慮讓 FR-8 的自動 Capture 在 Busy 時安全跳過本輪，而不是等待或中斷前景 Restore。
+
+**替代方案評估**：Windows named `Mutex` 也能跨程序限制執行，但會增加命名／Session namespace／ACL／AbandonedMutex 處理；目前已使用 `FileShare.None` 實作 Retry 排他，因此**推薦共享固定 lock-file 技術，但不要重用可被刪除的 `<RootReportPath>.retry.lock` 作為全域單例鎖**。若不同 Windows sessions 必須互斥，先以相同使用者的 `LOCALAPPDATA` 穩定路徑驗證跨 Session 行為，而不是假設 `Local\` named mutex 能涵蓋全部 sessions。
+
+**命令與鎖的生命週期（設計意圖，尚未實作）：**
+
+```text
+CLI 取得 single-instance lock（失敗則立即退出，不做副作用）
+  → 執行 Capture / Preview / Restore / PreviewRetry / Retry / Cleanup
+  → Restore/Retry 時：final checkpoint → summary → release family retry lock
+  →（僅啟用時）同步清理符合保留條件的其他舊 Run Families
+  → CLI finally: release single-instance lock → 返回使用者
+```
+
+**仍然必須處理的獨立風險（不應過度設計並行架構）**：
+
+- **刪除前最小重驗**：檢查 candidate family closure／hash／metadata／Pinned／A-B-C 分類與受管路徑。發現未知子代／內容變動立即 skip；不因有單例鎖就跳過安全分類。
+- **中途崩潰／跨檔刪除**：即使只有**一個**命令，多檔案刪到一半遇到斷電仍可留下殘缺 Family。Phase 3 必須提出**最小可驗證的 fail-closed／recoverable 方案**，不能破壞 Retry 對已 Verified／Attempted 子代的查核；若找不到簡潔安全的做法，只提供 DryRun 或手動管理，**不得冒險實作 Delete**。
+- **外部／舊版程序**：Single-instance guard 對它們沒有強制力；採保守預設，尤其舊版可能不尊重新的刪除標記。不得在缺乏可驗證前置條件時清理仍可能由它們使用的 Family。
+- **同一 CLI 同步清理**：只有本次命令的最後 checkpoint 已保存且原操作正常返回，才允許清理其他舊 Family；清理失敗只影響 Cleanup summary／warning，不能改變 Restore／Retry 的狀態、exit code 或副作用次數。
+
+**Gate：**先以**兩個獨立 PowerShell process** 的離線測試驗證排他、fail-fast、正常與異常釋放、跨 PS5.1/7（如可用）、不同 `-Action`、無 COM/Explorer 副作用，以及 lock file 不被 Cleanup 選取。通過後，Single-instance 才可作為 FR-6 正式清理的併行保障；**不用實作另一套複雜的 Family Lock Manager**。
+
+### 5.3 目標：Restore／Retry **同步、機會式（opportunistic）**清理
+
+**明確排除**：Task Scheduler、Background Service、常駐程序、獨立 Timer、稍後自動重試，以及在使用者離開 CLI 後才清理。所謂「自動」只表示**使用者已啟用這項功能時，跟隨本次 Restore／Retry 命令尾端執行**；不是自動排程。
+
+**建議執行順序（目前尚未實作）：**
+
+1. **在 CLI 最外層先排他取得 single-instance lock，取得不到則立即拒絕第二個命令**。成功取得後才執行正常 `-Action Restore`／`-Action Retry`；不得在偵測候選、新建視窗、Invoke、Navigate、任何中間 checkpoint 或尚在建立 Retry 子報告時清理。
+2. `Complete-Run` 先完成**最後一筆原子 checkpoint**，原本的 `Write-RunSummary` 照舊輸出。若 Restore／Retry 發生例外（包括最後 checkpoint 失敗），**維持原始例外與 exit behavior，直接略過 Cleanup**；切勿在 `catch`／`finally` 裡對未知狀態動手。
+3. `Start-RetryRun` 返回之前會在自己的 `finally` 釋放既有 Root family `.retry.lock`；**此時外層 single-instance lock 仍被同一 CLI 持有**，不會有第二個新版命令插入。Cleanup hook 應位於 CLI／外層流程、且在 `Start-RetryRun` 完整返回之後；不可直接加進 `Complete-Run`。
+4. 正常返回後，**再次唯讀核對**本次 report 已存在、可解析、最終 `State=Completed` 且 checkpoint 可讀；即使包含 `OutcomeUnknown`／`NotAttempted`，也只是表示本次流程已結束，**該 Family 仍屬 A 且受到保護**，不能從 Restore `Completed` 推論可以刪除。現有 `Start-RestoreRun`／`Start-RetryRun` **沒有向 CLI 回傳結構化 RunId／ReportPath 結果**；若整合點需要識別本次 Family，應以**內部明確的執行結果／上下文傳遞**（或等價方式）取得，保留現行 stdout、主控台 Summary 和公開參數相容性，**不可解析 `Write-Host "Report: ..."` 文字來決定刪除資格**。
+5. 只有在功能已明確啟用、Report 屬受管預設 Runs 範圍、沒有競態／鎖風險、且發現超過 B/C soft retention 的**完整可驗證歷史 Family** 時，才嘗試清理其他**合資格的舊 Family**。本次新產生的 Family、Pinned、A／Unknown／Custom 一律不在候選中。
+6. 對於資料不完整、Busy、超時軟預算、掃描失敗、尚無候選的情境，輸出簡短 `Skipped`／`Deferred` 原因，**立即返回**；不排入背景工作。下次使用者再次執行 Restore／Retry 時才可能重新檢查。
+7. 清理結果**顯示在原 Restore／Retry summary 之後**，例如 `Cleanup: skipped (disabled/no candidates)`、`Cleanup: 1 family, N bytes`、`Cleanup warning: ...`；不得偽造 Verified 數量，也不輸出敏感 RequestedPath。**清理完成／跳過後，外層 `finally` 才釋放 single-instance lock，再返回 CLI**；即使命令失敗也必須釋放。
+
+**觸發矩陣（最終期望行為）**：
+
+| 命令／條件 | Post-run Cleanup | 原因 |
+| --- | --- | --- |
+| `Restore` 最後 checkpoint 成功、命令正常返回 | **Eligible to check**（不是必刪） | 不干擾主流程；當次可能是 Partial，但受影響 Family 繼續保護 |
+| `Retry` 最後 checkpoint 成功、函式正常返回，Root family lock 已釋放 | **Eligible to check** | 不造成自己持有鎖又嘗試清理的問題 |
+| `Restore`／`Retry` 例外、`Aborted`、最終 checkpoint 寫入失敗／不可信 | **Skip**，保留原失敗 | 不在不確定狀態下清理，也不掩蓋原例外 |
+| `Capture`／`Preview`／`PreviewRetry` | **Skip** | 維持現有操作語意，尤其 PreviewRetry 目前未統一持有 family lock |
+| 使用 `-ReportPath` 指向非受管預設目錄、或來源 Family 位置不可信 | **Skip** | 避免在自訂報告操作時意外清理另一個目錄 |
+| 同一使用者的第二個新版 CLI 在第一個仍執行時啟動 | **整個第二個命令 fail fast**（尚未進入任何 Action） | single-instance lock 覆蓋全部命令與同步清理，無等待／無佇列；舊版／外部操作不在此保證範圍 |
+| 使用者明確執行未來的 `-Action Cleanup` | 依 `DryRun`／明確確認模式執行 | 手動入口，**不屬排程** |
+
+**Backward compatibility**：既有 CLI 目前既沒有 single-instance gate，也沒有 retention 動作。**所有 Action 一次只能有一個執行**屬新增的明確行為（第二個命令會 fail fast）；在實作時必須同步更新 README、版本／測試與使用提示。Cleanup 的第一個可用版本**預設不刪**，以 explicit opt-in 啟用（候選 `-CleanupAfterRun`；手動 `-Action Cleanup -DryRun`）。只有獨立離線測試與安全驗收後，才考慮日常預設同步清理及 opt-out；不可偷偷改掉既有 Restore／Retry 的結果。
+
+### 5.4 有界同步維護、錯誤隔離與協調協定（實作前須決策）
+
+**效率／回傳延遲**：
+
+- **快速 No-op**：先以便宜且安全的條件判定是否需要進一步掃描；沒有可安全確認的候選就跳過。**不能只掃描部分目錄就宣稱 Family 完整可刪**。
+- **有界工作量**：候選初始值可考慮「每次最多清理 1 個完整 Family、約 2 秒 soft budget」，但**必須先量測**，不是硬性驗收數字。限制候選數、檔案 I/O、掃描範圍、一次的清理嘗試量；剩餘合資格 Family 留到**下一次使用者主動呼叫**處理，不開背景佇列。
+- **軟時間限制不是同步 I/O 的硬中斷保證**：單次 PowerShell/.NET 檔案 I/O 或網路磁碟可能阻塞超出預算；不得強殺執行緒，也不能超時後讓未完成的清理繼續在背景跑。若無法保障正常使用的回應性，**只交付 DryRun 或僅手動 Cleanup**；以 P50/P95 增量延遲與長尾案例判定。
+- **降低不必要的掃描**：可以在既有受管目錄使用低成本門檻／單次 Cleanup 計畫來避免每次全量解析；如使用 persisted last-scan metadata，必須可選、可重建、不能替代實際刪除前的完整 revalidation，不擴張成排程或複雜資料庫。
+- **保留政策不變**：Tier A／Unknown 全保護；Tier B 最近 5、Tier C 最近 1（可搭配已驗收的 Grace period），Pin 及本次新 Run 保護優先。單次清理預算可能讓合資格舊 Family 暫時超額，這是預期行為而不是錯誤。
+
+**並行與儲存安全（以 Single-instance 為主、最小必要防護）**：
+
+- **不設獨立 Cleanup Lock Manager**：整個 CLI 的 OS 排他 handle 持續涵蓋 `Restore`／`Retry` 及 post-run Cleanup；所有新版命令（包含 `PreviewRetry`／手動 `Cleanup`）**同時只會執行一個**。第二個命令取得不到 instance lock 就 fail fast；不要在 Cleanup 裡再設等待式 per-family queue／worker。既有 `<RootReportPath>.retry.lock` 仍保留，以維持 Retry 原有保障與相容性。
+- **新舊版界線與保守跳過**：舊版 CLI、其他 Windows 使用者／外部工具沒有義務取得新鎖，不能聲稱 single-instance 已保護它們。清理前仍需確認完整 family graph、hash、review metadata、目錄歸屬及 Sidecars；遇到任何不明的更新、活躍外部讀寫證據或資料無法驗證時，**跳過本次 Family**，不冒險刪除。此限制應在首次啟用 Cleanup 前清楚告知。
+- **跨檔失敗仍需最小恢復方案**：即使單一命令執行，刪除 Root＋Child／Sidecars 時突然斷電仍不是原子動作。先提出最小的 recoverable/fail-closed 保護（例如獨立且持久化的 retire/tombstone 狀態，配合 Retry 的拒絕與恢復驗證；是否需要由測試決定），不得為了簡化而留下可能被誤判為可重試的殘缺 Family。**找不到可驗證且成本合理的方案，就停在 DryRun／手動檔案管理，而不是引入大型交易框架或盲目刪檔**。
+
+**結果與失敗隔離**：
+
+- **Restore/Retry correctness、報告 checksum 與 exit code 優先**。清理失敗不得更改剛保存的 Run、Status、ReasonCode 或退出結果；原本成功仍是成功、原本失敗仍傳回原例外。僅就 Maintenance 顯示獨立 Warning／Skipped reason，不能輸出 `Report saved` 之類未經驗證的成功訊息。
+- 如使用 `Write-Warning`，須考慮 `$WarningPreference='Stop'` 或呼叫端的 WarningAction 可能令警告變成 terminating exception；設計上應明確讓 cleanup warning **不會覆蓋主操作結果**，又不能悄悄吞掉維護問題。保留單獨可檢查的 Cleanup 結果，避免誤判已刪。
+- **例外不做補刪、不得重試 Restore**：清理失敗只能在下一次正常 CLI 執行再評估；不可增加額外 Invoke／Navigate、改變 Checkpoint 順序或因清理錯誤導致已成功的 Restore 被重送。
+- DryRun 與正式 Cleanup 均需要可驗證、去識別化的統計（`FamiliesExamined`、`ProtectedA`、`RetainedB`、`RetainedC`、`Eligible`、`Deleted`、`FreedBytes`、`DeferredReason`），不能提供敏感 Path；真正刪除後才報 freed bytes。
 
 ## 6. 分階段執行計畫（沒有一階段預設應修改正式程式碼）
 
@@ -127,16 +206,30 @@
 3. 在不同 Report 狀態、缺漏 metadata、數量邊界（0／1／5／6／100）、時間相同、跨時區、Grace period、Pin／Unpin 下驗證排序與保護邏輯。
 4. **Gate**：DryRun 多次執行結果決定性、沒有對檔案的副作用，且能清楚說明「為什麼這個 Family 被保留／候選清理」。
 
-### Phase 3 — 顯式 Family 清理（**有條件，需專門安全審核**）
+### Phase 2A — Single-instance 執行保護（可獨立於 Cleanup 先交付）
 
-1. 先提出並驗證 family-wide 並行存取協定、預覽與實際清理間 TOCTOU 防護、部分刪除／中斷恢復機制；如無法滿足，**拒絕本 Phase**。
-2. 實作有限範圍、顯式授權的 cleanup；保留完整 audit 與可核對的結果。發現差異只跳過，不重新猜測清理候選。
-3. 驗證 5+1 的 soft limit，不能覆蓋 A/Unknown/Pin；不可改動 Report JSON、既有 PreviewRetry／Retry 結果或 Snapshot。
-4. **Gate**：離線故障注入、同 Family 併發 Preview／Retry、子代新建、磁碟／鎖／權限與 crash-recovery 測試全部通過，才評估推出。
+1. 先寫**不接觸 Explorer** 的兩個 PowerShell process 排他測試，涵蓋所有 `-Action`、新舊 `powershell.exe`／`pwsh.exe`（如環境支援）、第二個命令 fail fast、無等待及錯誤訊息；使用隔離的測試 lock path，**不得在測試時佔用使用者的真實 instance lock**。
+2. 在 `resume-explorer.ps1` 最外層加一個共享所有 Action 的 `FileShare.None` guard（helper 可小型化、與 Report Retention 邏輯分離），並以 `try/finally` 保證釋放。鎖檔位於 `Runs` 之外，永久不列入清理；測試檔案存在但 handle 已釋放時**可以重新取得**。
+3. Regression：驗證 lock 已持有時 `Capture`／`Preview`／`Restore`／`PreviewRetry`／`Retry` 不進入任何 Action；第一個命令正常、拋例外、Ctrl+C／程序被終止後，第二個命令能在 OS 釋放 handle 後繼續；針對不可建立鎖與權限失敗應 fail-closed。保留現有 CLI 合法輸出、Report Schema、既有 Retry family lock 與測試行為。
+4. **Gate**：已證明同一 Windows 使用者的新版本 CLI 一次只執行一個；第二個命令不造成 Explorer 或 Report 副作用；不同使用者／舊版不在此保證範圍，使用者文件清楚告知。**此階段不實作任何刪除**。
 
-### Phase 4 — 自動排程（**可選，非本需求預設交付**）
+### Phase 3 — 顯式 Family 清理（**有條件，先完成 Single-instance Gate**）
 
-只有長期實測確有必要、Phase 3 稳定且經明確批准時，才考慮排程；預設關閉，提供停用／調整與 DryRun 日誌，保留無法確定的資料。不要與 FR-8 自動 Capture 排程隱含綁定。
+1. 依靠已驗證的**單一 CLI 執行鎖**防止新版本的 Restore／Retry 與 Cleanup 同時進行；**不建立額外 Lock Manager**。另外驗證 Family 成員與 hash／metadata、受管路徑，對舊版／外部修改採保守跳過。
+2. 單獨評估「多個 Root／Child JSON 清理到一半失敗」的最小 fail-closed／recoverable 設計；若無法確保殘留 Report 不會錯誤允許 Retry，**拒絕本 Phase**，保留 DryRun。
+3. 實作有限範圍、顯式授權的手動 Cleanup；保留可核對的結果與 audit，發現任何資料差異直接 skip，不推測或繼續刪。驗證 B 最新 5、C 最新 1 的 soft target，永不清理 A／Unknown／Pin、本次新 Run、自訂 ReportPath 或 Snapshot。
+4. **Gate**：獨立測試 single-instance 排他、未知／舊版存取、子代變更、磁碟／權限／鎖、crash-recovery 與現有 PreviewRetry／Retry safety 全部通過；禁止在日常 Explorer/VDI 直接測試真實刪檔。
+
+### Phase 4 — **Restore／Retry 後同步整合**（取代自動排程；安全 Gate 通過後實作）
+
+1. **整合點**：在外層 `resume-explorer.ps1` 呼叫 `Start-RestoreRun`／`Start-RetryRun` 正常返回後，才進入可選的同步 Cleanup；**不置於 `Complete-Run` 的 `finally`**，避免最後 checkpoint 失敗仍清理、或 Retry family lock 尚未釋放。實作時需要**內部可取得的 RunId／ReportPath context**，不得以正規表示式讀取主控台 Summary，亦不得改變對外 Pipeline 輸出或造成額外的 `Write-Host`。此整合點僅是建議，先寫呼叫順序與輸出相容測試。
+2. **條件式啟用**：先新增明確 opt-in 的 post-run maintenance（CLI 名稱待定），並保留獨立手動 `Cleanup`／`DryRun` 入口；後續如要預設啟用，必須另完成相容性與可停用設計的發布審核，不視為無影響變更。
+3. **安全範圍與觸發**：只有受管報告、最後 checkpoint 成功、主命令無例外、家族鎖已釋放，且**原本在 CLI 起始時取得的同一把 single-instance lock 仍持有**時才檢查；**不取得第二把新維護鎖**。`Completed + OutcomeUnknown` 只允許**清理其他合格的舊 Family**，不能將目前這個 A 類 Family 刪除。
+4. **快速返回**：無候選、只有 A／Unknown、尚未超額、不可取得鎖、權限不足或超出**軟**時間／候選預算即跳過；單次最多處理少數完整 Families（初始 1 個為候選）並在目前 CLI 中完成，不新增 Timer、Task Scheduler、背景 job 或待辦佇列。
+5. **錯誤隔離**：正常 Restore／Retry 的報告與 exit code 不得因 Cleanup 失敗改變；清理失敗只記錄獨立 warning／結果與待處理數量，嚴格避免 `$WarningPreference='Stop'` 等影響主流程。不得自動重新執行 Restore／Retry 或遮蔽原始 exception。
+6. **驗收 Gate**：測試「取得全命令鎖 → 正常 Restore/Retry → summary 已列印 → Retry family lock 已釋放 → 同步清理檢查 → 釋放全命令鎖 → CLI 返回」順序；第二個命令要 fail fast，不可插入執行。另測未掃描完成、磁碟錯誤、超額 Families、軟預算超時及 PowerShell WarningPreferences；若效能或安全成本不合理，僅保留已驗證的**手動 Cleanup** 能力，不推出預設 post-run 刪除。
+
+**決策：不採用自動排程清理，也不把清理工作丟給背景程序。** 即使未來 FR-8 實作定時 Snapshot Capture，FR-6 的 Report Cleanup 仍只在使用者主動觸發的 CLI 中同步發生。
 
 ## 7. 測試矩陣（以離線 Deterministic Tests 為主）
 
@@ -155,9 +248,19 @@
 | 自訂 ReportPath、外部路徑、junction／symlink、錯誤權限 | 不進自動清理集合，不越界 |
 | Pin/Unpin、Review resolved、Review metadata 損壞、新 Retry Child | Pin 勝過配額；資料變動後 Review 失效並重新保護 |
 | Preview 後報告被改寫或新增 Child | 清理前 hash/manifest 重新驗證失敗，整個 Family 跳過 |
-| 活躍 Retry family lock／PreviewRetry 競態／Report 正在 checkpoint | 不對活躍或不確定 Family 清理 |
+| 在第一個 CLI 中，`Start-RetryRun` 仍持有 family lock；另一 CLI 試圖 `PreviewRetry` | 同一 CLI 必須先完成 Retry、釋放 family lock 才可清理；第二個 CLI 因全命令鎖立即拒絕，不能插入 |
 | 刪到一半停電、磁碟滿、I/O denied、部分 Sidecar | 若有 Cleanup，須證明一致性與 recovery；否則不得推出刪檔能力 |
 | Root/Child schema V1；未來 V2 若由 FR-9 實作 | V1 原始契約不變，未知版本保護；V2 明確支援後才可納入清理 |
+| 未啟用 Cleanup 的正常 Restore／Retry；其他 `Capture`／`Preview`／`PreviewRetry` | 與現有行為一致：不清理、不改 Report、無額外建立／導覽副作用 |
+| 主流程正常結束、最後 checkpoint 可讀，且候選舊 Family 超額 | 僅在 Summary 與相關 Retry lock 釋放後，於**同一 CLI**檢查受管 Family 並同步清理少量合資格舊 Family |
+| `Completed` 但 Partial／OutcomeUnknown／NotAttempted | 可檢查其他舊 Family；**本次 Partial Family 保護**，不把 Completed 當 All Verified |
+| 主流程 `Aborted`、最後 checkpoint 失敗、尚未完整返回 | **不觸發 Cleanup**、保留原 Exception／exit code、沒有任何清理副作用 |
+| 第二個新版 CLI 嘗試 `Capture`／`Preview`／`Restore`／`PreviewRetry`／`Retry`／`Cleanup` | 在 Action 前因 single-instance guard fail fast；**不等待且不修改任何 Explorer／Report／Snapshot** |
+| 真實 instance lock 檔案持續存在但 handle 已釋放；程序 crash／Ctrl+C | 下次可取得新鎖，不以檔案存在與否判斷 Busy；lock anchor 位於 `Runs` 外，永不刪除；受管資料受 fail-closed 保護 |
+| 清理 eligible Families > 每次候選／時間預算，或沒有候選 | 單次有界處理、其餘 `Deferred`；下一次使用者操作再處理，**無背景 job／Timer／Scheduler** |
+| 清理失敗、locked、I/O denied、`$WarningPreference='Stop'`、子樹變動 | 只回報維護 Warning／Skipped，**主 Restore／Retry 既有結果與退出碼不變**，不重送 Invoke／Navigate |
+| 使用自訂 `-ReportPath`、未來手動 `-Action Cleanup` | 自訂路徑不觸發 managed auto-clean；手動入口需明確授權／DryRun，所有路徑範圍與家族保護不變 |
+| 同步清理延遲及完成率 | 離線假時鐘、不同家庭規模和實機 sandbox 量測增量 P50/P95、worst-case／slow IO 與 FreedBytes；若不符合回應性需求，保留手動模式而非做背景清理 |
 | 既有 `tests/Issue2.Tests.ps1`／`tests/RestoreSummary.Tests.ps1` | 現有身份／single Invoke／Navigate／atomic checkpoint／Retry／輸出驗證不退化 |
 
 **既有測試完整性**：不要為了「測試通過」改掉現有斷言。若真要修改測試，先定位根因，保留或補充等價的安全回歸測試。先前文件曾記錄 Issue2 39 PASS、RestoreSummary S16 斷言失敗，這是**歷史基線**，本次文件更新不宣稱已解決該測試。
@@ -169,8 +272,11 @@
 - **安全性**：不能刪掉 Root 但留下可由 Retry 操作的子 Run，也不能把原本已 Verify/Attempt 的證據清走導致重送；不得清理自訂 ReportPath、Snapshot、受管範圍外檔案或未知 Sidecars。
 - **可觀測性**：DryRun 顯示保護原因、候選、節省 bytes、異常數及實際超額，而非僅一句「刪除 N 個 JSON」。
 - **量測**：有客觀磁碟和執行期成本數據；不把節省磁碟空間視為 Issue-4 Timeout 已解決。
-- **安全交付**：Phase 0–2 可獨立結案為調查／Read-only capability；若刪除協定沒有通過 Gate，**不推出自動清理**。沒有默認清理或改 Report Schema。
-- **發布前**：若未來實作 Cleanup，更新 README、Backlog、CLI 用法、測試與版本資訊；執行離線回歸後再在**隔離的可重設環境**驗證。絕不在日常 Explorer/VDI 用大規模 Restore、強制結束 Explorer 或真實 Report 刪除做壓測。
+- **安全交付**：Phase 0–2 可獨立結案為調查／Read-only capability；Phase 3 只有刪除協定通過 Gate 才允許手動清理；Phase 4 在其上進行**同步 post-run 整合**。若有任何安全或效能風險，**不推出自動清理**。沒有預設刪除、定時排程、背景 job 或改 Report Schema。
+- **同步整合正確性與 Single-instance**：正式啟用後同一 Windows 使用者的新版本 CLI **一次只允許一個 Action**，整個命令期間持有固定 OS 排他 lock（包含 Cleanup）；第二個命令立即拒絕、不排隊。只有主命令正常返回且最終 checkpoint 成功、Retry family lock 釋放後才進行清理；Cleanup 沒有背景生命周期、排程或額外 Invoke／Navigate，主流程的 Status／ReasonCode／exit code／Summary 保持一致。
+- **可預期的回傳成本**：只作有界且可跳過的同步清理；量測每次 CLI 增量 P50/P95、slow I/O 長尾及 Scan/Deleted/FreedBytes。單次 I/O 不受 Stopwatch 硬中斷，**不得聲稱嚴格 wall-clock 保證**；若造成不可接受的延遲，保留手動 Cleanup 而不預設整合。
+- **失敗與隔離**：Try-lock 失敗、無候選、超出軟預算及 cleanup error 可以顯示 Deferred／Warning，但不改原 Restore／Retry 的 exception/exit code，不得刪除 A／Unknown／Pin 或跳過 revalidation。
+- **發布前**：若未來實作 Cleanup，更新 README、Backlog、CLI 用法、啟用／停用策略、測試與版本資訊；**首次只 opt-in**，後續如改成預設同步清理必須先明確評估向後相容性並告知使用者。離線回歸後再在**隔離的可重設環境**驗證。絕不在日常 Explorer/VDI 用大規模 Restore、強制結束 Explorer 或真實 Report 刪除做壓測。
 
 ## 9. 建議工作單元與文件一致性
 
@@ -178,9 +284,11 @@
 2. `test(fr6): add synthetic family classification fixtures` — 新增最小 schema/lineage/flags/State tests，既有測試不削弱。
 3. `feat(fr6): add read-only report family inventory and dry run` — 先交付**沒有 Delete 權限**的列舉／判斷功能。
 4. `feat(fr6): add explicit review and pin metadata` — 只有確認 A→B 與 metadata 變更可被安全驗證時才實作。
-5. `design(fr6): prove safe family deletion and recovery` — 獨立安全審核 Gate；缺乏可行的無競態協定時**拒絕實作清理**。
-6. `feat(fr6): opt-in family cleanup` — Gate 通過後選做，附故障注入與 recovery tests；自動排程另需明確核准。
+5. `feat(fr6): single-instance CLI guard` — **優先獨立實作一次一個命令**（穩定 per-user 檔案鎖、fail-fast、全命令 `try/finally`、離線雙 Process 回歸測試），不引入額外 lock manager。
+6. `design(fr6): prove minimal fail-closed family cleanup` — 單例鎖不能防止多檔中斷；僅設計**可證明安全的最小刪除／恢復機制**，若不合理則留在 DryRun。
+7. `feat(fr6): opt-in family cleanup` — 所有 Gate 通過後選做手動顯式 Cleanup，附故障注入與 recovery tests。
+8. `feat(fr6): opt-in synchronous post-run cleanup` — 同一個 single-instance lock 保護完整命令；只在 `Restore`／`Retry` 成功返回及 Retry family lock 釋放後進行有界、非背景清理；維護錯誤不改主命令結果，先寫離線順序／相容性測試。
 
 **與 FR-9 的關係**：FR-9 仍追求日常 Compact／調查 Full，但不應讓「保留哪個 Family」取決於診斷詳細程度；不論 V1 Full 或未來 V2 Compact，保留分類均以**安全的 Run/Item 狀態與完整 lineage**為準。
 
-**歷史決策**：從「直接縮小 JSON」轉成「量測先行、優先保存高價值錯誤報告」，本次再將「最近 3–5 個一般 Family」改為 **A 全保護／B 最近 5／C 最近 1**。此政策目前只在文件中，**不代表有清理功能上線**。
+**歷史決策**：從「直接縮小 JSON」轉成「量測先行、優先保存高價值錯誤報告」，再把「最近 3–5 個一般 Family」改為 **A 全保護／B 最近 5／C 最近 1**。先取消「定時自動清理」，改採 Restore／Retry 後同步機會式清理。**2026-11-02 本次修訂：以全 CLI 單一執行檔案鎖取代過度複雜的 Cleanup 並行鎖規劃，明確限定一次一個 `resume-explorer` 命令、第二個 fail fast，保留最小的跨檔中斷／外部修改防護**。此政策目前只在文件中，**不代表單例鎖或清理功能已實作**。

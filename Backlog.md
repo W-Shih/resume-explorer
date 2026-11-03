@@ -43,13 +43,15 @@
 
 ## Feature Requests
 
-### Feature Request-6 — P2 — Error-aware / Run-family-aware Report Retention（待調查／規劃）
+### Feature Request-6 — P2 — Error-aware / Run-family-aware 同步 Report Cleanup（待調查／規劃）
 
 - **2026-11-02 Review／唯讀實測**：原始 Report **3,002,321 bytes**（18 Items、**83** Diagnostics.Samples、**5,115** 累積 Views；原紀錄 87／5,119 已校正）。在**記憶體中**清空 Samples.Views 後重序列化為約 **116,701 bytes**；僅 minify 為約 **1,514,104 bytes**。這確認重複保存全域 Views 是主要容量來源，但**尚未證實是 Issue-4 Timeout 根因**；原始 Report 未被修改。
 - **新決策／實際現況（2026-11-02）**：採 **Error-aware、Run-family-aware** 歷史保留政策，先量測真實磁碟、checkpoint serialize/write 與記憶體成本，不與 Issue-4 COM/UIA Timeout 混淆。現行 writer/reader **仍為 V1 Full**，沒有 Report retention/delete CLI；`5afd928` 雖以 `feat` 命名，實際只提交 Markdown，**沒有實作 FR-9 Compact／Full**。FR-9 的診斷等級屬獨立需求，本 FR 不要求立即修改 Schema。
 - **三層 Retention（候選，尚未實作）**：**A** 未解決／未審核異常與狀態不明的 Family **全部保護**；**B** 曾有異常、經使用者**明確確認已處理**的完整 Families **保留最近 5 個**；**C** 全部正常 Verified 的完整 Families **保留最近 1 個 Baseline**（可考慮安全寬限期）。以 Root + 所有 Retry 子孫 + Sidecars 為單位，**絕不依單個 JSON 輪替**。5+1 是 soft target；Pin、活躍／Locked、OutcomeUnknown、Aborted、缺漏／損壞／自訂路徑等仍優先保護。
-- **Classification／Safety Gates**：`Completed` ≠ 全部 Verified；Root `OutcomeUnknown` 即使後代 Retry Verified，**也不可自動認定已處理**，需獨立的使用者 Review/Pin 狀態，且不得改寫 Report 使 PreviewRetry hash 失效。先交付**唯讀 Family inventory／分類與 DryRun**；之後才評估顯式 opt-in Cleanup，前提是已解決跨檔刪除、共享 `RetryRuns`、PreviewRetry／Retry 競態、crash-recovery 與重新驗證問題。無法證明安全則**不實作自動刪除**；保留副作用前原子 checkpoint、attempt flags、Run lineage、Retry hash/lock，不在日常 Explorer／VDI 壓測。
-- **詳細階段／狀態**：**Reviewed / Proposed，尚未改程式碼、未刪除 Report**。Phase 0 唯讀量測；Phase 1 完整 Family graph／異常分類；Phase 2 人工 Review/Pin + DryRun；Phase 3 只有安全 Gate 全通過才提供顯式 Cleanup；自動清理不是預設交付。優先級 P2，若可重現嚴重磁碟／checkpoint 問題再升級。詳見 [`plans/resume-explorer-Feature-Request-6-report-size-plan.md`](plans/resume-explorer-Feature-Request-6-report-size-plan.md)。
+- **Single-instance Requirement（全命令互斥）**：**同一 Windows 使用者的新版本 `resume-explorer.ps1` 一次只能執行一個命令**，包含 `Capture`／`Preview`／`Restore`／`PreviewRetry`／`Retry`／未來 `Cleanup`。建議 CLI 最外層持有 `%LOCALAPPDATA%\ResumeExplorer\resume-explorer.instance.lock` 的 OS 排他 `FileStream`（`FileShare.None`），鎖檔位於 `Runs` 之外且永不清理；第二個命令**立即拒絕，不等待**。從 Action 開始前直到同步清理完成都持有鎖，由 `finally`／程序結束釋放。這是**未實作的新 CLI 行為**；舊版腳本、跨帳號／機器或外部寫入者不受保證。詳見下方 **Task-3** 與 FR-6 計畫。
+- **Classification／Safety Gates**：`Completed` ≠ 全部 Verified；Root `OutcomeUnknown` 即使後代 Retry Verified，**也不可自動認定已處理**，需獨立的使用者 Review/Pin 狀態，且不得改寫 Report 使 PreviewRetry hash 失效。先交付**唯讀 Family inventory／分類與 DryRun**，再完成 single-instance 測試，最後才考慮顯式 opt-in Cleanup。**全命令鎖取代大型並行鎖管理器**，但跨檔刪除中斷、舊版／外部存取、完整 Family revalidation 仍需最小 fail-closed 防護；無法證明安全則**不實作刪除**。保留原 checkpoint、attempt flags、Run lineage、Retry hash/lock，不在日常 Explorer／VDI 壓測。
+- **同步清理方式（無排程／背景工作）**：在同一 CLI **已持有 single-instance lock** 的情況下正常執行 Restore／Retry → 最後 checkpoint 成功 → 原 Summary 顯示 → 原有 Retry family lock 釋放 → 同步有界清理其他合資格舊 Families → 最後才釋放全命令鎖並返回。主操作 Aborted／checkpoint 失敗就略過 Cleanup、保留原例外；無候選／預算不足只 Deferred。其他 Action **仍取得全命令鎖，但不觸發 post-run 清理**。Cleanup 失敗不得改變 Restore／Retry 的 Status 或 exit code。**先 opt-in；未來若預設同步清理須另做相容性審核與 opt-out**，不使用 Scheduler、Timer、Background Job。
+- **詳細階段／狀態**：**Reviewed / Proposed，尚未改程式碼、未刪除 Report**。Phase 0 唯讀量測；Phase 1 Family graph／異常分類；Phase 2 Review/Pin + DryRun；**Phase 2A 全 CLI 單一執行保護**；Phase 3 只有跨檔中斷等最小安全 Gate 通過才提供顯式手動 Cleanup；Phase 4 Restore／Retry 後同步整合。無 Scheduler／Background Worker／Lock Manager；若安全或回傳延遲無法接受則只保留 DryRun／手動能力。優先級 P2。詳見 [`plans/resume-explorer-Feature-Request-6-report-size-plan.md`](plans/resume-explorer-Feature-Request-6-report-size-plan.md)。
 
 ### Feature Request-9 — P2 — JSON Report 診斷等級：Compact Default／Full Opt-in（待設計）
 
@@ -107,6 +109,13 @@
 ### Task-1 — P1
 
 為 `resume-explorer.ps1` 建立自動化測試，涵蓋 Snapshot 讀寫與驗證等可單元測試的邏輯；並評估在支援的 Windows 環境中加入端對端測試，驗證 Explorer 視窗與 Tabs 的還原行為。
+
+### Task-3 — P2 — Single-Instance CLI Guard（FR-6 同步清理的前置條件）
+
+- **需求**：同一 Windows 使用者／機器中，所有新版 `resume-explorer.ps1` Action（`Capture`、`Preview`、`Restore`、`PreviewRetry`、`Retry`，未來含 `Cleanup`）**同一時間只允許一個執行**；第二個命令必須 fail fast 且在任何 Explorer／Snapshot／Report 副作用前退出，不自動排隊或背景重試。
+- **建議最小實作**：在 CLI 最外層使用同一 per-user、`Runs` 範圍以外的穩定 OS 排他檔案鎖（候選 `%LOCALAPPDATA%\ResumeExplorer\resume-explorer.instance.lock`、`.NET FileShare.None`）。整個 Action 及 Restore／Retry 後可選的同步 Cleanup 都持有 handle；在 `finally` 關閉；程式被終止時 OS 釋放 handle。**不要把 `.lock` 檔案存在誤判為仍被佔用，也不得將 lock anchor 列入清理**。
+- **安全與相容性**：保留原有 per-family `Retry` lock、原子 checkpoint、Report JSON 與既有 CLI 參數／正常輸出。只保證遵守同一鎖的新版 CLI；舊版腳本、不同使用者與外部工具仍不受約束。此變更使既有同時執行的命令改為拒絕，應更新 README／版本與測試。拒絕 lock 失敗不得誤啟動 Explorer。
+- **測試／交付**：先做隔離鎖位置的**雙 PowerShell process 離線測試**，涵蓋所有 Action、同時啟動、例外／Ctrl+C／程序終止後可再取得鎖、PS5.1/7、權限錯誤與無需刪除過期檔；避免擾動真實 Explorer 或現有檔案。詳細方案：[`plans/resume-explorer-Feature-Request-6-report-size-plan.md`](plans/resume-explorer-Feature-Request-6-report-size-plan.md) §5.2、Phase 2A。
 
 ### Task-2 — P2
 
