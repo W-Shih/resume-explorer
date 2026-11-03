@@ -1,11 +1,15 @@
 # Task-3 — Single-Instance CLI Guard：Review 與詳細實作計畫
 
 - **Review 日期：** 2026-11-02
-- **優先級：** P2；先完成 [Task-4 S16 測試基線修復](resume-explorer-Task-4-restore-summary-s16-regression-plan.md) 後，建議作為下一個獨立實作；FR-6 Phase 3/4 的必要前置
+- **優先級：** P2；[Task-4 S16 測試基線修復](DONE/resume-explorer-Task-4-restore-summary-s16-regression-plan.md) 已完成並歸檔，建議作為下一個獨立實作；FR-6 Phase 3/4 的必要前置
 - **狀態：** **Reviewed / Proposed；僅規劃，尚未實作**
 - **來源：** [Backlog.md — Task-3](../Backlog.md)（原 Review 範圍 L122–L128）
 - **對應：** [FR-6 Report Retention Plan](resume-explorer-Feature-Request-6-report-size-plan.md) §5.2 / Phase 2A；[Task-1 Tests Plan](resume-explorer-Task-1-automated-tests-plan.md)
 - **本次範圍：** 全命令互斥的需求／設計／測試規劃；**不修改 Production Code、Tests、Version，不實作 Cleanup，也不建立 Commit**。
+
+## Runtime Policy（2026-11-02 後續決策）
+
+本計畫後續實作與驗收以 **Windows 上的 PowerShell 7（`pwsh.exe`）** 為唯一正式支援主版本。5.1／7 跨版本試驗與 Task-4 的結果保留作歷史記錄，但不再是 Task-3 的必需 Gate。仍須測試**兩個獨立 PowerShell 7 processes** 的 OS lock 排他、不同 hosts／PWD、錯誤與異常釋放。此政策不改變任何 CLI／Report／Snapshot 安全契約。實際 Explorer E2E 另驗收。
 
 ## 1. Executive Summary／需求結論
 
@@ -20,7 +24,7 @@
 | 需求 | 判定 | 最終建議 |
 | --- | --- | --- |
 | 所有 Actions 都互斥，包括 Preview | 合理 | 保留：避免未來 Cleanup／Retry 與讀寫交錯 |
-| 跨 PS 5.1／PS 7／CMD／Windows Terminal／VS Code／不同 PWD | 合理 | 同一檔案路徑 + OS File Sharing 保證 |
+| 跨 PowerShell 7 processes／CMD→`pwsh.exe`／Windows Terminal／VS Code／不同 PWD | 合理 | 同一檔案路徑 + OS File Sharing 保證；5.1 非支援對象 |
 | Fail Fast，不排隊、不重試 | 合理 | 不新增 Lock Timeout／Wait Queue |
 | 固定 `%LOCALAPPDATA%\ResumeExplorer\resume-explorer.instance.lock` | 合理 | 用 Windows Known Folder 取得絕對路徑 |
 | 全命令持有 handle，最後 finally Dispose | 必要 | 含 final checkpoint、summary、family lock 釋放與未來同步 Cleanup |
@@ -46,7 +50,7 @@
 | `tests/RestoreSummary.Tests.ps1` | 修復前 PS5.1 S16 Failed；**Task-4 修正後 PS5.1.22621.6931／PS7.6.1 均 17/17 Passed、Exit 0** | 2026-11-02 Test-only 修正，保留原安全 assertions；12 組負向 fixture 於 S16 內拒絕；Issue2 亦兩版本各 39/39、Exit 0 |
 | 真實 Explorer E2E／Task-3 跨 Process | **NotRun** | 此功能尚未實作 |
 
-**Task-4 baseline gate 已於 2026-11-02 解除**：[Task-4 結案證據](resume-explorer-Task-4-restore-summary-s16-regression-plan.md)記錄 JSON 語意斷言修正與 PS5.1／PS7 完整回歸，原 Exception identity、Warning 與 Report 語意契約保留，未修改 Production JSON。Task-3 自身的互斥功能與跨 Process 驗收仍未實作；開始時仍應重跑當前基準，不因這次結案視為 Lock 或 Explorer E2E 已通過。
+**Task-4 baseline gate 已於 2026-11-02 解除**：[Task-4 結案證據](DONE/resume-explorer-Task-4-restore-summary-s16-regression-plan.md)記錄 JSON 語意斷言修正與 PS5.1／PS7 完整回歸，原 Exception identity、Warning 與 Report 語意契約保留，未修改 Production JSON。Task-3 自身的互斥功能與跨 Process 驗收仍未實作；開始時仍應重跑當前基準，不因這次結案視為 Lock 或 Explorer E2E 已通過。
 
 ## 3. Alternatives／取捨
 
@@ -146,7 +150,7 @@ Acquire global instance lock
 
 ### 5.1 兩層測試策略
 
-1. **Helper Unit／Cross-Process Tests（主軸）**：為 `Enter-ResumeExplorerInstanceLock -Path <testPath>` 提供內部注入，使用每次唯一的 `%TEMP%\ResumeExplorer-LockTests-<GUID>`、兩個真正獨立的 `powershell.exe`／`pwsh.exe` PIDs 與可控制的 ready/release 訊號。完全不接觸真實 Explorer、正式 Lock Anchor 或現有 Report。
+1. **Helper Unit／Cross-Process Tests（主軸）**：為 `Enter-ResumeExplorerInstanceLock -Path <testPath>` 提供內部注入，使用每次唯一的 `%TEMP%\ResumeExplorer-LockTests-<GUID>`、兩個真正獨立的 `pwsh.exe` PIDs 與可控制的 ready/release 訊號。完全不接觸真實 Explorer、正式 Lock Anchor 或現有 Report。
 2. **CLI Orchestration Test（必需）**：另行驗證 CLI 在任何 Action Dispatch 之前必定 Acquire，且 Busy 時 Explorer／Snapshot／Report 副作用計數全為 0。可使用隔離的測試入口／暫存副本與安全 Fixture（不得修改正在使用的 Production CLI），或使用專用測試 Windows Account／Profile；不為了測試在正式 CLI 暴露繞過 Lock 的公開參數。**只有 Helper Test 通過，還不能宣稱 CLI Guard 已覆蓋所有 Action**。
 3. **真實 Explorer E2E（非預設）**：需獨立、互動式 Windows Session 與明確 opt-in；不對使用者現有 Explorer 視窗或 Process 執行測試與清理。
 
@@ -161,7 +165,7 @@ Acquire global instance lock
 | L03 | A 正常 Dispose，B 再取得 | B 可成功取得 |
 | L04 | Anchor 存在但 handle 已釋放 | 不誤判 Busy |
 | L05 | 不同 `$PWD`／Terminal／Script 位置 | 同一 Lock Path 時仍互斥 |
-| L06 | PS 5.1 ↔ PS 7 | 兩者皆可用時跨版本互斥；不存在的版本標記 NotRun |
+| L06 | PS 7 ↔ PS 7（獨立 processes／shell hosts） | 共享同一 lock anchor 時排他；跨 PS 5.1／7 非支援要求 |
 | L07 | Capture vs Restore | 第二個 CLI 無 Action 副作用 |
 | L08 | Preview vs Retry／PreviewRetry | 所有 Action 同一互斥規則 |
 | L09 | Lock Path 無權限 | Fail Closed、不是 Busy |
@@ -179,7 +183,7 @@ Acquire global instance lock
 
 ### 5.3 原測試回歸完整性
 
-- **Task-4 已完成 S16 修正與跨版本驗收**：將已驗證錯誤的空格假設替換為 JSON 語意檢查，保留例外 identity／唯一 Warning／Report 路徑／禁止假成功契約，新增負向 fixture；詳見 [Task-4 Plan](resume-explorer-Task-4-restore-summary-s16-regression-plan.md)。這不是任意改寫既有測試的授權；Task-3 仍須保留並重跑全部原有測試。
+- **Task-4 已完成 S16 修正與跨版本驗收**：將已驗證錯誤的空格假設替換為 JSON 語意檢查，保留例外 identity／唯一 Warning／Report 路徑／禁止假成功契約，新增負向 fixture；詳見 [Task-4 結案紀錄](DONE/resume-explorer-Task-4-restore-summary-s16-regression-plan.md)。這不是任意改寫既有測試的授權；Task-3 仍須保留並重跑全部原有測試。
 - 建議新增 `tests/InstanceLock.Tests.ps1` 及必要的 test worker／fixture；沿用現有 deterministic testing style，不為本功能強制引入 Pester 5 或重寫整個架構。
 - 實作後重跑 `tests/Issue2.Tests.ps1`、`tests/RestoreSummary.Tests.ps1`、新的 Lock Tests，記錄 Exit Codes、通過／失敗／NotRun 與使用的 PowerShell 版本。
 - 沒有執行真實 Explorer E2E，不得宣稱 E2E Passed。
@@ -188,7 +192,7 @@ Acquire global instance lock
 
 | Phase | 內容 | Exit Gate |
 | --- | --- | --- |
-| **0. Baseline** | 核對 Git 狀態、既有測試；依 Task-4 修正已確認的 S16 格式敏感斷言並完成跨版本回歸 | Task-4 驗收：PS5.1／PS7 RestoreSummary 17/17 Passed、原安全檢查不弱化 |
+| **0. Baseline** | 核對 Git 狀態、既有測試；Task-4 已完成，不重做歷史跨版本驗收 | PS7 RestoreSummary 17/17、Issue2 39/39；原安全檢查不弱化 |
 | **1. Lock Helper** | Known Folder、檔案排他 Open、Busy／I/O 分類、內部 Path Injection | L01–L06、L09–L12 的 deterministic／cross-process tests |
 | **2. CLI Guard** | 在薄 CLI 的最外層 `try/finally` 包 Action Dispatch；不更動 Restore/Retry core safety | L07–L08、L13–L14、L17 和原回歸測試 |
 | **3. Docs / Version / Validation** | 更新 README／Backlog／FR-6 references／版本，留存測試證據 | 全部可交付 Gate 與聚焦 Git Diff |
@@ -225,10 +229,10 @@ Track B: FR-6 Phase 0 --> Phase 1 --> Phase 2 ---------+
 
 ## 8. Risks／限界
 
-1. **已存在的 S16 測試異常**：Task-4 已驗證是跨 PowerShell 版本的 JSON 排版格式敏感斷言，**尚未修正**；不得無證據歸因 Task-3 或把測試修正視為已完成。
+1. **S16 歷史測試異常已修復**：Task-4 已完成 JSON 語意斷言修正與 PS5.1／PS7 完整回歸，結案紀錄已歸檔至 DONE。這只解除測試基線 Gate；Task-3 仍需自行驗證 Lock 與跨 Process 行為，不得將 Task-4 通過視為 Task-3 完成。
 2. **只有合作的新 CLI 受限**：舊版、直接 Core Caller、第三方、不同帳號或機器不受約束；跨帳號共用 ReportPath 的 Cleanup 應禁止／保守處理。
 3. **Explorer Hang 不會因 Lock 消失**：COM/UIA 若卡住，CLI 長時間持鎖並拒絕其他 Action；不得刪 Lock 或強制殺 Explorer 作為修復。
-4. **跨 PS 版本／RDP Session**：須實際驗證，未測就記錄 NotRun；無法僅憑設計宣稱相容。
+4. **跨 PowerShell 7 processes／RDP Session**：須實際驗證；PS5.1 非正式支援要求。未測的跨 RDP Session 記錄 NotRun，不可僅憑設計宣稱相容。
 5. **全域互斥不等於多檔刪除 Crash Recovery**：FR-6 必須獨立驗證與防護。
 
 ## 9. 預期交付與參考

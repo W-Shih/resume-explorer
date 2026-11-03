@@ -1,10 +1,10 @@
-# Task-4 — RestoreSummary S16 JSON 格式敏感斷言：RCA 與修復計畫
+# Task-4 — RestoreSummary S16 JSON 格式敏感斷言：RCA 與修復結案紀錄
 
 - **Review 日期：** 2026-11-02
 - **優先級：** **P1（測試基線完整性）**；建議在 Task-3 Single-Instance CLI Guard 實作前以獨立變更處置
 - **狀態：** **Completed / Test-only Fix Verified（2026-11-02）**；僅修改 S16 assertion 與相關文件，PS5.1／PS7 完整回歸通過，沒有 Production 變更
-- **追蹤來源：** [Backlog.md — Task-4](../Backlog.md)
-- **關聯：** [Task-3 Single-Instance Guard](resume-explorer-Task-3-single-instance-cli-guard-plan.md)、[Task-1 Automated Tests](resume-explorer-Task-1-automated-tests-plan.md)
+- **追蹤來源：** [Backlog.md — Task-4](../../Backlog.md)
+- **關聯：** [Task-3 Single-Instance Guard](../resume-explorer-Task-3-single-instance-cli-guard-plan.md)、[Task-1 Automated Tests](../resume-explorer-Task-1-automated-tests-plan.md)
 - **範圍：** `tests/RestoreSummary.Tests.ps1` 中 S16 對 fallback JSON 的格式敏感 assertion；**不涉及真實 Explorer 的 Capture/Restore**
 
 ## 1. 結論（根因已驗證）

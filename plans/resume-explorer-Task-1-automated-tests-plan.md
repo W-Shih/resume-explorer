@@ -252,16 +252,16 @@ Window 2: C
 - 建議以 **Pester 5.x** 作為唯一正式 test API（`PesterConfiguration`、tags、mock、test result export），固定一個實測可用的 5.x 版本；**不是**使用系統內建的 Pester 3.4.0 然後假設其語法相容。
 - 此次裝置目前**沒有列到 Pester 5.x**。依公司環境政策，由維護者明確提供／安裝所選版本；測試程式本身**不執行** `Install-Module`、不修改 Execution Policy、不偷偷覆蓋系統模組。
 - 如果公司環境無法提供 Pester 5，先標記 `Blocked: Pester 5 unavailable`；可另評估首批用 3.4 相容語法，但必須選定**一個**正式 API，不維護兩套分歧測試。
-- E2E 主要鎖定產品的 Windows PowerShell **5.1 / STA** 執行。`pwsh` 7.x 的 Unit cross-check 是加分項，不可代替 Shell COM/UIA 的實際驗收。
+- **支援政策更新（2026-11-02）**：E2E 主要鎖定 **Windows 上的 PowerShell 7（`pwsh.exe`，STA）**；Windows PowerShell 5.1 不再是產品支援或 CI 驗收條件。PowerShell 7 的 Unit Tests 不能代替實際 Shell COM／UIA／Explorer Tabs E2E 驗收。以上為後續計畫的最新版政策；本文件早期 5.1／Pester 環境調查仍作歷史紀錄。
 
 ### 8.2 Runner 的介面（需先實作）
 
 ~~~powershell
 # 安全預設：只跑 Unit，不開 Explorer
-powershell.exe -NoProfile -NonInteractive -File .\tests\Invoke-Tests.ps1 -Suite Unit
+pwsh.exe -NoProfile -NonInteractive -File .\tests\Invoke-Tests.ps1 -Suite Unit
 
 # 僅於專用、互動式 Windows 11 session 手動執行
-powershell.exe -NoProfile -Sta -File .\tests\Invoke-Tests.ps1 `
+pwsh.exe -NoProfile -Sta -File .\tests\Invoke-Tests.ps1 `
     -Suite Integration -AllowExplorerUiChanges
 ~~~
 

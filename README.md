@@ -20,7 +20,8 @@
 ## 系統需求
 
 - Windows 11（主要在 **23H2 / Build 22631** 環境驗證）
-- Windows PowerShell（可使用 Shell COM 與 .NET UI Automation）
+- **Windows 上的 PowerShell 7（`pwsh.exe`）為唯一正式支援的 PowerShell 主版本**；Windows PowerShell 5.1（`powershell.exe`）不再列入開發、回歸測試或問題修復的相容性要求。現有離線測試已在 PowerShell 7.6.1 驗證；其他 7.x 小版本及實際 Explorer／VDI 互動仍須分別驗收。
+- 僅支援 Windows 上的 PowerShell 7；Shell COM、Windows UI Automation 以及 Explorer Tabs 依賴 Windows，不支援以 macOS／Linux 上的 PowerShell 7 執行。
 - 允許執行本機 PowerShell 腳本的公司／系統政策
 
 在公司管理的 VDI 上，請遵守 IT 對 PowerShell 與自訂工具的規範；不要為了執行本工具繞過公司 Execution Policy。

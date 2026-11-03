@@ -9,7 +9,7 @@
 
 ## Implementation Order & Dependency Gate（2026-11-02 決策）
 
-**優先實作建議：先處置 [Task-4 S16 測試基線修復](resume-explorer-Task-4-restore-summary-s16-regression-plan.md)（P1，RCA Confirmed／Fix Planned），再獨立實作 Task-3 Single-Instance CLI Guard，然後才允許 FR-6 的實際清理功能上線。** 這是 **FR-6 工作流內的相對優先序**，並不覆蓋全專案已存在的 P1 Issue-4／Task-1 或提高本 FR 的 P2 優先級。
+**優先實作建議：[Task-4 S16 測試基線修復](DONE/resume-explorer-Task-4-restore-summary-s16-regression-plan.md) 已完成跨版本驗收並歸檔（2026-11-02）；下一步獨立實作 Task-3 Single-Instance CLI Guard，然後才允許 FR-6 的實際清理功能上線。** 這是 **FR-6 工作流內的相對優先序**，並不覆蓋全專案已存在的 P1 Issue-4／Task-1 或提高本 FR 的 P2 優先級。
 
 **Task-3 詳細設計／測試計畫：** [`resume-explorer-Task-3-single-instance-cli-guard-plan.md`](resume-explorer-Task-3-single-instance-cli-guard-plan.md)（2026-11-02 Reviewed / Proposed；**尚未實作**）。本 FR §5.2／Phase 2A 保留依賴與 Cleanup 整合界線；實作／驗收 Global CLI Guard 的詳細依據以 Task-3 獨立計畫為準。
 
@@ -143,9 +143,9 @@ Track B: FR-6 Phase 0 --> Phase 1 --> Phase 2 -----+
 | 同時執行的環境 | 預期行為／驗收 |
 | --- | --- |
 | 兩個 `pwsh.exe`，各在獨立 Terminal／Tab | 第一個執行；第二個 **fail fast** |
-| `powershell.exe` 5.1 與 `pwsh.exe` 7（如有安裝） | 同一鎖檔路徑時跨版本互斥 |
+| 兩個獨立 `pwsh.exe` 7 processes（不同 shell hosts／工作目錄） | 同一鎖檔路徑時跨 Process 互斥；PS5.1 非正式支援要求 |
 | VS Code Integrated Terminal 與 Windows Terminal／獨立 PowerShell | 不受 Terminal／Host 差異影響 |
-| CMD 透過 `powershell.exe -File` 啟動 CLI，另一個 PowerShell 執行 CLI | 不受外層 Shell 影響 |
+| CMD 透過 `pwsh.exe -File` 啟動 CLI，另一個 PowerShell 7 process 執行 CLI | 不受外層 Shell 影響 |
 | 從不同 `$PWD`／不同 Git worktree 或複製的新版 CLI 啟動（共用同一鎖設定） | 鎖路徑與 Repository／Snapshot／ReportPath 無關，**仍須互斥** |
 | 相同 Windows 帳號的不同登入／RDP Session | **只有兩邊實際解析到同一個可共用鎖檔、其檔案系統遵守 Windows sharing semantics 時**才保證；需隔離實測 |
 | 不同 Windows 帳號、不同機器、舊版 CLI 或直接呼叫 core 函式 | **不在本功能的互斥保證範圍**；不得據此進行危險 Report 清理 |
@@ -176,7 +176,7 @@ CLI 取得 single-instance lock（失敗則立即退出，不做副作用）
 - **外部／舊版程序**：Single-instance guard 對它們沒有強制力；採保守預設，尤其舊版可能不尊重新的刪除標記。不得在缺乏可驗證前置條件時清理仍可能由它們使用的 Family。
 - **同一 CLI 同步清理**：只有本次命令的最後 checkpoint 已保存且原操作正常返回，才允許清理其他舊 Family；清理失敗只影響 Cleanup summary／warning，不能改變 Restore／Retry 的狀態、exit code 或副作用次數。
 
-**Gate：**先以**兩個獨立 PowerShell process** 的離線測試驗證排他、fail-fast、正常與異常釋放、跨 PS5.1/7（如可用）、不同 `-Action`、無 COM/Explorer 副作用，以及 lock file 不被 Cleanup 選取。通過後，Single-instance 才可作為 FR-6 正式清理的併行保障；**不用實作另一套複雜的 Family Lock Manager**。
+**Gate：**先以**兩個獨立 PowerShell process** 的離線測試驗證排他、fail-fast、正常與異常釋放、不同 PowerShell 7 processes／hosts、不同 `-Action`、無 COM/Explorer 副作用，以及 lock file 不被 Cleanup 選取。通過後，Single-instance 才可作為 FR-6 正式清理的併行保障；**不用實作另一套複雜的 Family Lock Manager**。
 
 ### 5.3 目標：Restore／Retry **同步、機會式（opportunistic）**清理
 
@@ -255,7 +255,7 @@ CLI 取得 single-instance lock（失敗則立即退出，不做副作用）
 
 ### Phase 2A — Single-instance 執行保護（Task-3：建議優先獨立實作，不必等待 Phase 0–2）
 
-1. 先寫**不接觸 Explorer** 的兩個 PowerShell process 排他測試，涵蓋所有 `-Action`、新舊 `powershell.exe`／`pwsh.exe`（如環境支援）、第二個命令 fail fast、無等待及錯誤訊息；使用隔離的測試 lock path，**不得在測試時佔用使用者的真實 instance lock**。
+1. 先寫**不接觸 Explorer** 的兩個 PowerShell process 排他測試，涵蓋所有 `-Action`、不同 `pwsh.exe` processes／hosts、第二個命令 fail fast、無等待及錯誤訊息；使用隔離的測試 lock path，**不得在測試時佔用使用者的真實 instance lock**。
 2. 在 `resume-explorer.ps1` 最外層加一個共享所有 Action 的 `FileShare.None` guard（helper 可小型化、與 Report Retention 邏輯分離），並以 `try/finally` 保證釋放。鎖檔位於 `Runs` 之外，永久不列入清理；測試檔案存在但 handle 已釋放時**可以重新取得**。
 3. Regression：驗證 lock 已持有時 `Capture`／`Preview`／`Restore`／`PreviewRetry`／`Retry` 不進入任何 Action；第一個命令正常、拋例外、Ctrl+C／程序被終止後，第二個命令能在 OS 釋放 handle 後繼續；針對不可建立鎖與權限失敗應 fail-closed。保留現有 CLI 合法輸出、Report Schema、既有 Retry family lock 與測試行為。
 4. **Gate**：已證明同一 Windows 使用者的新版本 CLI 一次只執行一個；第二個命令不造成 Explorer 或 Report 副作用；不同使用者／舊版不在此保證範圍，使用者文件清楚告知。**此階段不實作任何刪除**。
@@ -299,7 +299,7 @@ CLI 取得 single-instance lock（失敗則立即退出，不做副作用）
 | 刪到一半停電、磁碟滿、I/O denied、部分 Sidecar | 若有 Cleanup，須證明一致性與 recovery；否則不得推出刪檔能力 |
 | Root/Child schema V1；未來 V2 若由 FR-9 實作 | V1 原始契約不變，未知版本保護；V2 明確支援後才可納入清理 |
 | 兩個 `pwsh.exe`／獨立 Terminal Tabs；不同 `$PWD` | 相同 per-user 絕對 lock-file 路徑，第二個立即拒絕，不進入任何 Action |
-| Windows PowerShell 5.1 與 PowerShell 7；VS Code Terminal／CMD→PowerShell | **跨 Shell／跨版本／跨 Host** 排他成立，並確認鎖不依賴工作目錄或 CLI 檔案位置 |
+| 兩個 PowerShell 7 processes；VS Code Terminal／CMD→`pwsh.exe` | **跨 Process／跨 Host** 排他成立，確認鎖不依賴工作目錄或 CLI 檔案位置；PS5.1 非支援要求 |
 | 第一個命令執行到 post-run Cleanup，第二個命令同時啟動 | Cleanup 全程仍持有 instance lock；第二個在原始 Action 之前 fail fast |
 | 鎖檔存在但前一程序已退出或已釋放 handle | 新命令可重新取得；**不刪除鎖檔**才能恢復 |
 | 同使用者不同 RDP Sessions／不共享相同本機鎖路徑／跨 Windows 帳號 | 同 Session／帳號／路徑的聲明要與測試一致；不同路徑或不同帳號**不能宣稱互斥** |

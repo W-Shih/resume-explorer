@@ -34,7 +34,7 @@ The historical Windows PowerShell 5.1 runtime limitation was resolved for this v
 
 Only S16's whitespace-sensitive fallback JSON assertion changed. The test now extracts exactly one InformationRecord JSON body, parses it, and verifies schema, RunId, state, item count, group/item indices, status and requested path. Original exception identity, one checkpoint warning, report-path display and no false saved/updated message checks remain intact. Twelve negative fixtures must be rejected (missing, duplicate, malformed, unrelated/missing schema, wrong schema/run/state/count/group/index/status/path). They execute within S16, preserving the suite's 17-test count.
 
-Final native-process results: PS5.1.22621.6931 Summary **17/17**, Issue2 **39/39**; PS7.6.1 Summary **17/17**, Issue2 **39/39**, all four **Exit Code 0**, with actual PASS records counted. Production core, CLI and schemas remain unchanged, and no real Explorer operation was performed. This closes Task-4's test-baseline gate, not Explorer E2E or Task-3 lock acceptance. See [Task-4 evidence](plans/resume-explorer-Task-4-restore-summary-s16-regression-plan.md).
+Final native-process results: PS5.1.22621.6931 Summary **17/17**, Issue2 **39/39**; PS7.6.1 Summary **17/17**, Issue2 **39/39**, all four **Exit Code 0**, with actual PASS records counted. Production core, CLI and schemas remain unchanged, and no real Explorer operation was performed. This closes Task-4's test-baseline gate, not Explorer E2E or Task-3 lock acceptance. See [Task-4 archived evidence](plans/DONE/resume-explorer-Task-4-restore-summary-s16-regression-plan.md).
 
 ## Live acceptance still required
 
