@@ -34,12 +34,14 @@
 
 這種路徑沒有打開 "H:\fake-path\dummy.zip"
 
-### Issue-3 — P2 — Restore 不應依賴滑鼠焦點／前景視窗（待驗證）
+### Issue-3 — P2 — Restore 不應依賴滑鼠焦點／前景視窗（RCA-first／待驗證）
 
-- **預期行為**：Restore 期間使用者點擊 Chrome、Visual Studio 等其他應用程式，或將 Explorer 切至背景，不應因此導覽錯誤 Tab、失去已確認的 Tab identity 或錯誤中止。這是**互動容錯性**，與 Feature Request-1 的「不顯示、不搶焦點」是兩個不同需求。
-- **風險界線**：使用者對**正在還原的目標 Explorer** 手動新增、關閉、切換 Tabs 或關閉視窗，可能改變 UIA／COM 可觀測狀態；工具仍應保守停止，而不是猜選 Tab。是否連單純切換同視窗的 active Tab 都安全，需實機測試驗證，不預先宣稱。
-- **調查及驗收**：加入前景應用切換、其他 Explorer 視窗切換、目標 Explorer 手動操作等分離測試；比較每次觀測的 HWND、PID、Identity、Path 與耗時，釐清焦點切換是否造成異常。不可只因時間上相近就歸因於滑鼠點擊。
-- 詳細方案：[`plans/resume-explorer-Issue-3-focus-independence-plan.md`](plans/resume-explorer-Issue-3-focus-independence-plan.md)。
+- **已確認實作／證據邊界（2026-11-02 Review）**：目前 Restore 使用目標 Root HWND 的 UIA `AddButton`／`InvokePattern`、Shell COM `Navigate2`、Raw HWND 分組與候選 Tab identity／Fingerprint 驗證；**不使用 SendKeys 或滑鼠座標**。但**尚無受控證據**證實切換前景應用會造成失敗，也不能因使用 UIA/COM 就推論完全不受 active Tab 影響；不預先修改 Restore。
+- **產品契約**：單純切至 Chrome／Visual Studio（A），或僅將另一 Explorer 視窗帶到前景（B），不應導覽錯誤 Tab 或替換既定目標 identity。目標 Explorer 內切 active Tab（C）需要實測；在目標手動新增／關閉／導覽 Tab（D）或關閉視窗（E）屬共享狀態變更，無法確保繼續，但必須 **fail closed**。新建同路徑無關 Explorer 視窗（F）不可被誤認成工具建立的 Window。
+- **調查／根因判斷**：在隔離可重設 Windows 桌面以同一 Snapshot、環境、timeout 比較無互動對照與 A–F，分階段記錄原始／Root HWND、PID／Fingerprint、Identity 集、Path、可靠性、ReasonCode、Invoke／Navigate flags、時間及最終實際導覽結果。區分 UIA 可用性、active Tab 對 COM 觀測的影響、人為競爭與 Issue-4 的同步延遲；無法重現時記錄結果，不作猜測性修復。
+- **修復門檻／回歸**：先建重現案例與 deterministic adapter regression，再依可證實的相依性做最小修復；嚴禁以 active Tab、path-only、Last View、盲目聚焦、SendKeys、放寬 identity 或重試副作用來掩蓋問題。保留 Issue-2 atomic checkpoint、單次 Invoke／Navigate、OutcomeUnknown 與 PreviewRetry／Retry 契約。驗收首要條件是**不得導覽到無關既有 Tab**；A/B 不因單純焦點變更錯選，C–F 不確定時保守停止。
+- **邊界與依賴**：Feature Request-1 的「Restore 自身不顯示／不搶焦點」是獨立要求；Issue-4（P1）負責同步 COM/UIA Timeout；Task-3 單執行 CLI Lock 不會防止使用者改動 Explorer。可先做 Issue-3 焦點測試矩陣，不必等待完整 Task-1 測試框架；仍以 Issue-4／Task-1 既有 P1 優先級排序。
+- **現況**：Proposed / Unverified，**沒有實作 Focus fix、沒有實機驗收或完成證據**。詳細方案：[`plans/resume-explorer-Issue-3-focus-independence-plan.md`](plans/resume-explorer-Issue-3-focus-independence-plan.md)。
 
 ## Feature Requests
 
