@@ -204,11 +204,11 @@ Runner 已提供，**Task-5 已依使用者 Win11 VM 的 E01／E02 完成畫面�
 pwsh -NoProfile -Sta -File .\tests\Integration\Invoke-ExplorerSmoke.ps1
 ```
 
-只有在獨立可重設的 Windows 11 互動桌面，提供綁定實際 SID／Session／Desktop 的隔離聲明、確認全域 Explorer scope 並明確指定 `-AllowExplorerUiChanges`，才允許 Run 透過真實 CLI 執行 E01 Capture／Preview／Restore 或 E02 PreviewRetry／Retry。初版採手動建立 E01 fixture；Prepare 不開 Explorer。獨立 observer 通過後仍為 AwaitingVisualReview／Exit 2，須由操作者實際目視並 Confirm 後才可 Passed／Exit 0。所有證據使用唯一 TEMP root，不重用預設 Snapshot／正式 Runs；不自動重跑或關閉測試視窗，不宣稱同步 COM／UIA 有 hard timeout。
+只有在獨立可重設的 Windows 11 互動桌面，提供綁定實際 SID／Session／Desktop 的隔離聲明、確認全域 Explorer scope 並明確指定 `-AllowExplorerUiChanges`，才允許 Run 透過真實 CLI 執行 E01 Capture／Preview／Restore 或 E02 PreviewRetry／Retry。Prepare 不開 Explorer；Run 的獨立 observer 通過後為 AwaitingVisualReview／Exit 2。可選人工目視 Confirm，或用新增的唯讀 Verify 再核對 hash／即時 scope 後 Passed，後者明確記錄 VisualReview NotRun。所有證據使用唯一 TEMP root，不重用預設 Snapshot／正式 Runs；不自動重跑，不宣稱同步 COM／UIA 有 hard timeout。
 
 開發初版 PS7.6.1 離線測試 **39＋17＋21 = 77** 項通過，僅驗證 harness 安全與合成流程；後續 GUI 通過依據為使用者的 VM 截圖與目視確認，不能以離線結果代替。Task-5 已結案，產品 CLI／Schema／既有測試未因結案改動。
 
-**一鍵互動入口**：在獨立 Win11 VM 雙擊 `tests\Integration\Run-ExplorerSmoke.cmd`，或執行 `pwsh -NoProfile -Sta -File .\tests\Integration\Start-ExplorerSmoke.ps1 -Run`。它自動跑離線檢查、建立 session evidence、用真實 CLI 建立並驗證 E01 起始 fixture，再串接 E01／E02；仍要求隔離環境授權、兩次目視確認及 E01 後手動關閉已識別測試視窗，不會自動關閉 Explorer。無 `-Run` 時零 dispatch。共 **91 項離線測試通過**；本次使用者 VM 的一鍵實機流程亦到達 Complete／Exit 0。詳見 [一鍵 SOP](tests/Integration/ONE-CLICK.md)。
+**一鍵入口**：在獨立 Win11 VM 雙擊 `tests\Integration\Run-ExplorerSmoke.cmd`，或執行 `pwsh -NoProfile -Sta -File .\tests\Integration\Start-ExplorerSmoke.ps1 -Run`。啟動時一次授權關窗與測試；既有 Explorer 可選先 Capture 保存配置，再正常關窗，不終止程序。預設自動驗證 E01／E02 並清理已驗證測試視窗，無須 PASS／CONTINUE；加 `-RequireVisualReview` 可選人工目視。備註／截圖標為 Optional。關窗身分不符、保存不完整或清理殘留會停止並保留證據。無 `-Run` 時零 dispatch。新版 **102 項離線測試通過**；先前 VM 的 Complete／Exit 0 只驗收原版互動流程，新版自動關窗仍待 VM 重跑。詳見 [一鍵 SOP](tests/Integration/ONE-CLICK.md)。
 
 ### 原有流程
 

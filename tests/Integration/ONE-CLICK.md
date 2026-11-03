@@ -1,54 +1,72 @@
-# One-click Explorer smoke — guided VM workflow
+# 一鍵 Explorer smoke — Windows 11 測試桌面
 
-In the **isolated Windows 11 VM**, with PowerShell 7 installed and `pwsh.exe` on PATH, double-click:
-
-```text
-tests\Integration\Run-ExplorerSmoke.cmd
-```
-
-Or start it in a terminal:
+僅在可重設的 Windows 11 VM／專用測試桌面執行。需安裝 PowerShell 7，且 `pwsh.exe` 在 PATH。雙擊 `tests\Integration\Run-ExplorerSmoke.cmd`，或執行：
 
 ```powershell
 pwsh -NoProfile -Sta -File .\tests\Integration\Start-ExplorerSmoke.ps1 -Run
 ```
 
-The launcher works relative to its own file location, not the current working directory. No administrative elevation or execution-policy bypass is requested. If policy blocks execution, stop and follow the VM's normal policy instead of weakening it.
+Launcher 使用自身位置定位檔案，無須切換工作目錄。不要求系統管理員權限，也不繞過 ExecutionPolicy。沒有 `-Run` 或僅 dot-source 時，不列舉／關閉 Explorer、不建立 fixture，也不呼叫產品 CLI。
 
-## What is automatic
+## 需要輸入什麼，以及為什麼
 
-1. Present the isolated-VM/dedicated-account GUI authorization prompt. If accepted, record the actual machine/SID/session/desktop plus the operator's VM snapshot/exclusive-use notes; validate the existing runtime/session gates. The notes are a human attestation, not automatic VM certification.
-2. Create a unique TEMP suite evidence directory. Run four offline suites (currently 39+17+21+14 tests) and require their actual PASS counts and exit codes. Failures stop the suite before any Explorer operation.
-3. Perform the existing read-only empty-desktop Preflight. Foreign/hidden/incomplete Explorer scope blocks all setup GUI actions.
-4. Prepare a fresh E01 root. Bootstrap A|B and C by calling the **real public CLI Restore once** with a new `setup-snapshot.json` and `setup-report.json`. These are separate from E01's `capture.json` and `restore-root.json`. Check all three items Verified, snapshot hash, visible/grouped independent observations, report fingerprints and AddButton capability. No fabricated report or SendKeys is used.
-5. Only when setup is verified, invoke the existing E01 Run (real Capture -> Preview -> Restore) and stop for operator visual review. All original observer, report and hash checks remain in force.
-6. After actual E01 review and manual closure of its test windows, verify the entire desktop is empty again. Prepare an independent E02 root and invoke the existing missing-B Restore -> PreviewRetry -> targeted Retry workflow.
-7. Stop for actual E02 visual review, then print and save the combined suite result. Overall Passed requires **both** original harness Confirm calls to return Passed.
+| 提示 | 用途與輸入方式 | 必填／可略過 |
+| --- | --- | --- |
+| 同意操作，輸入 `VM`／`TESTACCOUNT` | 聲明目前是專用測試桌面，並授權關閉既有視窗、建立及清理測試視窗。VM 輸入 `VM`，專用測試帳號輸入 `TESTACCOUNT` | 必要；Enter 取消，尚不執行 runtime／GUI 操作 |
+| 環境備註 | 可填 `Win11-TestVM / clean-snapshot` 等實際資訊，方便日後追溯。電腦、SID、session、desktop 自動記錄；備註不是 VM 認證，也不要求外部批准編號 | **Optional，可直接 Enter**；VM 沒有快照可不填快照名稱 |
+| 既有 Explorer 視窗的處理方式 | 顯示視窗與分頁數。`S`：先保存配置再關閉並測試；`C`：不保存直接關閉並測試；Enter：取消且不關閉 | **僅有既有視窗時詢問**；取消後不開始 E01 |
+| `PASS` | 只在選用 `-RequireVisualReview` 時出現；實際檢查螢幕符合畫面上的條件才輸入 | 預設不詢問；選用目視模式後 Enter 會停止並保留 AwaitingVisualReview |
+| 目視備註／截圖路徑 | 補充實際差異或證據。截圖路徑只是文字參照，不會自動擷取或驗證圖片 | **Optional，可直接 Enter**；仍記錄操作者已確認畫面上的條件 |
 
-The automatic bootstrap depends on Restore itself working. If setup produces OutcomeUnknown, hidden/wrong windows, ambiguous identity, a nonzero exit or a partial report, it stops before E01 Capture. There is no automatic retry. The original manual-fixture entry in [README](README.md) remains available when diagnosing setup behavior separately.
+原本的 `CONTINUE` 和手動關閉 E01 步驟已移除；通過驗證後自動關閉本次測試視窗，再進入下一案例。不要把實際未觀察的內容填成目視通過。
 
-## What still requires you
+## 執行流程
 
-- At startup type `VM` or `TESTACCOUNT` **only in the actual dedicated test environment**, then provide real provisioning/approval notes. Canceling performs no runtime probe or GUI operation. Merely entering a value cannot create isolation; the same runtime, desktop and full Explorer-scope checks still apply.
-- E01: inspect **four visible windows / six tabs**. Original fixtures and restored fixtures must each have A|B and C, and originals must remain unchanged. Type `PASS` and enter real inspection notes, optionally with a screenshot reference. Blank/refusal leaves AwaitingVisualReview and prevents E02.
-- Between cases, manually close **only the four positively identified E01 fixture windows**, preserve all evidence, then type `CONTINUE`. The observer must independently confirm zero remaining Explorer windows. If you cannot identify a window, stop; do not close unknown windows.
-- E02: inspect one visible A|B window, original A unchanged and exactly one new B tab. Type `PASS` and record actual notes. E02 windows remain open for manual cleanup after the suite.
+1. 取得上述一次 GUI 授權，檢查實際 PS7／Win11／STA／互動式 desktop 與 session。建立唯一 TEMP suite root，並取得同 TEMP 的 launcher 排他鎖。
+2. 執行四套離線基準（39＋17＋23＋23＝**102 項**）；失敗時不關閉任何視窗。
+3. 獨立觀測既有 Explorer。已有視窗本身不阻擋測試；依你的 `S`／`C` 選擇處理。
+4. 若選 `S`，以正式 CLI `Capture` 產生 `existing-snapshot.json`，核對與獨立觀測的視窗／路徑分組一致，重新確認原視窗未變。任何儲存失敗、不完整或過程中變更都停止，尚不關閉視窗。
+5. 對明確授權且身分仍符合的既有視窗送出正常關窗要求，確認所有視窗已消失，再做空桌面 Preflight。
+6. 建立獨立 E01 root，正式 CLI Restore 只執行一次，建立並核對 A|B、C 起始 fixture。setup Snapshot／Report 與案例自己的 Capture／Report 分開，任一未驗證項目都停止，不自動重試。
+7. E01 執行正式 Capture → Preview → Restore。獨立 observer 核對 4 個可見視窗／6 分頁、原有分頁 identity／路徑不變、report fingerprints、分組與證據 hashes。
+8. 預設以唯讀 `Verify` 再檢查 hashes 與即時 scope，通過後記錄案例 Passed、`VisualReview: NotRun`，自動關閉已驗證 E01 視窗並確認桌面清空。
+9. E02 執行缺 B 的 Restore → PreviewRetry → 指定目標 Retry；核對父子 lineage、未改寫來源與原有 A、只在該視窗新增 B。以相同方式 Verify 並清理 E02 視窗。
+10. 兩案例與清理均成功才產生整體 Passed／Exit 0。所有 evidence 保留，不自動 Restore 先前保存的配置。
 
-Thus this is **one launch with guided confirmations**, not an unattended GUI acceptance test. It removes the repeated commands, path copying, session-JSON preparation and manual fixture construction. It does not remove visual acceptance or the no-auto-close constraint.
+獨立 observer 使用 Shell COM／Win32 觀測真實視窗，並與產品 report 比對，並非只相信產品自己的 `Verified`。UIA 目前檢查新增分頁能力，沒有完整核對畫面呈現；因此自動通過不代表人工目視已執行。
 
-## Results, interruption and concurrency
+## 選用人工目視驗收
 
-Exit codes match the original runner: 0 Passed, 1 Failed, 2 NotRun/pending review, 3 Blocked. The `.cmd` keeps the terminal open so you can inspect the output and exit code. The PowerShell entry **without `-Run`**, and dot-source import, have zero dispatch/GUI side effects and report NotRun (exit 2 for direct invocation).
+```powershell
+pwsh -NoProfile -Sta -File .\tests\Integration\Start-ExplorerSmoke.ps1 -Run -RequireVisualReview
+```
 
-The suite directory is `%TEMP%\ResumeExplorer-E2E-Suite-<GUID>`, containing `session-evidence.json` and `suite-result.json`. Each case still owns a separate `%TEMP%\ResumeExplorer-E2E-<GUID>` root. The combined result lists both roots, case status, offline counts and phase-start records. E01 setup keeps its separate snapshot, report, CLI stdout/stderr and independent observation. Core Run retains all original reports, sidecars, hashes and logs.
+E01 檢查 4 個可見視窗／6 分頁：原有 A|B 與 C，另有還原的 A|B 與 C，原有分頁不變。E02 檢查 1 個 A|B 視窗，原 A 不變，只新增一個 B。每次 `PASS` 後仍執行原有手動 `Confirm` 的 hash／即時 scope 檢查；人工與自動檢查皆通過才記錄 `VisualReview: Passed`。取消目視時保留現場與證據，不清理該案例或進入下一案例。原[手動 runner](README.md) 也保留。
 
-A cooperative `ResumeExplorer-E2E-OneClick.lock` under the current user's TEMP prevents concurrent one-click launchers sharing that TEMP. It is held until the suite exits and the empty lock file is retained. A suite-local lock and the existing case-local lock also protect their own artifacts. These locks do not replace or bypass production Task-3 locking, protect different TEMP locations, or exclude manual/third-party Explorer activity. Do not delete an active lock.
+## 關窗、保存配置與停止條件
 
-Any first nonzero CLI exit, unverified setup or case, hash mismatch, stale fingerprint or unexpected scope stops later actions. The same setup/root cannot be replayed after an attempt. A new launch creates new roots; first inspect and manually organize any prior fixture windows in the VM, so the next empty-scope gate can pass. Pending cases can be inspected or Confirmed through the original manual runner; the one-click entry does not resume or repeat an old suite.
+- 只關閉 Explorer 視窗，使用 `WM_CLOSE`，**不終止／重啟 `explorer.exe`**，不關閉桌面與工作列，不處理其他應用程式。請先完成檔案操作；測試桌面執行中不要新增／操作視窗。
+- 每個 root HWND 最多送出一次關窗要求；每次前重新觀測整個 scope、核對 identity、路徑、PID、process start time、session 與 HWND，原生發送前再次核對 fingerprint。遇到新視窗或身分不明立即停止，不擴大授權範圍。已自行關閉的視窗不再操作。
+- 測試視窗的清理清單來自驗證結果，路徑須屬本次 case root。測試失敗時不自動清理，方便調查；清理失敗則保留案例結果，但整體測試失敗，不進入下一案例。
+- 正常關窗後最多輪詢 10 秒確認清空。殘留時顯示 `ExplorerCloseIncomplete`，請檢查最後的 close-after JSON 與測試桌面對話框，手動處理後重新啟動測試。不會因 timeout 而殺程序。此期限不保證同步 COM／CLI 呼叫能在 10 秒內返回。
+- Snapshot 僅保存工具支援的資料夾／分頁配置，不保存檔案操作、選取／捲動位置或所有 Shell namespace。若 Capture 遺漏 Home 等不支援路徑，完整性比對會停止並說明原因。可手動整理後重跑，或自行選擇 `C` 放棄保存；不默默降級成未備份關閉。
+- 完整觀測失敗時，`existing-observation.json` 的 Errors 記錄原因；未知或未被 COM 曝露的視窗無法安全自動關閉。手動整理測試桌面後重跑。測試中 scope 不符的錯誤會說明實際視窗／分頁數及預期分組。
 
-If a synchronous CLI/COM/UIA operation hangs, there is no hard timeout and no automatic Explorer/process termination. Preserve the suite/phase logs and recover the disposable VM manually. Raw evidence contains user SID, paths and error text; keep it local and redact before sharing.
+## 證據與結果
 
-## Verification status
+Suite root：`%TEMP%\ResumeExplorer-E2E-Suite-<GUID>`，包含 session-evidence、suite-result、既有視窗觀測、選用 Snapshot／驗證 hash、Capture stdout/stderr，以及 existing／E01／E02 關窗前後觀測與每次關窗嘗試。case roots 仍各自使用 `%TEMP%\ResumeExplorer-E2E-<GUID>`，保留既有 Snapshot／Report／Retry sidecar／hash／stdout/stderr。
 
-Four suites pass on PowerShell 7.6.1: **39+17+21+14 = 91 offline tests**, including 14 new orchestration tests. New tests use synthetic CLI/observer/prompt adapters, including synthetic terminal Passed states solely to test suite transitions; they are **not live E01/E02 evidence**. Existing tests and production code remain unchanged.
+Exit codes：0 Passed；1 GUI 操作開始後失敗；2 未授權、取消或待目視；3 runtime／觀測／備份等前置條件阻擋。`suite-result.json` 的 `Phase`、`Reason`、`Error` 與 case statuses 可判別停止位置；自動模式的 `VisualReview` 明確為 `NotRun`。
 
-**Subsequent user VM acceptance (2026-11-02): the one-click workflow reached Complete / Error null / overall exit 0 after both operator reviews. Task-5 is Closed on that evidence.** This is user-executed acceptance, not an agent GUI rerun or universal Windows/PS7/VDI certification. Exact VM versions and original reports were not independently inspected by the agent; preserve the raw VM evidence. See [acceptance record](TASK5-VM-ACCEPTANCE.md).
+如需稍後還原，先離開測試流程，再自行檢視與執行（以實際檔案位置替換）：
+
+```powershell
+pwsh -NoProfile -Sta -File .\resume-explorer.ps1 -Action Preview -Snapshot '<suite-root>\existing-snapshot.json'
+pwsh -NoProfile -Sta -File .\resume-explorer.ps1 -Action Restore -Snapshot '<suite-root>\existing-snapshot.json'
+```
+
+排他鎖只防止同 TEMP 的一鍵 launcher／同 case 的 harness 並行，不排除手動或其他應用程式活動，也不取代產品 Task-3 的鎖。任何首次失敗即停止；舊 root 不 replay，新啟動使用新 roots。不要刪除使用中的 lock。證據含 SID 與私人路徑，請保留在 VM 並在分享前去識別化。
+
+## 驗證範圍
+
+原版一鍵流程已由使用者 VM 完成並關閉 Task-5，見[原驗收紀錄](TASK5-VM-ACCEPTANCE.md)。**該紀錄不涵蓋本次新增的自動關窗／自動 Verify 流程。** 本次變更的離線回歸與 native load-only 檢查見[驗證紀錄](../../ISSUE2-VALIDATION.md)；新版仍需在專用 VM 重跑真實 GUI，不能將合成測試當作實機驗收。

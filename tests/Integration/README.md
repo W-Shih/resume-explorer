@@ -1,6 +1,6 @@
 # Task-5 — PowerShell 7 Explorer smoke harness
 
-For the guided single-launch workflow in a test VM, double-click **`Run-ExplorerSmoke.cmd`** or run `pwsh -NoProfile -Sta -File .\tests\Integration\Start-ExplorerSmoke.ps1 -Run`. See [one-click instructions](ONE-CLICK.md). This automates session evidence, offline checks, verified fixture bootstrap and both cases; actual visual review and manual E01 window closure remain required. The manual workflow below is preserved for diagnosis. The user's completed one-click VM run now supplies the minimal live acceptance; see [evidence and limits](TASK5-VM-ACCEPTANCE.md).
+For the single-launch workflow in a test VM, double-click **`Run-ExplorerSmoke.cmd`** or run `pwsh -NoProfile -Sta -File .\tests\Integration\Start-ExplorerSmoke.ps1 -Run`. See [one-click instructions and all prompts](ONE-CLICK.md). After explicit startup authorization, existing windows can be saved to a Snapshot and closed; both cases use independent automatic verification and automatic fixture-window cleanup. Human visual review is optional through `-RequireVisualReview`. The manual workflow below is preserved for diagnosis. The user's prior VM acceptance covers the original guided workflow; the new automatic lifecycle still needs VM acceptance. See [evidence and limits](TASK5-VM-ACCEPTANCE.md).
 
 **Task-5 is Closed on user-provided Windows 11 VM acceptance (2026-11-02): E01/E02 Passed, overall exit 0.** Initial development had no isolated desktop and live cases were NotRun; the later user run supersedes that status. Exact VM build/PS minor and raw artifacts have not been independently re-audited by the agent. This is not universal build compatibility or agent-run GUI proof. The execution sandbox is not GUI isolation; do not rerun on a working desktop/VDI.
 
@@ -20,12 +20,12 @@ The default returns JSON with `NotRun / NotAuthorized`, both cases `NotRun`, and
 
 | Exit | Status |
 | --- | --- |
-| 0 | Passed, only after observer checks and explicit operator visual review |
+| 0 | Passed after observer checks plus Confirm (visual) or explicit Verify (automatic, VisualReview NotRun) |
 | 1 | Failed after at least one actual CLI command was attempted |
 | 2 | NotRun / Ready / Prepared / AwaitingVisualReview; never E2E success |
 | 3 | Blocked by runtime, session, scope, ownership, replay or evidence checks |
 
-Preflight with valid isolation evidence is read-only. Prepare creates a unique `%TEMP%\ResumeExplorer-E2E-<GUID>` and fixture folders, but **never creates Explorer windows**. Run requires `-AllowExplorerUiChanges`. Confirm performs read-only observation and records operator evidence; it does not run Capture/Restore/Retry.
+Preflight with valid isolation evidence is read-only. Prepare creates a unique `%TEMP%\ResumeExplorer-E2E-<GUID>` and fixture folders, but **never creates Explorer windows**. Run requires `-AllowExplorerUiChanges`. Confirm performs read-only observation and records operator evidence; it does not run Capture/Restore/Retry. The additive `-Mode Verify` performs the same evidence-hash and live-scope checks without human approval, and explicitly records `VisualReview: NotRun` / null VisualEvidence. Run alone still ends AwaitingVisualReview; neither verification mode replays the case. The one-click coordinator uses Verify by default and owns the separately authorized window lifecycle.
 
 ## Required isolated desktop
 
@@ -89,7 +89,7 @@ Expected: `Ready`, E01/E02 `NotRun`, exit 2. With foreign Explorer windows, stop
 
    Confirm checks saved JSON hashes, current visible scope, HWND/process fingerprints and paths again, then records E01 Passed/exit 0. Persisted COM pointer strings are never compared across processes. This command relies on truthful operator visual evidence; it cannot certify a screenshot's content.
 
-5. Preserve the entire root. After confirming HWND ownership, **manually** close only these test windows. No automatic window/process or evidence cleanup exists.
+5. Preserve the entire root. In this manual workflow, after confirming HWND ownership, **manually** close only these test windows. The low-level runner does not close windows or remove evidence; the separate one-click coordinator can automatically close its verified fixtures under explicit startup authorization.
 
 ## E02 — independent missing-B restore and actual targeted Retry
 
@@ -106,7 +106,7 @@ Expected: `Ready`, E01/E02 `NotRun`, exit 2. With foreign Explorer windows, stop
 - Once Run starts, it consumes that root even on an exception. Re-running Run with that root is rejected; existing terminal result evidence is preserved. Stop at the first uncertain result or nonzero CLI exit. There is no automatic replay or navigation repair.
 - `smoke-result.json` records runtime, attestation, command arguments/exit codes, independent before/after views, foreground HWND (diagnostic only), artifact hashes and status. Each CLI has its own stdout/stderr files. Snapshot, parent report and sidecar evidence are never edited to manufacture a retry.
 - If a CLI or COM/UIA call hangs, the last persisted phase/command-start record may remain Running. There is **no hard wall-clock guarantee**. Do not kill Explorer, remove another process's lock, or automatically retry. Recover the isolated VM manually and retain evidence for Issue-4.
-- Prepare/Run/Confirm never use the default snapshot or production Runs directory. A future production global lock outside Runs, if implemented, is respected. The runner does not weaken execution policy, restart Explorer, use SendKeys/clipboard, or close any window.
+- Prepare/Run/Confirm/Verify never use the default snapshot or production Runs directory. A future production global lock outside Runs, if implemented, is respected. The low-level runner does not weaken execution policy, restart Explorer, use SendKeys/clipboard, or close any window. Only the authorized one-click coordinator closes verified Explorer windows, using WM_CLOSE without process termination; see its SOP.
 - Session attestation, observations, stdout/stderr and JSON can contain private paths, user SID and error text. Keep them local to the test environment; do not commit raw live evidence or this session attestation. Redact before sharing.
 - Exact scope checks reduce races but do not create a transaction with Explorer or exclude external actors. Keep the test session exclusively controlled. The native observer's Cabinet class assumption and all actual PS7/COM/UIA behavior remain subject to live acceptance on the supported build.
 

@@ -253,7 +253,31 @@ try {
         $second=Invoke-ExplorerSmoke $run $failureAdapter
         Assert ($second.Status -eq 'Blocked' -and $failureState.Calls -eq 1)
     }
-    Test 'changed JSON evidence blocks visual confirmation and preserves pending result' {
+    Test 'automated Verify rejects changed live scope and preserves pending result without CLI calls' {
+        $root=$ownedRoots[2]; $path=Join-Path $root 'smoke-result.json'
+        $pending=Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+        $hash=(Get-FileHash -LiteralPath $path).Hash
+        $changed=New-TestObservation @($pending.After.Views[0]) # B is absent.
+        $verificationAdapter=$adapter.Clone(); $verificationAdapter.Observe={ $changed }.GetNewClosure()
+        $options=New-TestOptions Verify E02; $options.ConfirmIsolatedSession=$true; $options.SessionEvidence=$evidencePath; $options.TestRoot=$root
+        $calls=$state.Cli
+        $result=Invoke-ExplorerSmoke $options $verificationAdapter
+        Assert ($result.Status -eq 'Blocked' -and $state.Cli -eq $calls -and (Get-FileHash -LiteralPath $path).Hash -eq $hash)
+    }
+    Test 'automated Verify rechecks evidence and records visual NotRun without inventing operator approval' {
+        $root=$ownedRoots[2]; $path=Join-Path $root 'smoke-result.json'
+        $pending=Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+        $verificationAdapter=$adapter.Clone(); $observation=$pending.After
+        $verificationAdapter.Observe={ $observation }.GetNewClosure()
+        $options=New-TestOptions Verify E02; $options.ConfirmIsolatedSession=$true; $options.SessionEvidence=$evidencePath; $options.TestRoot=$root
+        $calls=$state.Cli
+        $result=Invoke-ExplorerSmoke $options $verificationAdapter
+        Assert ($result.Status -eq 'Passed' -and $result.VisualReview -eq 'NotRun' -and $null -eq $result.VisualEvidence -and $state.Cli -eq $calls) $result.Reason
+        $hash=(Get-FileHash -LiteralPath $path).Hash
+        $again=Invoke-ExplorerSmoke $options $verificationAdapter
+        Assert ($again.Status -eq 'Blocked' -and (Get-FileHash -LiteralPath $path).Hash -eq $hash)
+    }
+    Test 'changed JSON evidence blocks both visual and automated confirmation and preserves pending result' {
         $root=$ownedRoots[1]; $resultPath=Join-Path $root 'smoke-result.json'
         $pending=Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json
         $artifact=Join-Path $root $pending.EvidenceHashes[0].RelativePath
@@ -261,9 +285,12 @@ try {
         $before=(Get-FileHash -LiteralPath $resultPath).Hash
         $options=New-TestOptions Confirm E01; $options.ConfirmIsolatedSession=$true; $options.SessionEvidence=$evidencePath
         $options.TestRoot=$root; $options.ConfirmVisibleAndGrouping=$true; $options.VisualEvidence='Synthetic negative fixture, not real GUI review.'
-        $result=Invoke-ExplorerSmoke $options $adapter
-        Assert ($result.Status -eq 'Blocked' -and $result.Reason -eq 'EvidenceChanged')
-        Assert ((Get-FileHash -LiteralPath $resultPath).Hash -eq $before)
+        foreach ($mode in @('Confirm','Verify')) {
+            $options.Mode=$mode
+            $result=Invoke-ExplorerSmoke $options $adapter
+            Assert ($result.Status -eq 'Blocked' -and $result.Reason -eq 'EvidenceChanged')
+            Assert ((Get-FileHash -LiteralPath $resultPath).Hash -eq $before)
+        }
     }
 } finally {
     [IO.File]::Delete($evidencePath)

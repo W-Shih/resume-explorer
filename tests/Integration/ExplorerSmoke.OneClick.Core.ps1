@@ -1,11 +1,12 @@
 # Guided orchestration over the existing Task-5 harness. Import has no side effects.
 . (Join-Path $PSScriptRoot 'ExplorerSmoke.Core.ps1')
+. (Join-Path $PSScriptRoot 'ExplorerSmoke.Lifecycle.ps1')
 
 function Invoke-SmokeOfflineBaseline {
     $engine=(Get-Process -Id $PID).Path
     $tests=Split-Path $PSScriptRoot -Parent; $rows=@()
     foreach ($suite in @(@{ File='Issue2.Tests.ps1'; Expected=39 },@{ File='RestoreSummary.Tests.ps1'; Expected=17 },
-        @{ File='ExplorerSmoke.Tests.ps1'; Expected=21 },@{ File='ExplorerSmoke.OneClick.Tests.ps1'; Expected=14 })) {
+        @{ File='ExplorerSmoke.Tests.ps1'; Expected=23 },@{ File='ExplorerSmoke.OneClick.Tests.ps1'; Expected=23 })) {
         $output=@(& $engine -NoProfile -NonInteractive -File (Join-Path $tests $suite.File) 2>&1)
         $code=$LASTEXITCODE
         $count=@($output | Where-Object { $_.ToString().StartsWith('PASS ') }).Count
@@ -18,6 +19,14 @@ function Invoke-SmokeOfflineBaseline {
 
 function New-SmokeOneClickAdapter {
     $native=New-SmokeAdapter
+    $native.CloseWindow={
+        param($view)
+        $current=Get-SmokeFingerprint $view.RootHwnd
+        Assert-Smoke (Test-SmokeFingerprint $view.Fingerprint $current) 'CloseFingerprintChanged: 發送關窗要求前視窗身分已改變；未發送，請檢查測試桌面後重跑。'
+        # WM_CLOSE to the verified Explorer window only; never terminate explorer.exe.
+        Assert-Smoke ([ExplorerSmokeNative]::PostMessage([IntPtr]::new($view.RootHwnd),0x0010,[IntPtr]::Zero,[IntPtr]::Zero)) 'CloseMessageFailed: 系統未接受此視窗的關閉要求；請檢查測試桌面與權限，未終止程序。'
+    }
+    $native.Wait={ Start-Sleep -Milliseconds 200 }
     @{
         Native=$native
         Baseline={ Invoke-SmokeOfflineBaseline }
@@ -26,28 +35,34 @@ function New-SmokeOneClickAdapter {
             param($kind,$case,$root)
             switch ($kind) {
                 'Isolation' {
-                    Write-Host 'Use only a resettable Windows 11 VM or dedicated test desktop. Close all Explorer windows there.'
-                    Write-Host 'This will create visible Explorer windows/tabs. Never use your working desktop or VDI session.'
-                    $choice=Read-Host 'Type VM or TESTACCOUNT to authorize GUI changes in that dedicated environment; Enter cancels'
+                    Write-Host '僅限可重設的 Windows 11 VM／專用測試桌面；請勿在工作桌面或 VDI 執行。'
+                    Write-Host '本次授權包含：關閉此桌面既有 Explorer 視窗、建立測試視窗，以及測試通過後自動關閉測試視窗。'
+                    Write-Host '不會終止 Explorer 程序；請先完成檔案操作並關閉編輯中的對話框。既有配置可在下一步選擇儲存。'
+                    $choice=Read-Host '同意上述操作請輸入 VM 或 TESTACCOUNT；直接 Enter 取消，且不執行測試'
                     if ($choice -notin @('VM','TESTACCOUNT')) { return $null }
-                    $notes=Read-Host 'Identify the actual VM snapshot/test account and exclusive-use approval'
-                    if ([string]::IsNullOrWhiteSpace($notes)) { return $null }
+                    $notes=Read-Host '[可選 Optional] 環境備註，例如 VM 名稱／快照名稱；電腦、帳號與 session 將自動記錄，Enter 略過'
+                    if ([string]::IsNullOrWhiteSpace($notes)) { $notes='Operator authorized exclusive test desktop and window lifecycle; optional environment notes omitted.' }
                     $environment='DisposableVM'; if ($choice -eq 'TESTACCOUNT') { $environment='DedicatedTestAccount' }
                     return [pscustomobject]@{ Kind=$environment; Notes=$notes }
                 }
                 'Visual' {
-                    Write-Host "Case $case evidence: $root"
-                    if ($case -eq 'E01') { Write-Host 'Inspect FOUR visible windows / SIX tabs: original A|B and C, plus restored A|B and C; originals unchanged.' }
-                    else { Write-Host 'Inspect ONE visible A|B window: original A unchanged and only B newly added.' }
-                    if ((Read-Host 'Type PASS only after actual visual verification; Enter stops without passing') -cne 'PASS') { return $null }
-                    $notes=Read-Host 'Record actual observed grouping/ownership and optional screenshot reference'
-                    if ([string]::IsNullOrWhiteSpace($notes)) { return $null }
+                    Write-Host "案例 $case 證據：$root"
+                    if ($case -eq 'E01') { $expected='4 個視窗／6 個分頁：原有 A|B 與 C，另有還原的 A|B 與 C；原分頁不變。' }
+                    else { $expected='1 個 A|B 視窗：原有 A 不變，只新增一個 B 分頁。' }
+                    Write-Host "已選用人工目視模式，請實際檢查：$expected"
+                    if ((Read-Host '符合上述條件才輸入 PASS；Enter 停止並保留待驗收狀態，不算人工通過') -cne 'PASS') { return $null }
+                    $notes=Read-Host '[可選 Optional] 補充實際觀察或截圖路徑；Enter 略過，僅記錄你確認上述條件'
+                    if ([string]::IsNullOrWhiteSpace($notes)) { $notes="Operator visually confirmed: $expected" }
                     return [pscustomobject]@{ Approved=$true; Notes=$notes }
                 }
-                'Cleanup' {
-                    Write-Host "Manually close ONLY the four verified E01 test windows from: $root"
-                    Write-Host 'Keep all evidence. Do not close an unknown window; do not restart or kill Explorer.'
-                    return ((Read-Host 'Type CONTINUE after all E01 fixture windows are closed; Enter stops') -ceq 'CONTINUE')
+                'ExistingWindows' {
+                    Write-Host "偵測到 $($root.Windows) 個既有 Explorer 視窗、$($root.Tabs) 個分頁。測試前需要先關閉。"
+                    Write-Host 'S：先儲存 Snapshot JSON，再關閉並測試。C：不儲存，直接關閉並測試。Enter：取消。'
+                    Write-Host 'Snapshot 僅保存工具支援的資料夾／分頁配置，不包含檔案操作、選取或捲動位置；測試後不自動還原。'
+                    $choice=Read-Host '輸入 S（儲存後關閉）或 C（直接關閉）；Enter 取消'
+                    if ($choice -eq 'S') { return 'Save' }
+                    if ($choice -eq 'C') { return 'Close' }
+                    return $null
                 }
             }
         }
@@ -105,9 +120,10 @@ function Initialize-SmokeOneClickE01($Prepared,$Native,$SaveStep) {
     } finally { if ($null -ne $lock) { $lock.Dispose() } }
 }
 
-function Invoke-SmokeOneClick([bool]$Run,$Adapter) {
+function Invoke-SmokeOneClick([bool]$Run,$Adapter,[bool]$RequireVisualReview=$false) {
     $suite=[pscustomobject]@{ Version=1; Status='NotRun'; Reason='NotAuthorized'; E01='NotRun'; E02='NotRun'
-        SuiteRoot=$null; E01Root=$null; E02Root=$null; Phase='Consent'; Steps=@(); Baseline=@(); Error=$null }
+        SuiteRoot=$null; E01Root=$null; E02Root=$null; Phase='Consent'; Steps=@(); Baseline=@(); Error=$null
+        VisualReview=$(if ($RequireVisualReview) { 'Pending' } else { 'NotRun' }); ExistingSnapshot=$null }
     if (-not $Run) { return $suite }
     $save=$null; $suiteLock=$null; $coordinatorLock=$null; $uiAttempted=$false
     try {
@@ -133,6 +149,22 @@ function Invoke-SmokeOneClick([bool]$Run,$Adapter) {
         }.GetNewClosure()
         $suite.Status='Running'; & $save 'OfflineBaseline' '' $null
         $suite.Baseline=@(& $Adapter.Baseline)
+        & $save 'ExistingWindows' '' $null
+        $existing=& $Adapter.Native.Observe
+        Write-SmokeJson (Join-Path $root 'existing-observation.json') (ConvertTo-SmokeEvidence $existing) -New
+        Assert-SmokeClosable $existing $facts.SessionId
+        if (@($existing.Views).Count -gt 0) {
+            $choice=& $Adapter.Prompt 'ExistingWindows' '' @{
+                Windows=@($existing.Views | Group-Object RootHwnd).Count; Tabs=@($existing.Views).Count }
+            if ($choice -notin @('Save','Close')) { $suite.Status='NotRun'; $suite.Reason='ExistingWindows-OperatorCancelled'; return $suite }
+            if ($choice -eq 'Save') {
+                & $save 'ExistingSnapshot' '' $null
+                $suite.ExistingSnapshot=Save-SmokeExistingSnapshot $existing $Adapter.Native $facts.SessionId $root
+            }
+            & $save 'ExistingWindowsClose' '' $null
+            $uiAttempted=$true
+            Close-SmokeWindows $existing $Adapter.Native $facts.SessionId (Join-Path $root 'existing-close')
+        }
         $options=@{ Mode='Preflight'; Case='E01'; ConfirmIsolatedSession=$true; SessionEvidence=$evidencePath
             AllowExplorerUiChanges=$false; TestRoot=''; ConfirmVisibleAndGrouping=$false; VisualEvidence='' }
         & $save 'Preflight' '' $null
@@ -153,26 +185,36 @@ function Invoke-SmokeOneClick([bool]$Run,$Adapter) {
             $result=& $Adapter.Harness $options $Adapter.Native
             $suite.$case=$result.Status
             Assert-Smoke ($result.Status -eq 'AwaitingVisualReview') ($case+'-Run:'+ $result.Reason)
-            & $save ($case+'-VisualReview') $caseRoot $null
-            $review=& $Adapter.Prompt 'Visual' $case $caseRoot
-            if ($null -eq $review -or -not $review.Approved -or [string]::IsNullOrWhiteSpace($review.Notes)) {
-                $suite.Status='AwaitingVisualReview'; $suite.Reason=$case+'-OperatorReviewPending'; return $suite
+            $options.Mode='Verify'; $options.AllowExplorerUiChanges=$false
+            $options.ConfirmVisibleAndGrouping=$false; $options.VisualEvidence=''
+            if ($RequireVisualReview) {
+                & $save ($case+'-VisualReview') $caseRoot $null
+                $review=& $Adapter.Prompt 'Visual' $case $caseRoot
+                if ($null -eq $review -or -not $review.Approved -or [string]::IsNullOrWhiteSpace($review.Notes)) {
+                    $suite.Status='AwaitingVisualReview'; $suite.Reason=$case+'-OperatorReviewPending'; return $suite
+                }
+                $options.Mode='Confirm'; $options.ConfirmVisibleAndGrouping=$true; $options.VisualEvidence=$review.Notes
             }
-            $options.Mode='Confirm'; $options.AllowExplorerUiChanges=$false; $options.ConfirmVisibleAndGrouping=$true; $options.VisualEvidence=$review.Notes
-            & $save ($case+'-Confirm') $caseRoot $null
+            & $save ($case+'-'+$options.Mode) $caseRoot $null
             $confirmed=& $Adapter.Harness $options $Adapter.Native
             $suite.$case=$confirmed.Status
-            Assert-Smoke ($confirmed.Status -eq 'Passed') ($case+'-Confirm:'+ $confirmed.Reason)
-            if ($case -eq 'E01') {
-                & $save 'E01-ManualClose' $caseRoot $null
-                if (-not (& $Adapter.Prompt 'Cleanup' $case $caseRoot)) { $suite.Status='NotRun'; $suite.Reason='E02-PendingManualClose'; return $suite }
-                $empty=& $Adapter.Native.Observe
-                Assert-SmokeScope $empty @() $facts.SessionId
-                $options.ConfirmVisibleAndGrouping=$false; $options.VisualEvidence=''
+            Assert-Smoke ($confirmed.Status -eq 'Passed') ($case+'-'+$options.Mode+':'+ $confirmed.Reason)
+            # The independent verified observation defines exactly which windows may be closed.
+            $expected=$confirmed.After
+            Assert-Smoke ($null -ne $expected -and @($expected.Views).Count -gt 0) 'CleanupEvidenceMissing'
+            $null=Assert-SmokeRoot $caseRoot $facts $case
+            foreach ($view in $expected.Views) {
+                $folderPrefix=(Join-Path $caseRoot $case)+[IO.Path]::DirectorySeparatorChar
+                Assert-Smoke ($view.Path.StartsWith($folderPrefix,[StringComparison]::OrdinalIgnoreCase)) 'CleanupPathOutsideFixture'
             }
+            & $save ($case+'-AutomaticClose') $caseRoot $null
+            Close-SmokeWindows $expected $Adapter.Native $facts.SessionId (Join-Path $root ($case+'-close'))
+            $options.ConfirmVisibleAndGrouping=$false; $options.VisualEvidence=''
         }
         Assert-Smoke ($suite.E01 -eq 'Passed' -and $suite.E02 -eq 'Passed') 'SuiteNotComplete'
-        $suite.Status='Passed'; $suite.Reason='BothCasesObserverAndOperatorVerified'; & $save 'Complete' '' 0
+        $suite.Status='Passed'; $suite.Reason='BothCasesIndependentObserverVerified-VisualReviewNotRun'
+        if ($RequireVisualReview) { $suite.VisualReview='Passed'; $suite.Reason='BothCasesObserverAndOperatorVerified' }
+        & $save 'Complete' '' 0
     } catch {
         $suite.Status=$(if ($uiAttempted) { 'Failed' } else { 'Blocked' }); $suite.Reason=$_.Exception.Message
         $suite.Error=[pscustomobject]@{ Message=$_.Exception.Message; HResult=$_.Exception.HResult }

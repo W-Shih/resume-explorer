@@ -44,7 +44,7 @@ PowerShell 7.6.1 suites: Issue2 **39/39**, RestoreSummary **17/17**, smoke harne
 
 Actual default public entry returned **NotRun / NotAuthorized, Exit 2** without invoking COM/UIA or any CLI. A separate `pwsh -Sta` load-only probe compiled the Win32 helper and loaded UIAutomationClient/UIAutomationTypes. During that initial agent delivery no Shell enumeration, AddButton search or real CLI GUI operation occurred, and live cases were NotRun. This historical status was later superseded by the user's completed VM run below; the safe-default behavior remains unchanged.
 
-## One-click Task-5 convenience entry (2026-11-02)
+## One-click Task-5 convenience entry (2026-11-02, historical guided workflow)
 
 Added a guided `.cmd` / PowerShell launcher and a separate orchestration helper. It uses the existing safety-gated harness for both cases, automatically bootstraps E01 through one real public CLI Restore with separate setup evidence, and still requires truthful isolated-session attestation, two visual reviews and manual closure of known E01 windows. No production or existing-test changes. Without `-Run`, and on import, no dispatch occurs. A cooperative same-TEMP launcher lock prevents concurrent one-click suites; existing harness/production locks are respected.
 
@@ -55,6 +55,16 @@ PowerShell 7.6.1: 14 new synthetic orchestration tests plus existing 39/17/21 su
 The user's latest two screenshots show the one-click VM run completing E01 and E02 operator PASS/visual notes, the manual-close transition, E02-Confirm, Phase Complete, Error null and overall **Exit Code 0**. The reviewed launcher reaches Complete only after both case Confirm calls return Passed. Its four offline suites also show 39/17/21/14 passes, all Exit 0. On this **user-provided VM evidence**, Task-5 is Closed and its [plan is archived in DONE](plans/DONE/resume-explorer-Task-5-powershell7-explorer-e2e-smoke-plan.md).
 
 See the [acceptance record](tests/Integration/TASK5-VM-ACCEPTANCE.md) for screenshot provenance, latest case roots and scope. The agent did not rerun GUI, independently parse the VM's reports, or obtain exact VM Windows build/PS minor/commit/SuiteRoot values from the screenshot regions. Runtime gates establish the minimum Win11/PS7/STA constraints of the completed runner; do not substitute the agent machine's runtime versions. Raw VM evidence should remain preserved for detailed traceability. This closeout is documentation only, not a production fix, beta.2 release certification or universal Windows/VDI compatibility claim.
+
+## Task-5 review follow-up (2026-11-03)
+
+Approved workflow change: explicit startup authorization covers window creation and closure. Existing windows offer Save/Capture then close, close without saving, or cancel. Capture must exactly match independent observed path groups and unchanged original identities before closure. Only verified Explorer HWNDs receive WM_CLOSE, once per root, after refreshed whole-scope identity/path/session/process checks and a final native fingerprint check; explorer.exe is never terminated. Empty-scope detection is polled for up to 10 seconds, without a timeout guarantee for blocking COM calls. Unknown/new windows stop cleanup. Case cleanup is limited to the verified case paths; failed cases keep their windows and all evidence. Both E01 and E02 successful fixtures are cleaned.
+
+Default one-click acceptance now uses additive read-only Verify (same saved-hash/current-scope/fingerprint checks as Confirm), recording VisualReview NotRun and no human evidence. Optional `-RequireVisualReview` retains real PASS/Confirm gates; environment and visual notes are optional and prompts explain their purpose. The old CONTINUE prompt is removed. Standalone Run/Confirm behavior and production CLI/schema remain unchanged. See [current SOP](tests/Integration/ONE-CLICK.md).
+
+Existing harness tests were updated only for the explicitly approved behavior change: old manual-close refusal expectations now cover automatic-close failure/residual windows; missing visual approval remains a blocking test in opt-in visual mode. Default flow checks no visual/cleanup prompts, five fixture-window closes, no residual scope, distinct roots and saved phases. Added negative coverage includes Capture failure/incomplete output, cancel without side effects, unreliable observation, changed tab/identity/PID/session/process-start and unexpected windows during close. Real prompt tests exercise optional notes and mandatory PASS in visual mode. Verify tests preserve prior evidence on live-scope/hash mismatch and replay, without weakening original Confirm assertions.
+
+PowerShell 7.6.1 offline baseline: **39 + 17 + 23 + 23 = 102 PASS**, all Exit 0. All GUI/close paths in these tests are synthetic. The revised native helper is compiled in a separate STA load-only probe, without enumerating or closing Explorer. **New automatic window closure and Verify have not been run on a real VM by the agent or accepted via new user evidence.** The original Task-5 closeout remains historical and does not certify this follow-up's live behavior.
 
 ## Live acceptance still required
 

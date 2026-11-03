@@ -239,3 +239,9 @@ TestRoot\
 使用者後續在標示 `Temp-VM-Ad001` 的 Win11 VM 執行一鍵流程；最新兩張截圖顯示兩個案例均輸入 PASS 並填寫目視記錄、E01 手動關窗後 E02 啟動、E02-Confirm 完成、Phase Complete、Error null、整體 Exit 0。此 runner 的 Complete 只會在兩次 Confirm 均 Passed 後產生，故以**使用者提供的 VM 實機通過證據**結案，不冒稱 agent 重跑或重新解析原始 Report。前次 E02 pending 的不同 Run 不與本次混用。
 
 完整來源、可得 case root IDs、完成時間、原始證據保留要求及精確 Windows build／PS minor 未取得的限制，見[驗收紀錄](../../tests/Integration/TASK5-VM-ACCEPTANCE.md)。Functional smoke 的 Task-5 已 Closed，計畫移入 DONE；原始 Facts／hash 的獨立追溯尚未進行，不擴張成所有 Windows/PS7/VDI、Issue-4 timeout 或 beta.2 發布認證。此結案僅更動文件與路徑，未改測試、產品、原始 VM 報告或執行 GUI。
+
+## 14. 結案後 Review 改善（2026-11-03）
+
+使用者同意以正常關閉 Explorer 視窗取代「因已有視窗一律擋測試」，不終止 Explorer 程序。此後續要求更新初版的不自動關窗／必填目視設計：啟動一次取得建立及關窗授權，既有配置可選正式 Capture 保存並完整核對後關閉，或不保存直接關閉；預設獨立 observer 自動 Verify，人工目視改為可選，備註與截圖 Optional，移除 CONTINUE。測試通過後自動清理該案例已驗證視窗，異常停止、保留證據、不擴大關窗範圍。
+
+舊版手動入口與 Confirm 契約保留；產品不改。測試變更理由、102 項離線結果、新版仍待 VM 實測的限制見[驗證紀錄](../../ISSUE2-VALIDATION.md)，提示用途與操作見[新版 SOP](../../tests/Integration/ONE-CLICK.md)。第 13 節結案證據僅涵蓋當時版本，不宣稱本次新增關窗流程已實機通過。

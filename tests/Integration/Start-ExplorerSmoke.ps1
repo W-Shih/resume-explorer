@@ -1,9 +1,9 @@
 [CmdletBinding()]
-param([switch]$Run)
+param([switch]$Run,[switch]$RequireVisualReview)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'ExplorerSmoke.OneClick.Core.ps1')
 if ($MyInvocation.InvocationName -eq '.') { return }
-$result=Invoke-SmokeOneClick ([bool]$Run) (New-SmokeOneClickAdapter)
+$result=Invoke-SmokeOneClick ([bool]$Run) (New-SmokeOneClickAdapter) ([bool]$RequireVisualReview)
 ConvertTo-Json -InputObject $result -Depth 24
 switch ($result.Status) {
     'Passed' { exit 0 }

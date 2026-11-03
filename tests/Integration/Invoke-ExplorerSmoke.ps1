@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Preflight','Prepare','Run','Confirm')][string]$Mode='Preflight',
+    [ValidateSet('Preflight','Prepare','Run','Confirm','Verify')][string]$Mode='Preflight',
     [ValidateSet('E01','E02')][string]$Case='E01',
     [switch]$AllowExplorerUiChanges,
     [switch]$ConfirmIsolatedSession,

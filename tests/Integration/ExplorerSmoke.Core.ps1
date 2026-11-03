@@ -14,6 +14,7 @@ public static class ExplorerSmokeNative {
  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr hwnd, StringBuilder name, int size);
  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
  [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hwnd);
+ [DllImport("user32.dll", SetLastError=true)] public static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr wparam, IntPtr lparam);
  [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
@@ -153,18 +154,19 @@ function Get-SmokePathKey($Paths) {
 }
 
 function Assert-SmokeScope($Observation,$ExpectedGroups,[int]$SessionId) {
-    Assert-Smoke $Observation.Reliable 'ObservationIncomplete'
+    Assert-Smoke $Observation.Reliable 'ObservationIncomplete: 無法完整觀測 Explorer；請檢查 JSON Errors 與測試桌面的未知視窗，未繼續操作。'
     $views=@($Observation.Views)
     foreach ($view in $views) {
         Assert-Smoke ($view.Visible -and $view.Fingerprint.SessionId -eq $SessionId -and
-            -not [string]::IsNullOrWhiteSpace($view.Identity) -and -not [string]::IsNullOrWhiteSpace($view.Path)) 'ForeignOrAmbiguousExplorer'
+            -not [string]::IsNullOrWhiteSpace($view.Identity) -and -not [string]::IsNullOrWhiteSpace($view.Path)) 'ForeignOrAmbiguousExplorer: 偵測到隱藏、其他 session 或身分／路徑不明的視窗；請檢查觀測證據後整理測試桌面。'
     }
     Assert-Smoke (@($views.Identity | Select-Object -Unique).Count -eq $views.Count) 'IdentityAmbiguous'
     $roots=@($views | Group-Object RootHwnd); $raw=@($views | Group-Object RawHwnd)
     Assert-Smoke ($roots.Count -eq $raw.Count) 'RawRootGroupingUnsupported'
     $actual=@($roots | ForEach-Object { Get-SmokePathKey $_.Group.Path } | Sort-Object)
     $expected=@($ExpectedGroups | ForEach-Object { Get-SmokePathKey $_.Paths } | Sort-Object)
-    Assert-Smoke ($actual.Count -eq $expected.Count -and (Get-SmokePathKey $actual) -ceq (Get-SmokePathKey $expected)) 'ForeignOrAmbiguousExplorer'
+    Assert-Smoke ($actual.Count -eq $expected.Count -and (Get-SmokePathKey $actual) -ceq (Get-SmokePathKey $expected)) (
+        "ForeignOrAmbiguousExplorer: 實際 $($roots.Count) 個視窗／$($views.Count) 個分頁，預期 $($ExpectedGroups.Count) 個視窗且路徑分組須相符。請檢查觀測 JSON；若為啟動前的既有視窗，可用一鍵入口選擇儲存後關閉。測試中新增的未知視窗不會自動關閉。")
 }
 
 function Assert-SmokeOriginalUnchanged($Before,$After) {
@@ -403,9 +405,11 @@ function Invoke-ExplorerSmoke($Options,$Adapter) {
         # It does not replace or bypass any production CLI lock.
         $runLock=[IO.File]::Open((Join-Path $context.TestRoot 'smoke-run.lock'),[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
         $previous=Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json
-        if ($Options.Mode -eq 'Confirm') {
-            Assert-Smoke ($previous.Status -eq 'AwaitingVisualReview' -and $Options.ConfirmVisibleAndGrouping -and
-                -not [string]::IsNullOrWhiteSpace($Options.VisualEvidence) -and $previous.Case -eq $context.Case -and
+        if ($Options.Mode -in @('Confirm','Verify')) {
+            $manual=$Options.Mode -eq 'Confirm'
+            Assert-Smoke ($previous.Status -eq 'AwaitingVisualReview' -and
+                ((-not $manual) -or ($Options.ConfirmVisibleAndGrouping -and -not [string]::IsNullOrWhiteSpace($Options.VisualEvidence))) -and
+                $previous.Case -eq $context.Case -and
                 @($previous.EvidenceHashes).Count -gt 0 -and @($previous.After.Views).Count -gt 0) 'VisualReviewRequired'
             foreach ($hash in $previous.EvidenceHashes) {
                 Assert-Smoke (-not [IO.Path]::IsPathRooted($hash.RelativePath) -and $hash.RelativePath -notmatch '(^|[\\/])\.\.([\\/]|$)') 'UnsafeEvidencePath'
@@ -418,7 +422,10 @@ function Invoke-ExplorerSmoke($Options,$Adapter) {
             foreach ($view in $previous.After.Views) {
                 Assert-Smoke (@($now.Views | Where-Object { $_.Path -ieq $view.Path -and (Test-SmokeFingerprint $_.Fingerprint $view.Fingerprint) }).Count -ge 1) 'ReviewWindowChanged'
             }
-            $previous.Status='Passed'; $previous.Reason='ObserverAndOperatorVerified'; $previous.VisualEvidence=$Options.VisualEvidence
+            $previous.Status='Passed'
+            if ($manual) { $previous.Reason='ObserverAndOperatorVerified'; $previous.VisualEvidence=$Options.VisualEvidence }
+            else { $previous.Reason='IndependentObserverVerified-VisualReviewNotRun'; $previous.VisualEvidence=$null }
+            $previous | Add-Member -NotePropertyName VisualReview -NotePropertyValue $(if ($manual) { 'Passed' } else { 'NotRun' }) -Force
             $previous.($context.Case)='Passed'; Write-SmokeJson $resultPath $previous
             return $previous
         }
@@ -431,7 +438,7 @@ function Invoke-ExplorerSmoke($Options,$Adapter) {
         $context.Error=[pscustomobject]@{ Message=$_.Exception.Message; HResult=$_.Exception.HResult }
         if ($started) { $context.($context.Case)=$context.Status }
     } finally {
-        try { if ($saveResult -and $Options.Mode -ne 'Confirm') { Write-SmokeJson (Join-Path $context.TestRoot 'smoke-result.json') $context } }
+        try { if ($saveResult -and $Options.Mode -notin @('Confirm','Verify')) { Write-SmokeJson (Join-Path $context.TestRoot 'smoke-result.json') $context } }
         finally { if ($null -ne $runLock) { $runLock.Dispose() } }
     }
     return $context
