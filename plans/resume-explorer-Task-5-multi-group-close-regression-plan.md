@@ -1,0 +1,201 @@
+# Task-5 — 多視窗關閉中斷：Review 與修復計畫
+
+- 日期：2026-11-03。
+- 狀態：Reviewed / Proposed；**尚未實作**。
+- Review 基準：`75477f3`（新增一鍵自動驗證與關窗流程）；本次開始時工作樹乾淨。
+- 範圍：一鍵 smoke 的既有視窗關閉、E01／E02 fixture 清理、觀測診斷與回歸測試。
+- 本次交付僅本計畫；不修改 runner、產品、測試或系統設定，不執行真實 Explorer 操作，不建立 commit。
+- 關聯：[原 Task-5 結案計畫](DONE/resume-explorer-Task-5-powershell7-explorer-e2e-smoke-plan.md)、[目前操作文件](../tests/Integration/ONE-CLICK.md)、[驗證紀錄](../ISSUE2-VALIDATION.md)。
+
+## 1. Review 結論
+
+使用者回報「兩個 group 似乎只關閉一個」有可重現的程式控制流程缺陷支持。**不是已證實的「只遍歷第一個 group」或「WM_CLOSE 只關一個分頁」問題。**
+
+目前確實逐一遍歷所有 `RootHwnd`，但送出第一個非同步關窗訊息後，立即重新做全域 COM／Win32 觀測。只要該筆觀測 `Reliable=false`，就立即拋錯，無法到達第二個視窗的關窗步驟。函式尾端的 10 秒輪詢同樣先拋錯，而且計時器要到全部關窗要求送出後才啟動，無法涵蓋這段過渡期。
+
+建議採用**逐窗送出一次關窗要求，等待該窗消失且全域觀測恢復可靠，再處理下一窗**。保留原授權範圍、未知視窗拒絕、fingerprint 檢查及正常關窗方式；不靠忽略 Errors、重新發送 WM_CLOSE、固定 sleep 或終止程序修補。
+
+原 Task-5 的舊版手動流程結案證據保留；本次自動關窗 regression 尚未修復／驗收，不以舊紀錄宣稱已通過。
+
+## 2. 已知事實、重現與未決問題
+
+### 2.1 使用者 VM 證據
+
+來源為本次提供的兩張截圖，圖片檔名分別為：
+
+- `codex-clipboard-08429f67-ccd0-4cd2-b42a-4dd439eaee1e.png`
+- `codex-clipboard-bd169494-0dce-4dd4-966f-13732b31eed4.png`
+
+可直接確認：
+
+1. 四套離線基準 39／17／23／23 均 Exit 0，共 102 項。
+2. 啟動時偵測到 **2 個既有 Explorer 視窗、2 個分頁**；使用者選 `S`。
+3. 畫面顯示配置已保存並核對，`ExistingSnapshot` 有值。
+4. suite ID 為 `e3dc1b6f133d4da98dd02c9bfa002668`，Phase 為 `ExistingWindowsClose`。
+5. 結果 `Failed`／`ExplorerObservationIncomplete`／Exit 1；E01、E02 均 NotRun，case roots 為 null，尚未開始測試案例。
+6. 使用者觀察到只關閉一組。截圖沒有包含 actions／after 的原始內容，不能只依 terminal summary 判定實際發送次數。
+
+**尚未取得或驗證：** 該次 `existing-close-actions.json`、`existing-close-after.json` 的 Errors、Win32／COM 各自的 root 清單、關窗過程的時間序列、VM 精確 build／PS minor／執行 commit。不可代入 agent 本機版本。
+
+### 2.2 程式碼證據
+
+| 位置（本次基準行號） | 已驗證行為／缺口 |
+| --- | --- |
+| [Lifecycle](../tests/Integration/ExplorerSmoke.Lifecycle.ps1) `Assert-SmokeClosable`，L3 起 | `Reliable=false` 一律立即 throw，沒有過渡觀測狀態 |
+| 同檔 `Close-SmokeWindows`，L26 起 | foreach 按 RootHwnd 遍歷，並非固定只操作第一組 |
+| 同檔 L31–43 | 每窗送出前 Observe → Assert；第一窗關閉中的不完整觀測可阻止第二窗收到關閉要求 |
+| 同檔 L45–55 | timer 在 foreach 後才開始；輪詢內也立即 Assert，遇暫時不完整時沒有機會等待恢復 |
+| [OneClick core](../tests/Integration/ExplorerSmoke.OneClick.Core.ps1) L22–27 | native adapter 用 PostMessage 發送 WM_CLOSE；成功只表示訊息投遞成功 |
+| [Observer](../tests/Integration/ExplorerSmoke.Core.ps1) `Get-SmokeObservation`，L88–125 | 每筆 COM／fingerprint／path 例外都加入 Errors；COM roots 與另一次 Win32 枚舉不符也標為不可靠，兩者不是原子快照 |
+| [OneClick tests](../tests/ExplorerSmoke.OneClick.Tests.ps1) L24–30 | fake close 同步移除整窗且下一次 Observe 立即可靠，未模擬非同步關窗過渡 |
+
+Microsoft 文件確認 [PostMessage](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-postmessagew) 不等待接收端處理完成；[WM_CLOSE](https://learn.microsoft.com/en-us/windows/win32/winmsg/wm-close) 可由接收端先處理確認再銷毀視窗。因此 Posted 不能等同 Closed，也不能保證下一筆跨 API 觀測已一致。
+
+### 2.3 本次無 GUI 的控制流程重現
+
+載入現有函式；用記憶體 mock 取代 Observe、CloseWindow、Wait 與 Write-SmokeJson，未修改檔案、呼叫 native API 或開關視窗。預期集合為 root 10、20，每窗一分頁。
+
+| 合成時序 | 實際結果 | 關窗要求 | 剩餘 root | Observe／Wait 次數 |
+| --- | --- | --- | --- | --- |
+| 每次觀測可靠 | Success | 10、20 各一次 | 無 | 3／0 |
+| 第一窗關閉後一筆 `Reliable=false`，後續本可恢復 | ExplorerObservationIncomplete | 只有 10 | 20 | 2／0 |
+
+第二列證實目前會在等待前就停止；它只證實控制流程缺陷，**不是重現了 VM 的真實 COM 錯誤**。合成錯誤採 `TopLevelExplorerAndComScopeMismatch`，VM 當時可能是其他例外。
+
+本次另外執行現有 `ExplorerSmoke.OneClick.Tests.ps1`：**23 PASS／Exit 0**。這證實既有測試仍可全通過而未攔住此缺陷；沒有修改測試內容或重跑真實 GUI。其餘三套未在本次 Review 重跑，102 PASS 僅引用使用者截圖的該次基準。
+
+### 2.4 優先級與根因可信度
+
+- **P1／已證實：** 關窗流程把任何一筆過渡不完整觀測當終止錯誤，無等待恢復機會，會留下後續已授權視窗。既有關窗及 E01／E02 清理共用同一函式，均受影響。
+- **P2／已證實：** `*-close-after.json` 反覆覆寫，只留最後樣本；actions 只有 Posted 布林值，無法區分 Planned、投遞中、已投遞、已消失、逾時等結果，現場分析不足。
+- **P2／已證實：** 離線測試以同步刪除模型驗證了成功路徑，未涵蓋本次時間序列；102 PASS 無法排除此 defect。
+- **待證實：** VM 的特定錯誤是已關閉 COM view、Win32／COM 暫時不同步、path 存取失敗，還是持續不可靠。須保留原 Errors，不把全部歸為暫時錯誤。
+- **待排查：** 實際投遞數、root／raw 分組是否支援、視窗消失時其他 group 的 identity 是否改變，以及 WM_CLOSE 在該 build 的多分頁視窗行為。
+
+## 3. 修復目標與不變條件
+
+1. 支援零窗、單窗、多窗；一窗多分頁仍以 root window 為關閉單位，同一路徑存在不同窗不得合併成單一目標。
+2. 以可信、已授權的起始集合固定目標，不隨新觀測擴大；既有視窗依 S／C 選擇處理，fixture 限本次 case roots。
+3. 每個原始目標／fingerprint 最多投遞一次 WM_CLOSE；同一數字 HWND 被重用不視為原目標，不重試關窗或替換成殺程序／SendKeys／COM Quit。
+4. 不完整觀測可以在已開始關窗的階段**等待重新觀測**；等待期間不得向其他視窗送出關窗要求，不能認定空 scope 或宣稱成功。
+5. 偵測到可確認的新視窗、原有未關窗分頁改變、PID／process start／session 改變等矛盾，立即停止後續發送。無法確認的錯誤只能在有限時間內等待，逾時停止，不能排除錯誤樣本後假裝乾淨。
+6. 初始授權、Capture 完整性、Prepare／Run／Verify／Confirm 安全契約不放寬；產品 CLI、snapshot/report schema、正式 Runs 與 Restore／Retry 不改。
+7. 最後須確認所有授權窗已消失，且完整全域觀測穩定為空，才能進入 Preflight／E02／Complete。fixture 的 case Passed 不代表清理或 suite Passed。
+
+## 4. 方案比較與選擇
+
+| 方案 | 判斷 |
+| --- | --- |
+| 固定 sleep 後繼續 foreach | 不採用；延遲不代表身分安全或已完成，慢 VM 仍失敗 |
+| catch 所有錯誤繼續關其他窗 | 不採用；可能操作新／未知視窗，掩蓋真實觀測失敗 |
+| 先對所有已保存 HWND 一次送完 | 不採用；繞過每次發送前的 scope／identity gate，縮小副作用前檢查不足 |
+| SendMessage／SendMessageTimeout 取代 PostMessage | 不作主要修復；即使接收端返回也不等於 COM／Win32 已收斂，仍需觀測，且改變阻塞特性 |
+| 全域 observer 任意忽略 WindowGone／scope mismatch | 不採用；會放寬 Capture／Restore／Retry 之外的 harness 驗收條件，範圍過大 |
+| **依目標逐窗投遞一次，有限時間等待可靠收斂** | **採用**；修改集中 lifecycle；observer 只補診斷，原嚴格觀測語意保留 |
+
+## 5. 詳細設計
+
+### 5.1 目標清單與逐窗狀態
+
+以起始可靠 observation 建立不可擴大的 ledger，每個 root 記錄原 fingerprint、原分頁 identity/path multiset，以及 Planned → Posting → Posted → Closed／AlreadyGone／Failed／TimedOut。Posting 必須先持久化再呼叫 native；發送例外或寫入失敗時停止，不在同一 run 重新送出。Posted 只是成功投遞，Closed 需後續證據。
+
+在每次發送前保留全域可靠性與剩餘集合核對，並再次 native fingerprint 檢查。原窗已自行消失時記 AlreadyGone；若原 HWND 被重用則停止，不能將 replacement 當成可關目標。數字 HWND、路徑或目前的 group 排序不能單獨決定身分。
+
+### 5.2 等待收斂，不重試副作用
+
+1. 在第一筆關窗流程觀測前啟動單調計時；**整次 Close-SmokeWindows 共用 10 秒預算**，不隨窗數、錯誤或投遞重新起算。保留約 200ms 的 poll interval。
+2. 取得可靠的起始 sample 並固定目標；預算內逐窗處理。
+3. 當前 root 投遞一次後，先等待該目標原 fingerprint 的視窗消失，以及全域 observation 恢復可靠，才可發送下一 root。
+4. 關窗過渡若出現 `Reliable=false`：記錄該樣本與原 Errors，等待下一筆；不呼叫原 Assert 把樣本直接升級為終止錯誤，也不把它當可靠 sample 使用。這項等待只存在於 lifecycle 的關窗收斂階段，不更動一般 Assert-SmokeClosable。
+5. 新增唯讀 target probe：區分 Gone、原 fingerprint StillPresent、Reused／Changed；不可靠／例外不可映射為 Gone。Probe 與觀測均可 mock，native 使用既有 IsWindow／fingerprint 能力，必要時補同類型唯讀包裝。
+6. 如可獨立確認未知 root、target replacement 或未關窗目標變更，立即停止。若觀測資料不足以判定，僅等待，不繼續副作用；預算耗盡回報觀測逾時。
+7. 收斂判定至少需要兩筆相隔 poll interval 的可靠 observation，當前目標已消失且其餘仍是起始授權集合的合法子集；未發送目標須保留原 identity／path／fingerprint。全部處理完後，兩筆完整穩定空 scope 才成功，可重用最後等待階段的空樣本，避免多餘等待。
+8. 每次觀測後、每次發送前、每次 wait 前檢查同一 deadline；同步 COM／CLI/native 呼叫本身無 hard timeout 保證，不宣稱可強制打斷。
+
+不以錯誤文字 Contains 判定身分或完成狀態。錯誤種類可協助診斷，但成功判據仍是可靠觀測與 native target probe。若實際 VM 的錯誤使可靠觀測長期無法恢復，應停下來調查 observer，不持續擴充忽略清單。
+
+### 5.3 時間與觀測依賴
+
+增加 harness 內部的 elapsed-time／wait adapters，production default 使用 Stopwatch／200ms sleep，單元測試使用 fake clock 與排程 sample。這只服務 deadline 與時間序列測試，不建立 worker、service 或泛用重試框架，不新增產品公開參數。
+
+observer 可加上 harness-only 的結構化診斷欄位：取樣序號／時間、COM roots、Win32 roots、EnumWindows 是否成功、exception 所屬階段及可取得的 RawHwnd／RootHwnd／HRESULT。`Reliable` 的定義不放寬；舊欄位保留。不得把 COM RCW 序列化到 JSON。
+
+### 5.4 診斷與訊息
+
+- 保留 `*-close-before.json`、`*-close-after.json`、`*-close-actions.json`，維持既有閱讀方式。
+- 另外保存有界時間序列，例如 `*-close-observations.jsonl`：每個 poll／probe、可靠性、Errors、剩餘 roots、目標狀態與 elapsed time。約 200ms／10 秒的正常輪詢加上固定邊界事件，限制記錄量；不得無限追加。
+- actions 每窗保留 Posted 與新狀態／最後觀測時間，區分已送未消失、未送即中止、已自行關閉，避免錯誤宣稱全部已關。
+- timeout 區分 `CloseObservationTimedOut`（持續無法可靠觀測）與 `ExplorerCloseIncomplete`（可靠觀測下仍有原窗）；scope／fingerprint 變更保留獨立理由，發送失敗保存 native error。
+- 提示範例：「原定關閉 2 個視窗；已確認關閉 1 個，尚未發送 1 個。等待 Explorer 觀測恢復可靠已達 10 秒，測試未開始。已保存配置：…；詳細 Errors／關窗紀錄：…」。數字須源自 ledger，不能從當前不可靠 Views 推估。
+- 錯誤不得一律表示「未關閉任何視窗」；可能已部分完成。保留 suite Phase、E01／E02 狀態、Snapshot 路徑，不能以新的 summary 覆寫原始錯誤。
+
+### 5.5 orchestration 整合
+
+既有視窗、E01 清理、E02 清理共用新 lifecycle，避免只修啟動關窗。S 的 Capture 成功／hash 檔案保留；關窗等待不得重新 Capture、重跑案例、重播舊 suite 或自動 Restore。失敗保留現場與全部證據，不進入後續案例。整體 Exit 0 必須包含最終清理通過。
+
+## 6. 實作順序與預計檔案
+
+| 步驟 | 工作／檔案 | 驗證 gate |
+| --- | --- | --- |
+| A | 先保存使用者該 run 的 actions／after／observation／suite-result，對照第一窗投遞與首次 Errors；不可要求先重跑覆蓋現場 | 標記已證實機制及仍未知的 VM 原因；缺資料不阻擋補合成 regression |
+| B | `tests/ExplorerSmoke.OneClick.Tests.ps1`：先加第一窗投遞後一次不可靠再恢復的時序測試 | 在原版 red：只投遞第一 root，第二 root 未送 |
+| C | `tests/Integration/ExplorerSmoke.Lifecycle.ps1`：ledger、逐窗等待、共用 deadline、穩定完成判定、持久化 | 原 red 轉 green；每窗最多一次且無未知視窗關閉 |
+| D | `tests/Integration/ExplorerSmoke.OneClick.Core.ps1`：唯讀 target probe／clock adapters、整合三個清理點及摘要 | 保存配置與無授權路徑不變；失敗不進下一階段 |
+| E | `tests/Integration/ExplorerSmoke.Core.ps1`：只在需要時補結構化 observer metadata／序列化欄位 | 一般可靠性斷言及 Run／Verify／Confirm 行為不變 |
+| F | 補完整測試矩陣；同步實際 baseline expected counts，不能為容納失敗而降數或略過案例 | 四套均 Exit 0，實際 PASS 數與 expected 一致 |
+| G | 更新 `tests/Integration/ONE-CLICK.md`、`README.md`、`ISSUE2-VALIDATION.md`、`Backlog.md` 與本計畫狀態 | 說清總預算、等待與拒絕條件、新舊實機證據範圍 |
+| H | 專用 VM 驗證及原始結果審閱 | 下列 VM 矩陣通過，才可稱多組關窗已修復 |
+
+不需變更產品 `resume-explorer.ps1`／`resume-explorer.core.ps1`、產品版本或 Schema。原核心 39／17 測試應維持內容；harness 測試的必要變更須逐項記錄理由。
+
+## 7. 測試矩陣與完整性要求
+
+### 7.1 deterministic 離線測試
+
+所有 GUI／target probe／time／wait 用排程 mock；native load-only 可獨立驗證，禁止測試時操作 agent 工作桌面。
+
+| ID | 情境 | 必要斷言 |
+| --- | --- | --- |
+| C01 | 零視窗、單視窗、兩窗各一 tab、A|B 與 C、三組以上／不同窗重複路徑 | 每個原 root 各投遞最多一次；分組／路徑未合併；空集合零投遞 |
+| C02 | 第一窗投遞後 1 次／多次不可靠，再恢復 | 第二窗直到觀測可靠且第一窗確認消失才投遞；最終成功；中間 Errors 可查 |
+| C03 | Win32 先消失／COM 先消失、已關 view 例外、最後一窗過渡 | 不用不可靠樣本宣告成功；恢復後能結束 |
+| C04 | 第一窗保持存在數個 polls 後才消失 | 等待而非重送；不提前操作下一窗 |
+| C05 | 全程不可靠、原窗一直不消失、接近 deadline 才恢復 | 單調共用預算；不以每次 poll／每窗重置；原因正確，後續案例不執行 |
+| C06 | 一次空 sample 後又出現已知／未知窗 | 不以單次空宣告成功；未知窗零投遞 |
+| C07 | 新增未知窗／tab、未送目標路徑改變、PID／start／session 改變、HWND 重用 | 停止下一投遞；不擴大 expected；replacement 零關窗要求 |
+| C08 | 原窗自行消失、投遞前最後 native probe 發現消失／重用 | 已消失目標不送；重用停止；不因剩餘排序改變跳窗或重複 |
+| C09 | PostMessage 失敗、Posting／Posted 寫檔失敗、觀測／probe 拋錯 | 不重送；證據區分可能已送與未送；不得宣稱成功 |
+| C10 | 初始不可靠、拒絕授權、S 的 Capture 失敗／不完整、取消 | 原有安全測試繼續有效；等待邏輯不繞過前置 gates |
+| C11 | ExistingWindowsClose／E01 close／E02 close 各自套用 C02／C05 | 成功才進 Preflight／E02／Complete；case Passed、suite Failed 可正確表達 |
+| C12 | diagnostic 序列化、紀錄上限、CLI default／import | 保留原 Errors／HRESULT／投遞順序；不輸出 RCW；無授權零觀測及關窗 |
+
+現有同步成功模型不應全部刪掉；增加非同步排程模型作補充。原 unknown-window／identity／Capture／missing visual review／default tests 保留。`KeepWindows` 測試目前 Wait 直接拋 synthetic 例外，無法證明真實 deadline；新增 fake-clock timeout 測試替補這項缺口，但保留例外路徑覆蓋。不得將 `Reliable=false` 改為 true、放寬 scope assertion 或 skip 失敗來取得 green。
+
+### 7.2 專用 Windows 11 VM
+
+記錄實際 build／PS 完整版本／commit／session facts，使用可重設且無其他互動的測試桌面，逐次保留 suite/case roots，勿沿用舊 pending run。下列 live 結果不能由合成 PASS 代替。
+
+| ID | 起始情境／操作 | 驗收 |
+| --- | --- | --- |
+| V01 | 原回報：2 個獨立單 tab 視窗，選 S；至少連續 3 次，以新 roots 執行 | Snapshot 完整保留兩組；兩窗皆關閉，Preflight 後 E01／E02 與最終清理皆成功 |
+| V02 | 同樣兩窗，選 C；另驗證 Enter 取消 | C 能繼續；取消不關窗、不開始案例 |
+| V03 | A|B 與 C、多組各多 tab、不同窗相同路徑 | 確認所有分頁隨所屬 root 關閉，不只作用於 active tab／第一組；scope 完整 |
+| V04 | 沒有既有視窗啟動，讓實際 E01 的 4 窗／6 tab 與 E02 的 1 窗／2 tab 清理 | E01 全清才進 E02；E02 全清才 overall Exit 0；觀測序列可追溯 |
+| V05 | 可控延遲／殘留，與測試中新開未知窗的負向測試 | 等待有界；未知窗保留，沒有殺程序；失敗不進下一案例且保留現場 |
+
+V05 不以故意掛死 Explorer 或強殺程序製造條件；能 deterministic 模擬的異常不強求在 VM 製造危險狀態。必要時以安全殘留／人工新增 fixture 驗證停止行為，並如實記錄未實測子項。
+
+## 8. 完成標準、風險與回退
+
+- [ ] 原控制流程 defect 有先 red 後 green 的 regression 證據。
+- [ ] C01–C12 的適用子項覆蓋且四套離線回歸通過；expected count 依真正新增數更新。
+- [ ] 原 snapshot/report/Retry 與人工作業契約不變，native helper compile/load 通過。
+- [ ] 啟動及 E01／E02 清理均採同一修復，不再遇單筆關窗過渡即立即退出。
+- [ ] 一筆不可靠或空 sample 不能導致誤關其他視窗或誤判成功；每原目標至多一次副作用。
+- [ ] 紀錄可回答「哪個 root 已投遞／已消失／未送、Errors 是什麼、何時停止、Snapshot 在哪裡」。
+- [ ] V01–V04 有新版本 VM 證據，V05 的安全負向驗證及未實測限制明確記錄。
+- [ ] 文件、計畫狀態與實測範圍一致後才標記 Completed，依使用者要求再歸檔／commit。
+
+殘餘風險：COM／Win32 仍非原子快照；同一進程內 COM identity 在特定 build 可能不穩定；同步呼叫可能超過預算；WM_CLOSE 可能被應用程式延遲或拒絕。這些情況須停止並保留證據，不能以增加無限等待／重送／殺程序掩蓋。若證據顯示 observer 對穩定剩餘窗長期誤判，再另評估受控觀測修正，不能直接將所有不完整 sample 視為安全。
+
+回退時保留目前所有 run、Capture Snapshot 與關窗紀錄，改用既有手動 runner／手動整理測試窗。已關閉的視窗無法藉程式回退自動復原；是否使用保存的 Snapshot Restore 由操作者另行決定，不在失敗處理中偷偷執行。修復不得干擾工作桌面的 Explorer。
