@@ -11,6 +11,8 @@
 
 **優先實作建議：Task-3 Single-Instance CLI Guard，然後才允許 FR-6 的實際清理功能上線。** 這是 **FR-6 工作流內的相對優先序**，並不覆蓋全專案已存在的 P1 Issue-4／Task-1 或提高本 FR 的 P2 優先級。
 
+**Task-3 詳細設計／測試計畫：** [`resume-explorer-Task-3-single-instance-cli-guard-plan.md`](resume-explorer-Task-3-single-instance-cli-guard-plan.md)（2026-11-02 Reviewed / Proposed；**尚未實作**）。本 FR §5.2／Phase 2A 保留依賴與 Cleanup 整合界線；實作／驗收 Global CLI Guard 的詳細依據以 Task-3 獨立計畫為準。
+
 | 工作線／順序 | 工作項目 | 先決條件 | 可獨立交付／驗收 |
 | --- | --- | --- | --- |
 | **優先獨立實作（Track A）** | **Task-3：整個 CLI 的跨 Shell Single-Instance Guard**（本計畫 Phase 2A） | **不依賴 FR-6 Phase 0–2**、無需修改 Report Schema，也不依賴 Issue-6 | 兩個不同 Shell／Process 同時執行時，只有一個 Action 可以進入；第二個 fail fast、無副作用；正常與異常退出後能再次取得鎖 |
