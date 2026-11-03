@@ -1,9 +1,11 @@
 # Resume Explorer — Task-1 Automated Tests 實作計畫
 
 日期：2026-11-01  
-狀態：設計提案；**尚未實作測試、未執行 Explorer Restore**  
-對應：`Backlog.md` 第 64–67 行 Task-1，以及「[resume-explorer] 迭代 - 1」的 Automated tests 建議  
+狀態：**完整 Pester/CI 測試框架仍為設計提案；現有 39+17 deterministic tests 已存在，但真實 Explorer E2E 尚未執行（2026-11-02）**
+對應：[Backlog Task-1](../Backlog.md)、[Task-5 PS7 E2E Smoke](resume-explorer-Task-5-powershell7-explorer-e2e-smoke-plan.md)，以及「[resume-explorer] 迭代 - 1」的 Automated tests 建議
 目標：可重複的 Unit test gate + 安全、明確啟用的 Windows Explorer E2E smoke test
+
+> **2026-11-02 現況補充：**此計畫第 2、4、9 節含原始 2026-11-01 的歷史程式狀態／建議（例如「無 tests」、「單檔 CLI」、「必須先抽 Module」）；現已具有 `resume-explorer.core.ps1` 與 39+17 個 deterministic tests，不能把舊描述當成當前事實或前置要求。**PowerShell 7 真實 Explorer Capture/Restore/Retry 的最小驗收，優先依 [Task-5 E2E Smoke Plan](resume-explorer-Task-5-powershell7-explorer-e2e-smoke-plan.md) 實作**，不以 Pester 5 或全面重構阻塞；本文件保留作後續完整 Unit/CI/Pester 框架的設計參考。
 
 ## 1. 核心結論
 
