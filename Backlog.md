@@ -112,10 +112,10 @@
 
 ### Task-3 — P2 — Single-Instance CLI Guard（FR-6 同步清理的前置條件）
 
-- **需求**：同一 Windows 使用者／機器中，所有新版 `resume-explorer.ps1` Action（`Capture`、`Preview`、`Restore`、`PreviewRetry`、`Retry`，未來含 `Cleanup`）**同一時間只允許一個執行**；第二個命令必須 fail fast 且在任何 Explorer／Snapshot／Report 副作用前退出，不自動排隊或背景重試。
-- **建議最小實作**：在 CLI 最外層使用同一 per-user、`Runs` 範圍以外的穩定 OS 排他檔案鎖（候選 `%LOCALAPPDATA%\ResumeExplorer\resume-explorer.instance.lock`、`.NET FileShare.None`）。整個 Action 及 Restore／Retry 後可選的同步 Cleanup 都持有 handle；在 `finally` 關閉；程式被終止時 OS 釋放 handle。**不要把 `.lock` 檔案存在誤判為仍被佔用，也不得將 lock anchor 列入清理**。
+- **需求（跨 Shell）**：同一 Windows 使用者、**共用相同鎖檔實際路徑**的新版 `resume-explorer.ps1`，不論透過 Windows PowerShell 5.1、PowerShell 7、CMD→PowerShell、Windows Terminal、VS Code Terminal 或不同工作目錄啟動，所有 Action（`Capture`／`Preview`／`Restore`／`PreviewRetry`／`Retry`，未來含 `Cleanup`）**同一時間只允許一個執行**。第二個命令在執行任何 Explorer／Snapshot／Report 副作用前 fail fast，**不等待、不排隊、不背景重試**。跨帳號／機器、舊版 CLI 或未共用鎖路徑不保證互斥。
+- **建議最小實作**：從 Windows 使用者的 LocalApplicationData 取得**固定絕對路徑**（候選 `%LOCALAPPDATA%\ResumeExplorer\resume-explorer.instance.lock`），不依賴 `$PWD`、Script 目錄、`-ReportPath`；在 CLI 最外層透過 OS 排他檔案開啟（`.NET FileStream`、`FileShare.None`）取得鎖。從 Action 開始到 **final checkpoint → summary → Retry family lock 釋放 → 同步 Cleanup 完成／跳過** 都保持 handle 開啟，最後在 `finally` 關閉；程序被終止時 OS 釋放 handle。檔案位於 `Runs` 之外，**不刪除 lock anchor，也不以 `.lock` 檔是否存在判定 Busy**；sharing violation 與 ACL／磁碟錯誤分開報告並 fail-closed。
 - **安全與相容性**：保留原有 per-family `Retry` lock、原子 checkpoint、Report JSON 與既有 CLI 參數／正常輸出。只保證遵守同一鎖的新版 CLI；舊版腳本、不同使用者與外部工具仍不受約束。此變更使既有同時執行的命令改為拒絕，應更新 README／版本與測試。拒絕 lock 失敗不得誤啟動 Explorer。
-- **測試／交付**：先做隔離鎖位置的**雙 PowerShell process 離線測試**，涵蓋所有 Action、同時啟動、例外／Ctrl+C／程序終止後可再取得鎖、PS5.1/7、權限錯誤與無需刪除過期檔；避免擾動真實 Explorer 或現有檔案。詳細方案：[`plans/resume-explorer-Feature-Request-6-report-size-plan.md`](plans/resume-explorer-Feature-Request-6-report-size-plan.md) §5.2、Phase 2A。
+- **測試／交付**：在**隔離鎖檔路徑**下，以兩個獨立 PowerShell Processes 測試 Windows PowerShell 5.1 ↔ PowerShell 7、不同 Terminal Tabs／VS Code／CMD 啟動、不同 `$PWD`、所有 Actions 與 cleanup 期間第二命令 fail-fast；驗證 sharing violation、權限錯誤、例外／Ctrl+C／程序終止與檔案仍存在但 handle 已釋放時能重新取得鎖。跨 RDP Sessions 只在確定使用相同本機鎖路徑時納入實測；不擾動真實 Explorer 或現有 Report。詳細方案：[`plans/resume-explorer-Feature-Request-6-report-size-plan.md`](plans/resume-explorer-Feature-Request-6-report-size-plan.md) §5.2、Phase 2A。
 
 ### Task-2 — P2
 

@@ -110,6 +110,27 @@
 6. **範圍界線**：相同 Windows 使用者、共用相同 `LOCALAPPDATA`／鎖檔路徑的新版本 CLI 會互斥；不保證不同 Windows 帳號、不同機器、**舊版本腳本**、第三方工具或直接 dot-source core 函式也遵守本鎖。跨帳號共用的自訂 ReportPath **不納入自動清理**；遇到無法確認的舊版／外部讀寫者，跳過正式刪除，不能宣稱絕對全機單例。
 7. **相容性**：以前可同時執行的 `Preview`／`Capture` 也會被拒絕，屬**有意的可觀察行為變更**。先測試並更新 README、版本、使用指引與必要 CLI 測試；保留既有 Action 名稱、參數、正常輸出、Report Schema、Retry 安全判斷。可考慮讓 FR-8 的自動 Capture 在 Busy 時安全跳過本輪，而不是等待或中斷前景 Restore。
 
+**跨 Shell／跨 Process 保證（使用者確認的需求）**：
+
+鎖的互斥由 **Windows 檔案分享／開啟規則**保證，與 PowerShell 變數、當前 Working Directory、Terminal Tab 或 Process 內部狀態無關。任何新版 `resume-explorer.ps1` 命令，只要使用**同一個本機檔案的完整路徑**且從 CLI 進入相同鎖流程，取得不到 `FileShare.None` 排他開啟就必須在 Action 前結束。
+
+| 同時執行的環境 | 預期行為／驗收 |
+| --- | --- |
+| 兩個 `pwsh.exe`，各在獨立 Terminal／Tab | 第一個執行；第二個 **fail fast** |
+| `powershell.exe` 5.1 與 `pwsh.exe` 7（如有安裝） | 同一鎖檔路徑時跨版本互斥 |
+| VS Code Integrated Terminal 與 Windows Terminal／獨立 PowerShell | 不受 Terminal／Host 差異影響 |
+| CMD 透過 `powershell.exe -File` 啟動 CLI，另一個 PowerShell 執行 CLI | 不受外層 Shell 影響 |
+| 從不同 `$PWD`／不同 Git worktree 或複製的新版 CLI 啟動（共用同一鎖設定） | 鎖路徑與 Repository／Snapshot／ReportPath 無關，**仍須互斥** |
+| 相同 Windows 帳號的不同登入／RDP Session | **只有兩邊實際解析到同一個可共用鎖檔、其檔案系統遵守 Windows sharing semantics 時**才保證；需隔離實測 |
+| 不同 Windows 帳號、不同機器、舊版 CLI 或直接呼叫 core 函式 | **不在本功能的互斥保證範圍**；不得據此進行危險 Report 清理 |
+
+鎖檔根目錄應由 Windows 使用者的 **LocalApplicationData 已知資料夾**取得並正規化為絕對路徑（`%LOCALAPPDATA%\ResumeExplorer\resume-explorer.instance.lock` 為可讀示例），而非依賴 `$PWD`、`$PSScriptRoot` 或 `-ReportPath`；需明確處理未設定、無權限、不可寫與路徑指向非預期位置時的 fail-closed 行為。**兩個 CLI 必須真正打開同一個檔案**，不能各自建立不同工作目錄下的同名鎖檔。
+
+- **Lock lifetime**：取得鎖成功 → 整個 Action（包含任何長輪詢、finally、最終 checkpoint 和摘要）→ Retry family lock 已釋放 → opt-in 同步 Cleanup 完成／跳過 → **在外層 `finally` 關閉 FileStream**；不得在 `Complete-Run` 返回或輸出摘要後就提前釋放 instance lock。
+- **Busy detection**：嘗試開啟失敗且確認是 sharing violation 時回報「另一個命令執行中」，並拒絕進入 Action；其他權限、檔案系統錯誤另行說明並 fail-closed。**鎖檔存在不代表被持有**；不要為了解除 Busy 刪掉或覆寫鎖檔。
+- **Cancellation／Crash**：通常由 `finally` 釋放；程序被強制結束時依 Windows 檔案 handle 關閉機制解除鎖。此處僅處理互斥，不表示已完成 Report checkpoint 或多檔清理恢復。
+- **Backward compatibility**：這是有意的行為改變：第二個 `Capture`／`Preview` 也會被拒絕。確認所有入口走到 guard，現有命令參數、既有單執行行為及輸出保持相容，README／版本與 tests 在實作時更新。
+
 **替代方案評估**：Windows named `Mutex` 也能跨程序限制執行，但會增加命名／Session namespace／ACL／AbandonedMutex 處理；目前已使用 `FileShare.None` 實作 Retry 排他，因此**推薦共享固定 lock-file 技術，但不要重用可被刪除的 `<RootReportPath>.retry.lock` 作為全域單例鎖**。若不同 Windows sessions 必須互斥，先以相同使用者的 `LOCALAPPDATA` 穩定路徑驗證跨 Session 行為，而不是假設 `Local\` named mutex 能涵蓋全部 sessions。
 
 **命令與鎖的生命週期（設計意圖，尚未實作）：**
@@ -251,6 +272,12 @@ CLI 取得 single-instance lock（失敗則立即退出，不做副作用）
 | 在第一個 CLI 中，`Start-RetryRun` 仍持有 family lock；另一 CLI 試圖 `PreviewRetry` | 同一 CLI 必須先完成 Retry、釋放 family lock 才可清理；第二個 CLI 因全命令鎖立即拒絕，不能插入 |
 | 刪到一半停電、磁碟滿、I/O denied、部分 Sidecar | 若有 Cleanup，須證明一致性與 recovery；否則不得推出刪檔能力 |
 | Root/Child schema V1；未來 V2 若由 FR-9 實作 | V1 原始契約不變，未知版本保護；V2 明確支援後才可納入清理 |
+| 兩個 `pwsh.exe`／獨立 Terminal Tabs；不同 `$PWD` | 相同 per-user 絕對 lock-file 路徑，第二個立即拒絕，不進入任何 Action |
+| Windows PowerShell 5.1 與 PowerShell 7；VS Code Terminal／CMD→PowerShell | **跨 Shell／跨版本／跨 Host** 排他成立，並確認鎖不依賴工作目錄或 CLI 檔案位置 |
+| 第一個命令執行到 post-run Cleanup，第二個命令同時啟動 | Cleanup 全程仍持有 instance lock；第二個在原始 Action 之前 fail fast |
+| 鎖檔存在但前一程序已退出或已釋放 handle | 新命令可重新取得；**不刪除鎖檔**才能恢復 |
+| 同使用者不同 RDP Sessions／不共享相同本機鎖路徑／跨 Windows 帳號 | 同 Session／帳號／路徑的聲明要與測試一致；不同路徑或不同帳號**不能宣稱互斥** |
+| Lock 檔案 ACL／disk 問題、sharing violation、意外終止 | 明確區分 Busy 與其他 fail-closed 錯誤；無副作用、沒有無限等待、OS handle 釋放後可重試 |
 | 未啟用 Cleanup 的正常 Restore／Retry；其他 `Capture`／`Preview`／`PreviewRetry` | 與現有行為一致：不清理、不改 Report、無額外建立／導覽副作用 |
 | 主流程正常結束、最後 checkpoint 可讀，且候選舊 Family 超額 | 僅在 Summary 與相關 Retry lock 釋放後，於**同一 CLI**檢查受管 Family 並同步清理少量合資格舊 Family |
 | `Completed` 但 Partial／OutcomeUnknown／NotAttempted | 可檢查其他舊 Family；**本次 Partial Family 保護**，不把 Completed 當 All Verified |
