@@ -213,6 +213,8 @@ TestRoot\
 
 ## 12. 本輪實作驗證與限制（2026-11-02）
 
+**後續一鍵互動入口**：依使用者要求新增 [一鍵 SOP](../tests/Integration/ONE-CLICK.md)、`.cmd`／PowerShell launcher 及獨立 orchestration helper；自動建立 session evidence、跑四套離線基準、以真實 CLI Restore 做 E01 起始 fixture bootstrap（獨立 setup Snapshot／Report），再串接既有 E01／E02。保留原手動 runner、隔離環境／scope gates、目視 Confirm 與 E01 後人工關閉已確認視窗；不自動刪證據、關窗口或重試。新增 14 項離線測試後 **91 PASS**，原有測試與 Production 不變；真實 bootstrap／E01／E02 **NotRun**，本計畫的 GUI Release Gate 尚未解除。
+
 基準 HEAD `b795dfa`，工作樹乾淨。產品 CLI/core 與兩套既有測試未變。採手動 E01 fixture、E02 由合法缺失路徑建立 skip 條件的實作；沒有新增 Pester／生產 debug bypass 或動態改寫報告。
 
 | 驗證 | 實際結果 |

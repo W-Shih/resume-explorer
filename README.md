@@ -190,6 +190,7 @@ Retry 子 run 的 Total 只計算本次選取項目，Report 指向該次 child 
 & .\tests\Issue2.Tests.ps1
 & .\tests\RestoreSummary.Tests.ps1
 & .\tests\ExplorerSmoke.Tests.ps1
+& .\tests\ExplorerSmoke.OneClick.Tests.ps1
 ```
 
 測試以注入的時鐘和觀測 adapter 驗證副作用次數，不操作實際 Explorer，也不需安裝 Pester。
@@ -206,6 +207,8 @@ pwsh -NoProfile -Sta -File .\tests\Integration\Invoke-ExplorerSmoke.ps1
 只有在獨立可重設的 Windows 11 互動桌面，提供綁定實際 SID／Session／Desktop 的隔離聲明、確認全域 Explorer scope 並明確指定 `-AllowExplorerUiChanges`，才允許 Run 透過真實 CLI 執行 E01 Capture／Preview／Restore 或 E02 PreviewRetry／Retry。初版採手動建立 E01 fixture；Prepare 不開 Explorer。獨立 observer 通過後仍為 AwaitingVisualReview／Exit 2，須由操作者實際目視並 Confirm 後才可 Passed／Exit 0。所有證據使用唯一 TEMP root，不重用預設 Snapshot／正式 Runs；不自動重跑或關閉測試視窗，不宣稱同步 COM／UIA 有 hard timeout。
 
 本次 PS7.6.1 離線測試 **39＋17＋21 = 77** 項通過，只驗證 harness 安全與合成流程，不等於 PS7 GUI／COM 相容性通過。Task-5 保持未完成，產品 CLI／Schema／既有測試均未修改。
+
+**一鍵互動入口（後續補充）**：在獨立 Win11 VM 雙擊 `tests\Integration\Run-ExplorerSmoke.cmd`，或執行 `pwsh -NoProfile -Sta -File .\tests\Integration\Start-ExplorerSmoke.ps1 -Run`。它自動跑離線檢查、建立 session evidence、用真實 CLI 建立並驗證 E01 起始 fixture，再串接 E01／E02；仍要求隔離環境授權、兩次目視確認及 E01 後手動關閉已識別測試視窗，不會自動關閉 Explorer。無 `-Run` 時零 dispatch。新增 14 項離線測試後共 **91 PASS**；真實一鍵 GUI 路徑尚未驗收。詳見 [一鍵 SOP](tests/Integration/ONE-CLICK.md)。
 
 ### 原有流程
 

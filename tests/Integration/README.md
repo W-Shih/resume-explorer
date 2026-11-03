@@ -1,5 +1,7 @@
 # Task-5 — PowerShell 7 Explorer smoke harness
 
+For the guided single-launch workflow in a test VM, double-click **`Run-ExplorerSmoke.cmd`** or run `pwsh -NoProfile -Sta -File .\tests\Integration\Start-ExplorerSmoke.ps1 -Run`. See [one-click instructions](ONE-CLICK.md). This automates session evidence, offline checks, verified fixture bootstrap and both cases; actual visual review and manual E01 window closure remain required. The manual workflow below is preserved for diagnosis. One-click live acceptance is also NotRun.
+
 Implementation and offline tests are available. **Live E01 and E02 are NotRun**: neither the user nor the agent has an isolated Windows desktop available for this delivery. The agent execution sandbox is not a disposable Windows VM or an isolated Explorer desktop. Do not run GUI cases on the current working desktop/VDI.
 
 This harness does not modify the production CLI or install dependencies. It uses a manual-fixture workflow, real public CLI subprocesses for live cases, and a separate Shell COM/Win32/UIA observer. Offline synthetic orchestration tests are tests of the harness, not evidence of Windows GUI success.

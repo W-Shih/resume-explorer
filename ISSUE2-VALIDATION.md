@@ -44,6 +44,12 @@ PowerShell 7.6.1 suites: Issue2 **39/39**, RestoreSummary **17/17**, smoke harne
 
 Actual default public entry returned **NotRun / NotAuthorized, Exit 2** without invoking COM/UIA or any CLI. A separate `pwsh -Sta` load-only probe compiled the Win32 helper and loaded UIAutomationClient/UIAutomationTypes, resolving AutomationElement successfully. **No Shell enumeration, AddButton search, Invoke, Navigate or real Capture/Restore/Retry was performed.** E01 and E02 remain **NotRun**, and Task-5 stays open. Future isolated execution and manual review follow the [SOP](tests/Integration/README.md); no execution-policy change, Explorer cleanup or automatic commit was performed.
 
+## One-click Task-5 convenience entry (2026-11-02)
+
+Added a guided `.cmd` / PowerShell launcher and a separate orchestration helper. It uses the existing safety-gated harness for both cases, automatically bootstraps E01 through one real public CLI Restore with separate setup evidence, and still requires truthful isolated-session attestation, two visual reviews and manual closure of known E01 windows. No production or existing-test changes. Without `-Run`, and on import, no dispatch occurs. A cooperative same-TEMP launcher lock prevents concurrent one-click suites; existing harness/production locks are respected.
+
+PowerShell 7.6.1: 14 new synthetic orchestration tests plus existing 39/17/21 suites, **91 total PASS, all Exit 0**. New coverage includes no-consent/no-dispatch, runtime/baseline/foreign-scope rejection, one-attempt setup with failure/unverified evidence, no replay, absent visual review, manual-close refusal and independent empty-scope recheck, first-case stop, two-review/two-root ordering, persisted phases, coordinator lock rejection and safe public default/import. Synthetic terminal Passed results only validate control flow; **live bootstrap/E01/E02 remain NotRun**, so Task-5 stays open. See [one-click SOP](tests/Integration/ONE-CLICK.md).
+
 ## Live acceptance still required
 
 - Reproduce the original failure with the diagnostic candidate; record Windows build, PowerShell version, group sizes, load, concurrent interaction and raw/root grouping.

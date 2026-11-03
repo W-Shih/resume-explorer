@@ -136,6 +136,7 @@
 - **實作次序／依賴**：先離線基線 → 獨立安全 Preflight/Runner → 真實 E01 → 真實 E02 → README/測試結果。**不依賴** Pester 5、全面 Module 重構或 Task-3 Single-Instance Lock；若 Task-3 先實作，本 Smoke 須遵守全域 Lock 且序列執行。本項是 PS7-only 真實 Explorer 發布驗收關卡，**不是** Task-1 全部 Unit/CI 建置的替代品，亦不宣稱修復 Issue-3/4。
 - **2026-11-02 實作／離線驗證**：新增 `tests/Integration/Invoke-ExplorerSmoke.ps1`、獨立 observer／harness core、[隔離桌面 SOP](tests/Integration/README.md) 與 `tests/ExplorerSmoke.Tests.ps1`。提供唯讀預設、Session attestation＋實際 runtime／desktop／全域 scope gates、手動 fixture Prepare、E01／E02 真實 CLI 路由、證據 hash／原分頁不變檢查、per-fixture lock、防 replay、人工目視 Confirm；只有觀測及人工確認皆通過才能 Passed。預設實測 NotRun／Exit 2；native helper 編譯與 UIA assembly load 成功，**未列舉 Shell 或搜尋真實 AddButton**。PS7.6.1 原有 39＋17、新增 21 項離線測試共 **77 PASS**，三套 Exit 0；產品與原測試未修改。
 - **Live 限制／狀態**：使用者確認沒有隔離環境，agent 亦沒有可用的獨立 Windows VM／互動桌面；沙箱不能取代隔離 Explorer 桌面。本次依使用者指示只交付 runner 與離線測試。**E01/E02 NotRun，Task-5 保持開啟，不標記 Completed。** 真實 GUI／COM／UIA gate 須未來在隔離 Windows 11 session 依 [SOP](tests/Integration/README.md) 執行。[原計畫／矩陣](plans/resume-explorer-Task-5-powershell7-explorer-e2e-smoke-plan.md)。
+- **一鍵互動入口（2026-11-02）**：新增 `Run-ExplorerSmoke.cmd`／`Start-ExplorerSmoke.ps1`，串接環境聲明、四套離線基準、唯一 case roots、真實 CLI 的 E01 fixture bootstrap 與既有 E01／E02 Run/Confirm；保留兩次人工目視與 E01 後手動關閉 fixture。預設／import 零 dispatch、同 TEMP 的 launcher 排他鎖、失敗立即停止且不 replay，產品與既有測試不變。新增 14 項合成測試後總 **91 PASS**；bootstrap 與真實 GUI 仍 **NotRun**。詳見 [一鍵 SOP](tests/Integration/ONE-CLICK.md)。
 
 ### Task-4 — P1 — RestoreSummary S16 JSON 格式敏感斷言（Completed／2026-11-02）
 
