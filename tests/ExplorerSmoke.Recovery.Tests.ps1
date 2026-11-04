@@ -49,12 +49,35 @@ function Get-Content {
     $stub=$stub.Replace('RESULT_MODE',$Mode).Replace('RAW_CODE',[string]$RawCode).Replace('STILL_RUNNING',('$'+$StillRunning.ToString().ToLowerInvariant()))
     [IO.File]::WriteAllText((Join-Path $folder 'ExplorerSmoke.OneClick.Core.ps1'),$stub)
     $engine=(Get-Process -Id $PID).Path
-    $output=@(& $engine -NoProfile -NonInteractive -File $entry -Run 2>&1)
-    $code=$LASTEXITCODE; $text=$output -join "`n"
+    # Native pwsh output capture inherits the console code page. Use UTF-8 for
+    # this boundary so localized status text survives, then restore the caller.
+    $originalEncoding=[Console]::OutputEncoding
+    try {
+        [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)
+        $output=@(& $engine -NoProfile -NonInteractive -File $entry -Run 2>&1)
+        $code=$LASTEXITCODE
+    } finally { [Console]::OutputEncoding=$originalEncoding }
+    $text=$output -join "`n"
     $notice=$text.LastIndexOf('測試結果：')
     return @{ Code=$code; Text=$text; Summary=$(if ($notice -ge 0) { $text.Substring($notice) } else { '' }) }
 }
 try {
+    Test 'supervisor capture preserves Unicode and restores the caller output encoding' {
+        $originalEncoding=[Console]::OutputEncoding
+        try {
+            foreach ($encoding in @([Text.Encoding]::ASCII,[Text.UTF8Encoding]::new($false))) {
+                [Console]::OutputEncoding=$encoding
+                foreach ($mode in @('Missing','Passed')) {
+                    $result=Invoke-SupervisorFixture $mode
+                    Assert ([Console]::OutputEncoding.CodePage -eq $encoding.CodePage)
+                    $expected=1; if ($mode -eq 'Passed') { $expected=0 }
+                    Assert ($result.Code -eq $expected -and $result.Summary.Contains('-Action Restore'))
+                    $status=if ($mode -eq 'Passed') { 'Passed' } else { 'Failed／結果不明 (Exit 1)' }
+                    Assert ($result.Text.Contains('測試結果：'+$status))
+                }
+            }
+        } finally { [Console]::OutputEncoding=$originalEncoding }
+    }
     Test 'public supervisor rejects missing malformed and unsuccessful results but keeps recovery commands' {
         foreach ($mode in @('Missing','Malformed','Running','Failed','Passed')) {
             $result=Invoke-SupervisorFixture $mode

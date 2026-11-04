@@ -316,3 +316,11 @@ P03 以測試自己啟動的無 GUI process 模擬直接終止，不故意掛死
 新增兩項測試分別覆蓋 missing／malformed／Running／Failed／Passed 結果，以及 raw exit 1／2／3／17 和 worker 仍存活的 catch 分支。負向案例要求公開入口 Exit 1、摘要不顯示 Passed、仍有完整 Restore 命令；合法成功保持 Exit 0。既有十項 recovery tests 未放寬。Recovery 10→12，五套實際基準為 39＋17＋23＋49＋12＝140 PASS（全 Exit 0）。
 
 A01 已解除。此為結果判定與錯誤提示修正，沒有改動 GUI 操作，因此本次不要求重跑真實 Explorer E2E；既有使用者 VM 正常流程及手動還原證據保留。Ctrl+C／其他 host／完整 IO fault 點仍按原標記未全實測；本次不擅自將整份矩陣標為 Completed 或歸檔，不建立 commit。
+
+## 16. Recovery 測試的非 UTF-8 輸出相容性（2026-11-04）
+
+使用者 VM 的五套基準在 Recovery 顯示 0/12、Exit 1，E01／E02 未執行。公開入口 fixture 的 Missing 情境實際回傳預期 Exit 1 且保留 Restore 命令，但捕捉到的中文變成 `?`；測試以「測試結果：」定位摘要，因此 Summary 為空並在第一個斷言失敗。VM 改成 UTF-8 後原 12 項全過；本機明確設定 ASCII 亦能重現。這是新增測試的輸出編碼相容性缺陷，沒有證據指向產品 Restore 回歸。
+
+修正僅在 `Invoke-SupervisorFixture` 的 native pwsh 輸出捕捉邊界暫設 `[Console]::OutputEncoding` 為 UTF-8，並以 finally 還原原編碼；不變更公開入口、產品行為、系統設定或原有斷言。新增一項回歸，分別在 ASCII／UTF-8 呼叫端驗證 Missing／Passed 的 exit、完整中文摘要、Restore 命令及編碼還原。新回歸於修正前先失敗，修正後通過；Recovery 12→13，baseline expected count 同步更新。
+
+本機 PowerShell 7.6.1 的完整五套基準在預設及 ASCII 環境皆為 39／17／23／49／13＝141 PASS，全部 Exit 0；ASCII 執行完成後仍保留 ASCII 編碼。修正後的 PowerShell 7.4.22 VM 重跑與真實 Explorer E2E 尚未驗證；使用者先前 UTF-8 workaround 的 12 項通過不等同於新版程式已在 VM 驗收。不建立 commit。
