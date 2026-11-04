@@ -17,7 +17,7 @@ try {
     $rawCode=Invoke-SmokeWorkerProcess $engine $arguments
     $code=if ($rawCode -in @(0,1,2,3)) { $rawCode } else { 1 }
     $status=switch ($rawCode) {
-        0 { 'Passed' }; 1 { 'Failed (Exit 1)' }; 2 { 'NotRun／取消或待目視 (Exit 2)' }
+        0 { '結果驗證中' }; 1 { 'Failed (Exit 1)' }; 2 { 'NotRun／取消或待目視 (Exit 2)' }
         3 { 'Blocked (Exit 3)' }; default { "程序異常結束 (Exit $rawCode)" }
     }
     if ($rawCode -eq 0) {
@@ -28,6 +28,7 @@ try {
     }
 } catch {
     $code=1
+    $status='Failed／結果不明 (Exit 1)'
     if ($_.Exception.Data['WorkerStillRunning']) { $status='測試程序可能仍在執行，請先確認已結束' }
     Write-Warning $_.Exception.Message
 }

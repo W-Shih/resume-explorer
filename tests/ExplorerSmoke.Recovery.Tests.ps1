@@ -11,7 +11,73 @@ function New-RecoveryFixture {
     Write-SmokeJson $source @{ Version=1; Windows=@(@{ Paths=@('C:\A','C:\B') }) } -New
     @{ Id=$id; Source=$source; Suite=(Join-Path $env:TEMP ('ResumeExplorer-E2E-Suite-'+$id)); Base=(Join-Path $storage "Before Smoke's 資料") }
 }
+function Invoke-SupervisorFixture($Mode,[int]$RawCode=0,[bool]$StillRunning=$false) {
+    $folder=Join-Path $storage ([guid]::NewGuid().ToString('N'))
+    [void][IO.Directory]::CreateDirectory($folder)
+    $entry=Join-Path $folder 'Start-ExplorerSmoke.ps1'
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Integration/Start-ExplorerSmoke.ps1') -Destination $entry
+    $recovery=(Join-Path $PSScriptRoot 'Integration/ExplorerSmoke.Recovery.ps1').Replace("'","''")
+    $core=(Join-Path $PSScriptRoot 'Integration/ExplorerSmoke.Core.ps1').Replace("'","''")
+    # Replace only external dependencies, run the unchanged public entry and real recovery formatter.
+    $stub=". '$core'`n. '$recovery'`n"+@'
+function Get-SmokeRecoveryBase { Join-Path $PSScriptRoot 'BeforeSmoke' }
+function Invoke-SmokeWorkerProcess {
+    param($Engine,$Arguments)
+    $id=$Arguments[[Array]::IndexOf($Arguments,'-RunId')+1]
+    $source=Join-Path $PSScriptRoot 'source.json'
+    Write-SmokeJson $source @{Version=1; Windows=@(@{Paths=@('C:\synthetic')})} -New
+    $null=Publish-SmokeRecovery $source (Join-Path $PSScriptRoot ('ResumeExplorer-E2E-Suite-'+$id)) (Get-SmokeRecoveryBase)
+    if (STILL_RUNNING) {
+        $exception=[InvalidOperationException]::new('SyntheticWaitInterrupted')
+        $exception.Data['WorkerStillRunning']=$true
+        throw $exception
+    }
+    return RAW_CODE
+}
+function Get-Content {
+    param($LiteralPath,[switch]$Raw)
+    if ($LiteralPath.EndsWith('suite-result.json')) {
+        switch ('RESULT_MODE') {
+            Missing { throw 'SyntheticSuiteMissing' }
+            Malformed { return '{' }
+            default { return ('{"Status":"'+ 'RESULT_MODE' +'"}') }
+        }
+    }
+    Microsoft.PowerShell.Management\Get-Content -LiteralPath $LiteralPath -Raw:$Raw
+}
+'@
+    $stub=$stub.Replace('RESULT_MODE',$Mode).Replace('RAW_CODE',[string]$RawCode).Replace('STILL_RUNNING',('$'+$StillRunning.ToString().ToLowerInvariant()))
+    [IO.File]::WriteAllText((Join-Path $folder 'ExplorerSmoke.OneClick.Core.ps1'),$stub)
+    $engine=(Get-Process -Id $PID).Path
+    $output=@(& $engine -NoProfile -NonInteractive -File $entry -Run 2>&1)
+    $code=$LASTEXITCODE; $text=$output -join "`n"
+    $notice=$text.LastIndexOf('測試結果：')
+    return @{ Code=$code; Text=$text; Summary=$(if ($notice -ge 0) { $text.Substring($notice) } else { '' }) }
+}
 try {
+    Test 'public supervisor rejects missing malformed and unsuccessful results but keeps recovery commands' {
+        foreach ($mode in @('Missing','Malformed','Running','Failed','Passed')) {
+            $result=Invoke-SupervisorFixture $mode
+            $expected=1; if ($mode -eq 'Passed') { $expected=0 }
+            Assert ($result.Code -eq $expected -and $result.Summary.Contains('-Action Restore'))
+            if ($expected -eq 1) {
+                if ($result.Text.Contains('測試結果：Passed')) { throw "A01 reproduced: $mode returns Exit 1 but displays Passed" }
+                Assert ($result.Text.Contains('測試結果：Failed／結果不明 (Exit 1)'))
+            }
+            else { Assert ($result.Text.Contains('測試結果：Passed')) }
+        }
+    }
+    Test 'public supervisor preserves nonzero exits and live-worker warning with recovery commands' {
+        foreach ($code in @(1,2,3,17)) {
+            $result=Invoke-SupervisorFixture 'Passed' $code
+            $expected=$code; if ($code -eq 17) { $expected=1 }
+            Assert ($result.Code -eq $expected -and -not $result.Text.Contains('測試結果：Passed') -and $result.Summary.Contains('-Action Restore'))
+            Assert ($result.Text.Contains("Exit $code"))
+        }
+        $result=Invoke-SupervisorFixture 'Passed' 0 $true
+        Assert ($result.Code -eq 1 -and $result.Text.Contains('測試程序可能仍在執行') -and $result.Text.Contains('SyntheticWaitInterrupted'))
+        Assert (-not $result.Text.Contains('測試結果：Passed') -and $result.Summary.Contains('-Action Restore'))
+    }
     Test 'persistent publication commits exact bytes with instructions and descriptor' {
         $f=New-RecoveryFixture; $path=Publish-SmokeRecovery $f.Source $f.Suite $f.Base
         Assert ((Get-FileHash $path).Hash -eq (Get-FileHash $f.Source).Hash)

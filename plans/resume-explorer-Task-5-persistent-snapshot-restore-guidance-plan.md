@@ -1,7 +1,7 @@
 # Task-5 — 持久保存測試前配置與結束後還原提示：詳細實作計畫
 
 - 日期：2026-11-03。
-- 狀態：**Acceptance Not Complete**；主要流程與手動 Restore 已通過，但結案驗收發現 supervisor 可能在結果驗證失敗後仍顯示 Passed（§14）。修正前保留於 plans/，不移入 DONE。
+- 狀態：**A01 Fixed / Offline Verified（2026-11-04）**；主要流程與手動 Restore 已有 VM 通過證據。§14 的摘要錯誤已修正，詳見 §15；完整延伸矩陣仍未全驗收，暫保留於 plans/。
 - Review 基準：`9dd7f9b`；開始時工作樹乾淨。
 - 使用者決策：採方案 2；Snapshot 保存於 `%LOCALAPPDATA%\ResumeExplorer\Snapshots\BeforeSmoke\<RunId>.json`；只要已成功保存，後續成功、失敗、取消或程序 crash 都應提供還原入口。
 - 本次只新增計畫。不修改 runner／產品／測試，不建立持久資料目錄、不執行 Capture／Restore／E2E，不建立 commit。
@@ -306,3 +306,13 @@ P03 以測試自己啟動的無 GUI process 模擬直接終止，不故意掛死
 本次只進行驗收與記錄，不擅自修改 production code 或既有測試；未移動計畫、未 commit。
 
 本次重新執行真正 baseline helper：39／17／23／49／10＝138 PASS，五套 Exit 0。A01 在這個全綠基準之外仍可重現，顯示公開入口錯誤路徑的測試缺口；不能以目前 suite 全過作為歸檔理由。
+
+## 15. A01 修復與公開入口回歸（2026-11-04）
+
+使用者授權修正後，先新增使用未改寫公開入口副本的程序測試，僅替換外部 worker／結果讀取依賴；格式化命令與持久復原提示使用真正 Recovery helper，所有檔案限制於 owned TEMP fixture。原版測試明確失敗：`A01 reproduced: Missing returns Exit 1 but displays Passed`。
+
+修正集中於 Start-ExplorerSmoke.ps1：raw 0 時先標記結果驗證中，只有 suite-result 可讀且 Status Passed 才設成功；catch 一律重設 Failed／結果不明，再按 WorkerStillRunning 保留特殊警告。既有 JSON／原始 warning、非零 exit mapping、有效備份的完整 Restore 命令均保留，不改產品 Restore／Retry 或 Explorer 行為。
+
+新增兩項測試分別覆蓋 missing／malformed／Running／Failed／Passed 結果，以及 raw exit 1／2／3／17 和 worker 仍存活的 catch 分支。負向案例要求公開入口 Exit 1、摘要不顯示 Passed、仍有完整 Restore 命令；合法成功保持 Exit 0。既有十項 recovery tests 未放寬。Recovery 10→12，五套實際基準為 39＋17＋23＋49＋12＝140 PASS（全 Exit 0）。
+
+A01 已解除。此為結果判定與錯誤提示修正，沒有改動 GUI 操作，因此本次不要求重跑真實 Explorer E2E；既有使用者 VM 正常流程及手動還原證據保留。Ctrl+C／其他 host／完整 IO fault 點仍按原標記未全實測；本次不擅自將整份矩陣標為 Completed 或歸檔，不建立 commit。

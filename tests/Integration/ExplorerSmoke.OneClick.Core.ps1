@@ -8,7 +8,7 @@ function Invoke-SmokeOfflineBaseline {
     $tests=Split-Path $PSScriptRoot -Parent; $rows=@()
     foreach ($suite in @(@{ File='Issue2.Tests.ps1'; Expected=39 },@{ File='RestoreSummary.Tests.ps1'; Expected=17 },
         @{ File='ExplorerSmoke.Tests.ps1'; Expected=23 },@{ File='ExplorerSmoke.OneClick.Tests.ps1'; Expected=49 },
-        @{ File='ExplorerSmoke.Recovery.Tests.ps1'; Expected=10 })) {
+        @{ File='ExplorerSmoke.Recovery.Tests.ps1'; Expected=12 })) {
         $output=@(& $engine -NoProfile -NonInteractive -File (Join-Path $tests $suite.File) 2>&1)
         $code=$LASTEXITCODE
         $count=@($output | Where-Object { $_.ToString().StartsWith('PASS ') }).Count
