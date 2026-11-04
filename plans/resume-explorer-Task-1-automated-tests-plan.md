@@ -1,7 +1,7 @@
 # Resume Explorer — Task-1 Automated Tests 實作計畫
 
 日期：2026-11-01  
-狀態：**完整 Pester/CI 測試框架仍為設計提案；91 項離線測試通過，Task-5 已依使用者 Win11 VM 的 E01／E02 完成證據結案（2026-11-02）；非所有環境相容性認證**
+狀態：**In Progress／部分完成，尚不符合 Task-1 結案條件（2026-11-04 審閱）**。目前五套離線基準為 141 項，Task-5 主要 E2E 流程已另案結案；Snapshot 首批矩陣與獨立 Unit runner／結果契約仍有缺口，詳見 §13。本計畫保留於 plans/。
 對應：[Backlog Task-1](../Backlog.md)、[Task-5 PS7 E2E Smoke 結案紀錄](DONE/resume-explorer-Task-5-powershell7-explorer-e2e-smoke-plan.md)，以及「[resume-explorer] 迭代 - 1」的 Automated tests 建議
 目標：可重複的 Unit test gate + 安全、明確啟用的 Windows Explorer E2E smoke test
 
@@ -397,4 +397,21 @@ Pester 官方：
 - Pester v5 Invoke-Pester：<https://pester.dev/docs/v5/commands/Invoke-Pester>
 - Pester v5 mocking：<https://pester.dev/docs/v5/usage/mocking>
 
-**狀態聲明：**本文件只提供設計／實作計畫。尚未新增或執行測試、未安裝 Pester 5、未實際執行 Capture/Restore，也未修改任何產品行為。
+**原始規劃時的狀態聲明（歷史）：**當時僅提供設計／實作計畫，未新增或執行測試、未安裝 Pester 5、未實際執行 Capture/Restore。現況以 §13 審閱為準。
+
+## 13. 結案驗收：部分完成，暫不歸檔（2026-11-04）
+
+Review HEAD：`5ad1d52`。本次核對 core／CLI、五套測試、baseline helper、README、Backlog 與 Task-5 驗收紀錄。**Task-1 尚未完成，保留於 plans/，不移至 DONE 或 Completed。** 本次只更新文件，沒有新增實作、安裝依賴或重跑 GUI／測試；141 PASS 引用本 chat 已實際執行的基準，不宣稱本次新增執行證據。
+
+| 目標 | 現有證據與判定 |
+| --- | --- |
+| 安全測試邊界與 Restore 副作用驗證 | 已有 `resume-explorer.core.ps1`，各離線套件以合成 observation／clock／adapter 驗證 Invoke／Navigate 次數、候選身分、checkpoint／Retry 等；無須為符合舊目錄建議強制改成 Module |
+| Snapshot 基本測試 | Issue2 的 `snapshot Capture and Preview preserve groups and duplicate paths` 覆蓋分組、同組重複路徑及 Preview 不改寫 Snapshot。尚無完整對照 §6.1／§10 首批要求的測試組：非法 JSON／版本與結構錯誤的零 UI 副作用、空資料、單元素 array、實際 Save/Read 的 UTF-8 roundtrip 等未具備完整覆蓋證據。Recovery 的 metadata／quote／編碼測試不能代替產品 Snapshot 契約測試 |
+| 可重複的離線 gate | 已有 `Invoke-SmokeOfflineBaseline`：逐套核對 process exit 與精確 PASS 數量，零測試不會被此 helper 判為成功；目前為 39/17/23/49/13，共 141 項。這部分已實作，不能說完全沒有 runner／基準保護 |
+| 獨立 Unit 入口與結果契約 | 提案中的 `tests/Invoke-Tests.ps1` 尚不存在；目前 README 是逐套執行，baseline helper 位於一鍵 smoke core。尚未交付正式獨立入口、版本／依賴政策與穩定的機器可讀 Unit／E2E 結果契約，也未建立該入口失敗／零案例／隔離 dispatch 的測試 |
+| E01／E02 真實流程 | Task-5 已有獨立使用者 VM 成功證據，且後續整窗關閉／持久還原主要流程已結案；不要求為 Task-1 文件審閱再跑相同 E2E，也不外推為其他 build／完整負向矩陣通過 |
+| 框架與 CI | 現有套件使用自訂 Assert/Test，沒有 Pester runner／版本 gate；repository 也沒有 CI workflow。Pester 5 是原方案選型，可依成本重新決策；CI 原為選用，兩者的缺席不是單獨阻擋結案的理由 |
+
+下一步的最低必要工作是補齊 Snapshot 首批契約測試與零副作用斷言，並明確交付／驗證獨立離線入口和結果契約。可選擇沿用現有輕量框架與 baseline helper，更新 §8–10 的選型後完成；不應為追求計畫檔名一致，先做全面 Module／Pester 重構。Snapshot schema 的新限制需先確認既有相容性政策，不能把提案中的規則當成已批准的產品行為。
+
+Task-2 與其他尚未實作功能依 §9.1 保持獨立，不要求先完成所有 Issue-2／Task-2／擴展 E2E 情境才關閉 Task-1；但既有 141 項及 Task-5 成功也不能代替上述仍缺少的測試基建交付。

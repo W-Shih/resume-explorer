@@ -191,9 +191,12 @@ Retry 子 run 的 Total 只計算本次選取項目，Report 指向該次 child 
 & .\tests\RestoreSummary.Tests.ps1
 & .\tests\ExplorerSmoke.Tests.ps1
 & .\tests\ExplorerSmoke.OneClick.Tests.ps1
+& .\tests\ExplorerSmoke.Recovery.Tests.ps1
 ```
 
 測試以注入的時鐘和觀測 adapter 驗證副作用次數，不操作實際 Explorer，也不需安裝 Pester。
+
+目前五套離線基準為 39／17／23／49／13，共 141 項。Task-1 測試基建仍為部分完成：Snapshot 首批契約覆蓋、獨立 Unit runner 與結果契約尚待補齊；Task-5 E2E 成功不代表整項已完成。詳見 [Task-1 驗收紀錄](plans/resume-explorer-Task-1-automated-tests-plan.md)；Pester 選型可重議，CI 為選用。
 
 ### PowerShell 7 真實 Explorer smoke runner（Task-5）
 

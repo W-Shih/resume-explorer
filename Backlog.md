@@ -135,7 +135,7 @@
 
 ### Task-1 — P1
 
-為 `resume-explorer.ps1` 建立自動化測試，涵蓋 Snapshot 讀寫與驗證等可單元測試的邏輯；並評估在支援的 Windows 環境中加入端對端測試，驗證 Explorer 視窗與 Tabs 的還原行為。**目前已有** `tests/Issue2.Tests.ps1`（39 tests）及 `tests/RestoreSummary.Tests.ps1`（17 tests）；較完整的 Pester/CI 測試基建仍為計畫。真實 PS7 Explorer 最小 E2E 驗收獨立列為 **Task-5**，避免被 Task-1 的完整框架建置阻塞。
+為 `resume-explorer.ps1` 建立自動化測試，涵蓋 Snapshot 讀寫與驗證等可單元測試的邏輯。**驗收狀態：In Progress／部分完成（2026-11-04），暫不移至 Completed。** 已有 core／adapter 測試邊界、五套 39/17/23/49/13＝141 項離線基準，以及會檢查 exit／PASS 數量的 baseline helper；真實 E01／E02 已由 Task-5 另案結案。仍需補齊 Snapshot 首批契約與零 UI 副作用測試，並交付／驗證獨立 Unit 入口、依賴政策及機器可讀的 Unit／E2E 結果契約。Pester／Module 是可重新評估的選型，CI 為選用，不以未採用它們作為單獨阻擋條件。詳見 [Task-1 計畫 §13 驗收紀錄](plans/resume-explorer-Task-1-automated-tests-plan.md)。
 
 ### Task-5 後續 — 多組關窗延伸驗證（Open）
 
