@@ -190,6 +190,6 @@ function Save-SmokeExistingSnapshot($Observation,$Native,[int]$SessionId,[string
     Assert-SmokeOriginalUnchanged $Observation $now
     Write-SmokeJson (Join-Path $SuiteRoot 'existing-snapshot-validation.json') @{
         SHA256=(Get-FileHash -LiteralPath $path).Hash; Observation=(ConvertTo-SmokeEvidence $now) } -New
-    Write-Host "已儲存並核對配置：$path（不會自動 Restore）"
+    Write-Host "已儲存並核對配置：$path (不會自動 Restore)"
     return $path
 }

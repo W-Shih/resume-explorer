@@ -70,7 +70,7 @@ function New-SmokeOneClickAdapter {
             param($kind,$case,$root)
             switch ($kind) {
                 'Isolation' {
-                    Write-Host '僅限可重設的 Windows 11 VM／專用測試桌面；請勿在工作桌面或 VDI 執行。'
+                    Write-Host '警告：測試會關閉 Explorer 視窗，可能影響目前工作。建議在可重設的 Windows 11 VM 或專用測試桌面執行，以降低干擾工作桌面或 VDI 的風險。'
                     Write-Host '本次授權包含：關閉此桌面既有 Explorer 視窗、建立測試視窗，以及測試通過後自動關閉測試視窗。'
                     Write-Host '不會終止 Explorer 程序；請先完成檔案操作並關閉編輯中的對話框。既有配置可在下一步選擇儲存。'
                     $choice=Read-Host '同意上述操作請輸入 VM 或 TESTACCOUNT；直接 Enter 取消，且不執行測試'
@@ -94,7 +94,7 @@ function New-SmokeOneClickAdapter {
                     Write-Host "偵測到 $($root.Windows) 個既有 Explorer 視窗、$($root.Tabs) 個分頁。測試前需要先關閉。"
                     Write-Host 'S：先儲存 Snapshot JSON，再關閉並測試。C：不儲存，直接關閉並測試。Enter：取消。'
                     Write-Host 'Snapshot 僅保存工具支援的資料夾／分頁配置，不包含檔案操作、選取或捲動位置；測試後不自動還原。'
-                    $choice=Read-Host '輸入 S（儲存後關閉）或 C（直接關閉）；Enter 取消'
+                    $choice=Read-Host '輸入 S (儲存後關閉) 或 C (直接關閉)；Enter 取消'
                     if ($choice -eq 'S') { return 'Save' }
                     if ($choice -eq 'C') { return 'Close' }
                     return $null

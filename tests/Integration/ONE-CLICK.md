@@ -1,6 +1,6 @@
 # 一鍵 Explorer smoke — Windows 11 測試桌面
 
-僅在可重設的 Windows 11 VM／專用測試桌面執行。需安裝 PowerShell 7，且 `pwsh.exe` 在 PATH。雙擊 `tests\Integration\Run-ExplorerSmoke.cmd`，或執行：
+警告：測試會關閉 Explorer 視窗，可能影響目前工作。建議在可重設的 Windows 11 VM 或專用測試桌面執行，以降低干擾工作桌面或 VDI 的風險。需安裝 PowerShell 7，且 `pwsh.exe` 在 PATH。雙擊 `tests\Integration\Run-ExplorerSmoke.cmd`，或執行：
 
 ```powershell
 pwsh -NoProfile -Sta -File .\tests\Integration\Start-ExplorerSmoke.ps1 -Run
