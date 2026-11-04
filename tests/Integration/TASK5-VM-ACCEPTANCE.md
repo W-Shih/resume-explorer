@@ -67,7 +67,7 @@ The user supplied `codex-clipboard-aad1bd8b-8e6f-4e64-bb5d-7b2fad699681.png` and
 
 This supports one successful real VM run of persistent saving, foreground worker/supervisor interaction, both E01/E02 verification and cleanup (required by the reviewed success gate), final recovery guidance, and user-executed restoration. It also supplies the main-path live acceptance for the cleanup COM-identity handoff correction. It does not claim the harness automatically restored anything.
 
-This RunId is distinct from earlier failed or temporary-snapshot runs. Preserve its persistent JSON/descriptor/txt and associated TEMP suite/case evidence. Exact VM build, PS minor, commit and completion timestamp are not visible and were not independently extracted. Ctrl+C, alternate terminal hosts, cancellation and every IO/crash fault point are not newly certified by this screenshot. See [persistent recovery plan](../../plans/resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md) for remaining coverage.
+This RunId is distinct from earlier failed or temporary-snapshot runs. Preserve its persistent JSON/descriptor/txt and associated TEMP suite/case evidence. Exact VM build, PS minor, commit and completion timestamp are not visible and were not independently extracted. Ctrl+C, alternate terminal hosts, cancellation and every IO/crash fault point are not newly certified by this screenshot. See [persistent recovery plan](../../plans/DONE/resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md) for remaining coverage.
 
 ## Smoke and manual Restore after the encoding correction (2026-11-04 client date)
 
@@ -83,3 +83,13 @@ The user supplied `codex-clipboard-3bca4b45-8f77-46ad-bb72-9c9119274d55.png` and
 | Restore report | `%LOCALAPPDATA%\ResumeExplorer\Runs\5e761290a68449d19127f14fb30f14a2.json` |
 
 This supports one successful VM smoke run and a subsequent manual Restore of the saved configuration. Under the reviewed success gate, smoke exit 0 requires both E01/E02 verification and cleanup to pass. The screenshots do not show individual case rows, offline baseline counts, active output encoding, exact VM runtime/build, or tested commit; none are inferred from local results or earlier screenshots. In particular, this does not independently establish that the temporary UTF-8 workaround was absent. Repeated reliability, other terminal hosts and the remaining failure matrix are not newly certified.
+
+## Persistent recovery closeout (2026-11-04)
+
+Core implementation and main-path acceptance are complete; the [plan](../../plans/DONE/resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md) is archived in plans/DONE with its evidence and limitations. Closeout source review used local HEAD `a3586fc`; this is not a verified VM revision. The agent reran the offline baseline under ASCII in PowerShell 7.6.1: 39/17/23/49/13, 141 PASS, all exit 0, caller encoding preserved. No live Explorer operation was performed for closeout. Extended cancellation/terminal-host/fault-injection/repeatability coverage remains open in [Backlog](../../Backlog.md); archival does not certify it.
+
+## Interrupted batch: recovery guidance retained (2026-11-04)
+
+The user supplied `codex-clipboard-64c43541-ee16-4456-873e-33b331d9595d.png`. The screenshot shows `Run-ExplorerSmoke.cmd`, VM consent, five offline suites passing 39/17/23/49/13 (141 total, each exit 0), detection of two existing windows/four tabs, and selection of S. It then displays a persistent Snapshot and restore.txt for RunId `d45f6e278e5a4aa182338f71d81608a2`, followed by a final recovery summary with `程序異常結束／結果不明`, the same Snapshot and full Restore command. The terminal subsequently shows `Terminate batch job (Y/N)?`, answer N, and `^C` before returning to the prompt.
+
+This supplies partial live evidence for F02: recovery guidance is retained during a batch interruption, with no false Passed summary. It does not identify the exact interruption point/signal sequence, prove the worker has exited, supply a final launcher exit code or case results, or show execution of Restore for this Snapshot. No claim is made that the full smoke passed, all test windows were cleaned up, or the entire Ctrl+C/terminal-host matrix is complete. Confirm the worker has stopped before acting on the recovery command. The source screenshot remains outside the repository; no live operation was performed by the agent.

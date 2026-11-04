@@ -1,11 +1,11 @@
 # Task-5 — 持久保存測試前配置與結束後還原提示：詳細實作計畫
 
 - 日期：2026-11-03。
-- 狀態：**A01 Fixed / Offline Verified（2026-11-04）**；主要流程與手動 Restore 已有 VM 通過證據。§14 的摘要錯誤已修正，詳見 §15；完整延伸矩陣仍未全驗收，暫保留於 plans/。
+- 狀態：**Done — 核心實作與主要流程驗收完成（2026-11-04）**。A01 與測試編碼 regression 已修正；本機離線 141 項通過，使用者 VM smoke Passed／Exit 0、手動 Restore 4/4 Verified。結案依據與未完成的延伸驗證見 §17 及 Backlog；不宣稱整份矩陣全數通過。
 - Review 基準：`9dd7f9b`；開始時工作樹乾淨。
 - 使用者決策：採方案 2；Snapshot 保存於 `%LOCALAPPDATA%\ResumeExplorer\Snapshots\BeforeSmoke\<RunId>.json`；只要已成功保存，後續成功、失敗、取消或程序 crash 都應提供還原入口。
-- 本次只新增計畫。不修改 runner／產品／測試，不建立持久資料目錄、不執行 Capture／Restore／E2E，不建立 commit。
-- 關聯：[一鍵 SOP](../tests/Integration/ONE-CLICK.md)、[關窗 regression 計畫](resume-explorer-Task-5-multi-group-close-regression-plan.md)、[既有 VM 驗收](../tests/Integration/TASK5-VM-ACCEPTANCE.md)。
+- 原始規劃範圍（歷史）：當時只新增計畫，不修改 runner／產品／測試，不執行 Capture／Restore／E2E。後續實作與驗收依時間記錄於 §11–17。
+- 關聯：[一鍵 SOP](../../tests/Integration/ONE-CLICK.md)、[關窗 regression 計畫](../resume-explorer-Task-5-multi-group-close-regression-plan.md)、[既有 VM 驗收](../../tests/Integration/TASK5-VM-ACCEPTANCE.md)。
 
 ## 1. 需求解讀與設計決策
 
@@ -25,12 +25,12 @@
 
 | 目前位置 | 事實／缺口 |
 | --- | --- |
-| [產品 CLI](../resume-explorer.ps1) `Snapshot` 預設 | `%TEMP%\ExplorerTabs-snapshot.json`；不應被本功能改寫 |
-| [Lifecycle](../tests/Integration/ExplorerSmoke.Lifecycle.ps1) `Save-SmokeExistingSnapshot` | 目前將正式 Capture 寫入 TEMP suite root 的 `existing-snapshot.json`；核對 groups、原分頁與 SHA 後回傳路徑 |
-| [OneClick core](../tests/Integration/ExplorerSmoke.OneClick.Core.ps1) | `$suite.ExistingSnapshot` 要等保存函式回傳後才設定；finally 仍可能因 suite-result 寫入錯誤拋出 |
-| [公開入口](../tests/Integration/Start-ExplorerSmoke.ps1) | 直接在同一程序呼叫 coordinator、輸出 JSON、exit；沒有 JSON 後的還原摘要，也沒有獨立存活的 crash 提示者 |
-| [.cmd](../tests/Integration/Run-ExplorerSmoke.cmd) | 只顯示 exit code／pause，無法識別本次持久 Snapshot；單靠修改 .cmd 也不能覆蓋直接執行 PowerShell 入口的使用者 |
-| [SOP](../tests/Integration/ONE-CLICK.md) | 雖有 Restore 示例，但使用者仍須自行替換 suite 路徑；CLI 結束時沒有可直接複製的完整命令 |
+| [產品 CLI](../../resume-explorer.ps1) `Snapshot` 預設 | `%TEMP%\ExplorerTabs-snapshot.json`；不應被本功能改寫 |
+| [Lifecycle](../../tests/Integration/ExplorerSmoke.Lifecycle.ps1) `Save-SmokeExistingSnapshot` | 目前將正式 Capture 寫入 TEMP suite root 的 `existing-snapshot.json`；核對 groups、原分頁與 SHA 後回傳路徑 |
+| [OneClick core](../../tests/Integration/ExplorerSmoke.OneClick.Core.ps1) | `$suite.ExistingSnapshot` 要等保存函式回傳後才設定；finally 仍可能因 suite-result 寫入錯誤拋出 |
+| [公開入口](../../tests/Integration/Start-ExplorerSmoke.ps1) | 直接在同一程序呼叫 coordinator、輸出 JSON、exit；沒有 JSON 後的還原摘要，也沒有獨立存活的 crash 提示者 |
+| [.cmd](../../tests/Integration/Run-ExplorerSmoke.cmd) | 只顯示 exit code／pause，無法識別本次持久 Snapshot；單靠修改 .cmd 也不能覆蓋直接執行 PowerShell 入口的使用者 |
+| [SOP](../../tests/Integration/ONE-CLICK.md) | 雖有 Restore 示例，但使用者仍須自行替換 suite 路徑；CLI 結束時沒有可直接複製的完整命令 |
 
 既有缺口不只「最後多印一行」：如果函式已寫出完整檔案、但在回傳路徑或更新 suite-result 前失敗，現行 result 仍可能是 null；如果 pwsh 直接終止，finally 也不能保證可用。
 
@@ -245,16 +245,16 @@ P03 以測試自己啟動的無 GUI process 模擬直接終止，不故意掛死
 
 離線基準為實作前的 39／17／23／47＝126；本次規劃沒有重跑或宣稱新測試已通過。未來依實際新增數更新 baseline，不能減少 expected、跳過失敗或只靠多印 Passed 取得 green。原產品 39／17 tests 預期維持內容。
 
-## 10. 完成標準與限制
+## 10. 完成標準與限制（結案證據見 §17）
 
-- [ ] final V1 Snapshot 使用指定持久目錄與唯一 RunId，不覆寫日常預設檔。
-- [ ] 明確的提交順序可跨 process exception／crash 找回；final 可還原時，命令檔已存在，原窗才可能被關閉。
-- [ ] 保存後成功、失敗、取消及 child abnormal exit 都能從同一公開入口取得本次完整命令。
-- [ ] 不以 `$suite.ExistingSnapshot` 的記憶體值、可遺失的 TEMP suite-result 或 stdout 解析作唯一復原來源。
-- [ ] 不會自動 Restore、執行 command text、覆寫舊 snapshot、重播測試或擴大關窗範圍。
-- [ ] 正常 exit codes、原 JSON、GUI safety／locks 與 safe default／import 均保持。
-- [ ] IO／process 邊界／quote／輸出順序測試及既有回歸通過；專用 VM 精簡驗收結果記錄。
-- [ ] 文件清楚區分 worker crash 可提示與整個終端／系統消失只能靠持久檔案找回的範圍。
+- [x] final V1 Snapshot 使用指定持久目錄與唯一 RunId，不覆寫日常預設檔。
+- [x] 明確的提交順序可跨 process exception／crash 找回；final 可還原時，命令檔已存在，原窗才可能被關閉。
+- [x] 保存後各結果的命令找回路徑已實作；成功／失敗與 worker 存活警告有公開入口程序測試，取消狀態與 crash 另有 helper／子程序測試。保存後目視取消的完整 VM 路徑仍屬後續驗證。
+- [x] 不以 `$suite.ExistingSnapshot` 的記憶體值、可遺失的 TEMP suite-result 或 stdout 解析作唯一復原來源。
+- [x] 不會自動 Restore、執行 command text、覆寫舊 snapshot、重播測試或擴大關窗範圍。
+- [x] 正常 exit codes、原 JSON、GUI safety／locks 與 safe default／import 均保持。
+- [x] 代表性 IO／process 邊界／quote 測試及既有回歸通過；VM 正常提示順序與手動 Restore 已有截圖證據。§9 的完整 fault-point／host 矩陣及輸出順序自動斷言未全覆蓋，保留為後續驗證。
+- [x] 文件清楚區分 worker crash 可提示與整個終端／系統消失只能靠持久檔案找回的範圍。
 
 保存時的資料夾／分頁配置不等於完整工作狀態；正常 Restore 不保證選取、捲動位置、進行中的檔案操作或不支援 Shell namespace。BeforeSmoke 檔案可能包含私人路徑，維持使用者範圍，不提交原始 runtime 資料到 repository。本方案不另引入 ACL 管理、資料保留清理或自動還原功能。
 
@@ -283,7 +283,7 @@ P03 以測試自己啟動的無 GUI process 模擬直接終止，不故意掛死
 
 這次支持 §9.3 的正常互動 S→E01/E02→清理→最終提示，以及人工執行所顯示 Restore 命令兩項主要驗收通過；同時支持清理交接修正後能完成正常自動流程。先前 Failed run 保留作回歸歷史，不與本次 RunId 混用。
 
-原始 JSON／hash、精確 VM Windows build／PS minor／執行 commit 未獨立取得；本地 review HEAD `3bc32b3` 不等於已驗證的 VM commit。仍未宣稱 Ctrl+C、所有 terminal hosts、保存後取消、整個終端消失及每個 IO fault point 已實機驗收。詳見[新版驗收紀錄](../tests/Integration/TASK5-VM-ACCEPTANCE.md)。
+原始 JSON／hash、精確 VM Windows build／PS minor／執行 commit 未獨立取得；本地 review HEAD `3bc32b3` 不等於已驗證的 VM commit。仍未宣稱 Ctrl+C、所有 terminal hosts、保存後取消、整個終端消失及每個 IO fault point 已實機驗收。詳見[新版驗收紀錄](../../tests/Integration/TASK5-VM-ACCEPTANCE.md)。
 
 本次只更新文件；主要功能已有使用者實機通過證據，不需要為這份紀錄再跑 E2E。完整延伸矩陣仍保留未完成標記，本計畫不自動移至 DONE 或 commit。
 
@@ -325,4 +325,25 @@ A01 已解除。此為結果判定與錯誤提示修正，沒有改動 GUI 操�
 
 本機 PowerShell 7.6.1 的完整五套基準在預設及 ASCII 環境皆為 39／17／23／49／13＝141 PASS，全部 Exit 0；ASCII 執行完成後仍保留 ASCII 編碼。本機驗證當時，修正版 VM／真實 Explorer E2E 尚待使用者執行；先前 UTF-8 workaround 的 12 項通過未被當作新版驗收。不建立 commit。
 
-後續使用者提供新的 VM 截圖：smoke 顯示 Passed／Exit 0，持久 Snapshot RunId 為 `c56cde9dad6a40c489fb61b49143b788`；使用同一 Snapshot 的手動 Restore 顯示 Completed／Verification Complete，4/4 Verified、0 Not verified。這補上一次主要流程與手動還原的使用者 VM 通過證據，詳見[驗收紀錄](../tests/Integration/TASK5-VM-ACCEPTANCE.md)。截圖未顯示實際 commit、當次編碼或離線各套數量，因此不宣稱已在原非 UTF-8 條件下驗收修正，也不將其外推為重複可靠性或完整延伸矩陣通過。
+後續使用者提供新的 VM 截圖：smoke 顯示 Passed／Exit 0，持久 Snapshot RunId 為 `c56cde9dad6a40c489fb61b49143b788`；使用同一 Snapshot 的手動 Restore 顯示 Completed／Verification Complete，4/4 Verified、0 Not verified。這補上一次主要流程與手動還原的使用者 VM 通過證據，詳見[驗收紀錄](../../tests/Integration/TASK5-VM-ACCEPTANCE.md)。截圖未顯示實際 commit、當次編碼或離線各套數量，因此不宣稱已在原非 UTF-8 條件下驗收修正，也不將其外推為重複可靠性或完整延伸矩陣通過。
+
+## 17. 結案驗收與歸檔（2026-11-04）
+
+**結論：核心實作與主要流程驗收完成，可移至 plans/DONE。** Review HEAD 為 `a3586fc`，不是已獨立驗證的 VM commit。本次核對 Recovery／Lifecycle／coordinator／公開入口／worker 及測試，未發現新的結案阻擋缺陷；不修改程式或測試，不建立 commit。
+
+| 完成項目 | 證據與實際範圍 |
+| --- | --- |
+| 指定持久目錄、唯一命名、先保存後關窗 | Known Folder＋RunId 路徑；驗證 Snapshot bytes/hash 後發布；descriptor／txt 先於 final。Recovery 的 exact bytes／拒絕覆寫測試與 OneClick 的 Capture-before-close／失敗不關窗測試通過 |
+| 不依賴 TEMP 結果或記憶體找回 | supervisor 以本次 RunId 定位 descriptor 與 final，核對路徑、V1 與 hash；缺少 suite result、final 缺失／變動、其他 run 均有測試 |
+| 真實結果與異常提示 | A01 公開入口程序測試涵蓋 missing／malformed／Running／Failed／Passed、raw exit 1/2/3/17、worker 可能存活；另有真實子程序 Environment.Exit(17) 與保留已提交備份測試 |
+| 命令與相容性 | literal quoting、正常程序 exit／中文參數、ASCII／UTF-8 輸出捕捉及編碼還原測試通過。保留既有 safe default／import、鎖、identity／scope gates；不執行產生的命令 |
+| 本機離線基準 | 本次以 PowerShell 7.6.1、ASCII 呼叫端重跑真正 baseline helper：39/39、17/17、23/23、49/49、13/13，共 141 PASS，五套 Exit 0，結束後仍為 ASCII |
+| 使用者 VM | 最新 smoke Passed／Exit 0；同一持久 Snapshot 的手動 Restore Completed／Verification Complete、4/4 Verified、0 Not verified，來源見驗收紀錄。非代理執行，不推定未顯示的 commit／編碼／逐套數量 |
+
+結案採「核心契約的程式核對＋代表性離線回歸＋一次真實主要流程及手動 Restore」為範圍。§9 是較廣的設計測試矩陣，不把它全部勾成通過，也不再以其他 terminal host 的 best-effort signal 行為作為核心功能永久不得結案的條件。§10 因此明列實際證據層級；此為驗收範圍的明確化，不放寬程式安全閘或既有測試斷言。
+
+設計與實作差異亦明列：descriptor 採 Version／RunId／Snapshot／SHA256／Validated／SuiteRoot 的最小內容，未加入 §4.2 原先預計的額外稽核欄位；使用者範圍 Known Folder 與本次 GUID 已提供現行復原定位，額外 metadata 非核心找回所需。自動產生的是 Restore 命令；Preview 可由 SOP 手動執行，並非本次必備輸出。
+
+仍未完成的項目移交 [Backlog](../../Backlog.md)「持久還原延伸驗證」：保存後取消的完整公開入口／VM 串接、各 host 的 Ctrl+C／wait 中斷／終端消失、逐一 IO fault 與 checkpoint／serialization／提示失敗組合、輸出順序與特殊字元精確傳輸的完整斷言、重複可靠性及 VM commit／編碼追溯。原 R01–R14／P01–P06 保留為後續檢查清單；不以歸檔宣稱以上皆已驗證。BeforeSmoke 的不覆寫、不自動 Restore／刪除與失敗保留現場契約持續有效。
+
+歸檔後新增批次中斷截圖：當次離線五套共 141 PASS、全 Exit 0；選 S 保存 Snapshot `d45f6e278e5a4aa182338f71d81608a2` 後，仍顯示「程序異常結束／結果不明」與同次完整 Restore 命令，畫面另有 Terminate batch job／^C。這補上 F02 的部分實機提示證據，不代表 worker 已退出、當次 E01／E02 或完整 Ctrl+C 矩陣通過；F02 保持 Open，細節見驗收紀錄。

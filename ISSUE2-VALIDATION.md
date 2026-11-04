@@ -116,7 +116,7 @@ Two new tests cover handoff rebinding plus changed root/path/duplicate count/PID
 
 Subsequent user evidence supersedes the preceding main-path pending status: screenshot `codex-clipboard-aad1bd8b-8e6f-4e64-bb5d-7b2fad699681.png` shows supervisor Passed, overall Exit 0, persistent Snapshot and restore.txt for RunId `3274dc4603a3417881d83823caf91b4c`, and a fully populated Restore command. The user explicitly confirms successful manual restoration using it. This supports the normal interactive save/test/cleanup/summary path and actual use of the generated command, including the new handoff. A separate Restore Report was not supplied; no Verified count is inferred.
 
-See [acceptance provenance](tests/Integration/TASK5-VM-ACCEPTANCE.md) and [remaining recovery matrix](plans/resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md). Ctrl+C, other hosts and full fault-point coverage remain unverified. Recording this evidence changes documentation only; the 138-test baseline is historical implementation verification, not a newly executed test run.
+See [acceptance provenance](tests/Integration/TASK5-VM-ACCEPTANCE.md) and [remaining recovery matrix](plans/DONE/resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md). Ctrl+C, other hosts and full fault-point coverage remain unverified. Recording this evidence changes documentation only; the 138-test baseline is historical implementation verification, not a newly executed test run.
 
 ## Persistent recovery closeout review — not complete
 
@@ -125,3 +125,9 @@ At review HEAD 78e2deb, the public supervisor sets status Passed before validati
 ## A01 supervisor status correction — 2026-11-04
 
 The accepted fix keeps raw exit 0 in an unverified state until the suite-result check succeeds, and resets caught failures to Failed/unknown before handling WorkerStillRunning. It preserves the original warning, exit mapping and real recovery output. Two new tests execute an unchanged copy of the public entry in isolated subprocesses with controlled worker/result dependencies and the actual recovery formatter. The old entry first failed with "A01 reproduced: Missing returns Exit 1 but displays Passed". Tests now cover missing/malformed/Running/Failed/Passed results, raw exits 1/2/3/17 and a still-running-worker exception, with complete Restore commands retained. Existing recovery assertions remain. Recovery count is 12; the full baseline is 39+17+23+49+12=140 PASS, all Exit 0. No Explorer GUI behavior changed or was rerun. A01 is resolved; the separate extended acceptance matrix remains honestly incomplete.
+
+## Persistent recovery final closeout — 2026-11-04
+
+The subsequent Recovery-test encoding regression is corrected by scoped UTF-8 native-output capture with caller encoding restored. An added ASCII/UTF-8 regression test first failed before the fix; existing assertions were preserved. Closeout at local review HEAD `a3586fc` reran the real offline baseline under ASCII: 39/17/23/49/13 = 141 PASS, all Exit 0, original ASCII encoding preserved. Latest user VM screenshots separately show smoke Passed/exit 0 and manual Restore of the same persistent Snapshot Completed, 4/4 Verified, 0 unverified; see [provenance](tests/Integration/TASK5-VM-ACCEPTANCE.md). VM commit and active encoding are not inferred.
+
+The [core implementation plan](plans/DONE/resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md) is Done and archived. This supersedes the historical A01 archival blocker above, not the remaining matrix limitations. Extended host/cancellation/IO-fault/output-order/repeatability work remains explicitly open in [Backlog](Backlog.md). No production/test changes or live Explorer rerun were needed for this closeout.

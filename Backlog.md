@@ -80,7 +80,7 @@
 - **設計方向**：盤點常見虛擬分頁可取得的穩定識別與可還原性，不以顯示名稱猜測本機路徑。評估正式保存／還原可支援的 namespace；對仍不支援的項目，明確列出所屬視窗、分頁與略過原因。若提供「僅保存支援項目後繼續」，必須顯示保存／未保存數量並取得明確選擇，標記為部分備份，不可默默略過或宣稱完整還原。是否採用及預設行為留待設計，不在本次決定。
 - **相容性與安全**：保留實體資料夾、視窗分組與同路徑多分頁語意；不把虛擬分頁當成失效磁碟路徑任意導覽，不降低 identity／fingerprint 驗證。若需要 Snapshot／Report schema 擴充，先定義 V1 相容讀取及遷移策略。未實作明確的部分備份選項前，完整性不符仍停止關窗；不以自動關掉虛擬分頁作為處理方式。
 - **驗收方向**：離線涵蓋實體／虛擬混合、完全虛擬、未知 namespace、同窗／跨窗分組與重複路徑；專用 VM 驗證支援項目的 Capture → Restore、正確分組與原有分頁保護，以及不支援項目的提示／取消／明確部分備份路徑。報告須如實區分完整、部分及無法還原，不能只依 Exit 0 判定全部完成。
-- **當前測試安排**：使用者將先以全部為正常實體資料夾的分頁，重測持久 Snapshot／還原提示流程；結果尚待提供，不與本功能的虛擬分頁驗收混用。關聯：[持久 Snapshot 計畫](plans/resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md)、[產品 core](resume-explorer.core.ps1)、[一鍵保存／驗證](tests/Integration/ExplorerSmoke.Lifecycle.ps1)。
+- **相關測試結果**：正常實體資料夾的持久 Snapshot／還原提示主要流程已通過 VM smoke 及手動 Restore；這不代表本功能的虛擬分頁已驗收。關聯：[已完成的持久 Snapshot 計畫](plans/DONE/resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md)、[產品 core](resume-explorer.core.ps1)、[一鍵保存／驗證](tests/Integration/ExplorerSmoke.Lifecycle.ps1)。
 
 ### Feature Request-1 — P2
 
@@ -213,10 +213,22 @@
 - **Validation:** [`ISSUE2-VALIDATION.md`](ISSUE2-VALIDATION.md)，原 39 項與新增 17 項離線測試通過；不代表 Explorer 可見性已完整驗收。
 
 ## 持久 Snapshot 與還原提示
-持久還原提示（本次實作，待 VM 互動驗收）：選 S 後，配置保存在 `%LOCALAPPDATA%\ResumeExplorer\Snapshots\BeforeSmoke\<RunId>.json`，同目錄有 `.recovery.json` 驗證紀錄及 `.restore.txt` 完整 PowerShell 7 還原命令。這些檔案在關窗前提交，不覆寫日常預設 Snapshot、不自動刪除或 Restore。前景 supervisor 等待 worker 結束後，在 JSON 後顯示還原提示；worker crash 時可依 RunId 找回，整個終端也被關閉時請查看持久命令檔。原有 suite/case 測試證據仍保存在 TEMP。目前有 13 項離線 recovery 測試，總基準為 39＋17＋23＋49＋13＝141；公開入口 fixture 捕捉子程序輸出時暫用 UTF-8 並還原呼叫端編碼，避免非 UTF-8 終端造成中文摘要斷言誤判。先前 VM 截圖不代表本次 supervisor／互動流程已驗收。
+
+- **狀態：Done（核心實作與主要流程，2026-11-04）**。已完成[結案驗收並歸檔](plans/DONE/resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md)；本次本機 ASCII 基準 141 PASS，五套 Exit 0，使用者 VM smoke Exit 0／手動 Restore 4/4 Verified。完整延伸矩陣仍依下列項目追蹤，非全數通過。
+
+持久還原提示（核心實作與主要 VM 流程已驗收）：選 S 後，配置保存在 `%LOCALAPPDATA%\ResumeExplorer\Snapshots\BeforeSmoke\<RunId>.json`，同目錄有 `.recovery.json` 驗證紀錄及 `.restore.txt` 完整 PowerShell 7 還原命令。這些檔案在關窗前提交，不覆寫日常預設 Snapshot、不自動刪除或 Restore。前景 supervisor 等待 worker 結束後，在 JSON 後顯示還原提示；worker crash 時可依 RunId 找回，整個終端也被關閉時請查看持久命令檔。原有 suite/case 測試證據仍保存在 TEMP。目前有 13 項離線 recovery 測試，總基準為 39＋17＋23＋49＋13＝141；公開入口 fixture 捕捉子程序輸出時暫用 UTF-8 並還原呼叫端編碼，避免非 UTF-8 終端造成中文摘要斷言誤判。主要流程已取得使用者 VM 證據；驗收範圍與延伸缺口以驗收紀錄為準。
 
 持久還原提示的主要 VM 驗收已通過：使用者提供 supervisor Passed／Exit 0 的新截圖，並確認已成功使用顯示的完整命令還原配置。持久 Snapshot RunId 為 `3274dc4603a3417881d83823caf91b4c`，完整來源見[驗收紀錄](tests/Integration/TASK5-VM-ACCEPTANCE.md)。這更新先前「正常互動與人工 Restore 待驗收」狀態；Ctrl+C、其他 host 與完整故障矩陣仍未宣稱實測完成。本次僅記錄結果，不改程式或重跑 E2E。
 
-持久 Snapshot 計畫結案驗收發現的 **A01／P1 已修正（2026-11-04）**：supervisor 僅在 suite-result 驗證成功後顯示 Passed，catch 重設失敗狀態，仍提供本次有效備份的還原命令。新增兩項公開入口程序測試，涵蓋缺失／損毀／非 Passed 結果、合法成功、非零 exit 與 worker 存活警告；原版先 red，修正後五套共 140 PASS。正常 VM 與手動 Restore 證據保留，延伸矩陣仍按實際狀態追蹤。詳見[持久 Snapshot 計畫 §14–15](plans/resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md)。
+持久 Snapshot 計畫結案驗收發現的 **A01／P1 已修正（2026-11-04）**：supervisor 僅在 suite-result 驗證成功後顯示 Passed，catch 重設失敗狀態，仍提供本次有效備份的還原命令。新增兩項公開入口程序測試，涵蓋缺失／損毀／非 Passed 結果、合法成功、非零 exit 與 worker 存活警告；原版先 red，修正後五套共 140 PASS。正常 VM 與手動 Restore 證據保留，延伸矩陣仍按實際狀態追蹤。詳見[持久 Snapshot 計畫 §14–15](plans/DONE/resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md)。
 
-編碼修正後另收到一次 VM 主要流程通過截圖（2026-11-04）：smoke Passed／Exit 0；Snapshot `c56cde9dad6a40c489fb61b49143b788` 的手動 Restore 為 Completed、4/4 Verified、0 Not verified。已記入[驗收紀錄](tests/Integration/TASK5-VM-ACCEPTANCE.md)及[持久 Snapshot 計畫 §16](plans/resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md)。當次 commit／編碼未顯示，不宣稱非 UTF-8 條件、重複可靠性或完整矩陣均已驗收。
+編碼修正後另收到一次 VM 主要流程通過截圖（2026-11-04）：smoke Passed／Exit 0；Snapshot `c56cde9dad6a40c489fb61b49143b788` 的手動 Restore 為 Completed、4/4 Verified、0 Not verified。已記入[驗收紀錄](tests/Integration/TASK5-VM-ACCEPTANCE.md)及[持久 Snapshot 計畫 §16](plans/DONE/resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md)。當次 commit／編碼未顯示，不宣稱非 UTF-8 條件、重複可靠性或完整矩陣均已驗收。
+
+### 持久還原延伸驗證
+
+**Open — 後續測試工作，不代表已證實的新產品缺陷。** 原矩陣保留在歸檔計畫 §9；核心結案不將下列項目標成通過：
+
+- [ ] F01：補保存後取消目視的完整公開入口／VM 串接；目前有取消路由及 helper 狀態測試，未建立整條互動負向路徑的 VM 證據。
+- [ ] F02（部分實機證據）：最新批次中斷截圖顯示離線 141 項通過、S 保存後仍輸出「程序異常結束／結果不明」及本次完整 Restore 命令，未誤報 Passed；詳見[驗收紀錄](tests/Integration/TASK5-VM-ACCEPTANCE.md)。仍須確認確切 signal／停止階段、child 是否退出，以及不同 terminal host、wait 中斷、整個終端消失後的命令檔找回；不以截圖或 synthetic WorkerStillRunning 測試推定完整矩陣通過。
+- [ ] F03：補逐一 staging／txt／final IO fault、checkpoint／serialization／提示錯誤組合、長 JSON 的輸出順序、特殊字元精確傳輸、Known Folder／reparse／並行邊界等原 R01–R14／P01–P06 未覆蓋組合；已有代表性測試保留。
+- [ ] F04：補重複可靠性及 VM commit／runtime／當次編碼的可追溯證據，區分原非 UTF-8 條件與 workaround；不要求為純文件歸檔再跑 E2E。

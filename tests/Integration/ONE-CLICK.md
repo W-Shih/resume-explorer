@@ -75,7 +75,10 @@ pwsh -NoProfile -Sta -File .\resume-explorer.ps1 -Action Restore -Snapshot '<Bef
 原版一鍵流程已由使用者 VM 完成並關閉 Task-5；後續改用系統整窗關閉命令並補上訊息邊界測試後，**新版自動流程也已由使用者 VM 回報通過：Exit 0、Error null、VisualReview NotRun，並保存既有配置**。這個 NotRun 僅指未選用人工目視，並非自動測試未執行。原版及新版分開記錄於[驗收紀錄](TASK5-VM-ACCEPTANCE.md)。本次單次主要流程通過，不等於重複可靠性、額外分組或所有真實負向案例均完成；延伸 V01–V05 的剩餘項目見[修復計畫](../../plans/resume-explorer-Task-5-multi-group-close-regression-plan.md)，離線基準仍為 126 PASS。
 
 ## 持久 Snapshot 與還原提示
-持久還原提示（本次實作，待 VM 互動驗收）：選 S 後，配置保存在 `%LOCALAPPDATA%\ResumeExplorer\Snapshots\BeforeSmoke\<RunId>.json`，同目錄有 `.recovery.json` 驗證紀錄及 `.restore.txt` 完整 PowerShell 7 還原命令。這些檔案在關窗前提交，不覆寫日常預設 Snapshot、不自動刪除或 Restore。前景 supervisor 等待 worker 結束後，在 JSON 後顯示還原提示；worker crash 時可依 RunId 找回，整個終端也被關閉時請查看持久命令檔。原有 suite/case 測試證據仍保存在 TEMP。目前有 13 項離線 recovery 測試，總基準為 39＋17＋23＋49＋13＝141；公開入口 fixture 捕捉子程序輸出時暫用 UTF-8 並還原呼叫端編碼，避免非 UTF-8 終端造成中文摘要斷言誤判。先前 VM 截圖不代表本次 supervisor／互動流程已驗收。
+
+**核心實作與主要流程已完成（2026-11-04）**；[結案計畫](../../plans/DONE/resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md)已歸檔，最新使用者 VM smoke Passed／Exit 0、手動 Restore 4/4 Verified。未全測的 host／取消／IO fault／重複可靠性項目保留於 [Backlog](../../Backlog.md)。
+
+持久還原提示（核心實作與主要 VM 流程已驗收）：選 S 後，配置保存在 `%LOCALAPPDATA%\ResumeExplorer\Snapshots\BeforeSmoke\<RunId>.json`，同目錄有 `.recovery.json` 驗證紀錄及 `.restore.txt` 完整 PowerShell 7 還原命令。這些檔案在關窗前提交，不覆寫日常預設 Snapshot、不自動刪除或 Restore。前景 supervisor 等待 worker 結束後，在 JSON 後顯示還原提示；worker crash 時可依 RunId 找回，整個終端也被關閉時請查看持久命令檔。原有 suite/case 測試證據仍保存在 TEMP。目前有 13 項離線 recovery 測試，總基準為 39＋17＋23＋49＋13＝141；公開入口 fixture 捕捉子程序輸出時暫用 UTF-8 並還原呼叫端編碼，避免非 UTF-8 終端造成中文摘要斷言誤判。主要流程已取得使用者 VM 證據；驗收範圍與延伸缺口以驗收紀錄為準。
 
 清理交接會先以完整 HWND／process fingerprint 及每窗路徑 multiset 核對驗收結果，再取得並持有目前的 COM references。驗收 JSON 中的 Identity 指標不作為後續物件生命週期的憑證；交接後關窗仍嚴格比對 live identity。交接前後觀測另存 E01/E02-close-handoff.json。這不改變產品 Restore／Retry 的候選識別規則，也不表示能跨程序證明同一分頁 identity。
 
