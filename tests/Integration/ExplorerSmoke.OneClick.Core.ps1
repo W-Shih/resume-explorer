@@ -1,12 +1,14 @@
 # Guided orchestration over the existing Task-5 harness. Import has no side effects.
 . (Join-Path $PSScriptRoot 'ExplorerSmoke.Core.ps1')
 . (Join-Path $PSScriptRoot 'ExplorerSmoke.Lifecycle.ps1')
+. (Join-Path $PSScriptRoot 'ExplorerSmoke.Recovery.ps1')
 
 function Invoke-SmokeOfflineBaseline {
     $engine=(Get-Process -Id $PID).Path
     $tests=Split-Path $PSScriptRoot -Parent; $rows=@()
     foreach ($suite in @(@{ File='Issue2.Tests.ps1'; Expected=39 },@{ File='RestoreSummary.Tests.ps1'; Expected=17 },
-        @{ File='ExplorerSmoke.Tests.ps1'; Expected=23 },@{ File='ExplorerSmoke.OneClick.Tests.ps1'; Expected=47 })) {
+        @{ File='ExplorerSmoke.Tests.ps1'; Expected=23 },@{ File='ExplorerSmoke.OneClick.Tests.ps1'; Expected=47 },
+        @{ File='ExplorerSmoke.Recovery.Tests.ps1'; Expected=10 })) {
         $output=@(& $engine -NoProfile -NonInteractive -File (Join-Path $tests $suite.File) 2>&1)
         $code=$LASTEXITCODE
         $count=@($output | Where-Object { $_.ToString().StartsWith('PASS ') }).Count
@@ -155,7 +157,7 @@ function Initialize-SmokeOneClickE01($Prepared,$Native,$SaveStep) {
     } finally { if ($null -ne $lock) { $lock.Dispose() } }
 }
 
-function Invoke-SmokeOneClick([bool]$Run,$Adapter,[bool]$RequireVisualReview=$false) {
+function Invoke-SmokeOneClick([bool]$Run,$Adapter,[bool]$RequireVisualReview=$false,[string]$RunId='') {
     $suite=[pscustomobject]@{ Version=1; Status='NotRun'; Reason='NotAuthorized'; E01='NotRun'; E02='NotRun'
         SuiteRoot=$null; E01Root=$null; E02Root=$null; Phase='Consent'; Steps=@(); Baseline=@(); Error=$null
         VisualReview=$(if ($RequireVisualReview) { 'Pending' } else { 'NotRun' }); ExistingSnapshot=$null }
@@ -171,7 +173,9 @@ function Invoke-SmokeOneClick([bool]$Run,$Adapter,[bool]$RequireVisualReview=$fa
         Assert-SmokeSession $facts $evidence
         Assert-SmokeTempBase ([IO.Path]::GetTempPath())
         $coordinatorLock=[IO.File]::Open((Get-SmokeOneClickLockPath),[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
-        $root=Join-Path ([IO.Path]::GetTempPath()) ('ResumeExplorer-E2E-Suite-'+[guid]::NewGuid().ToString('N'))
+        if (-not $RunId) { $RunId=[guid]::NewGuid().ToString('N') }
+        Assert-Smoke ($RunId -cmatch '^[a-f0-9]{32}$') 'InvalidRecoveryRunId'
+        $root=Join-Path ([IO.Path]::GetTempPath()) ('ResumeExplorer-E2E-Suite-'+$RunId)
         Assert-Smoke (-not (Test-Path -LiteralPath $root)) 'SuiteRootAlreadyExists'
         [void][IO.Directory]::CreateDirectory($root); $suite.SuiteRoot=$root
         $suiteLock=[IO.File]::Open((Join-Path $root 'suite.lock'),[IO.FileMode]::CreateNew,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)

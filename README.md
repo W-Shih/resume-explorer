@@ -261,3 +261,6 @@ pwsh -NoProfile -Sta -File .\tests\Integration\Invoke-ExplorerSmoke.ps1
 ## 安全與合規
 
 本版本沒有網路傳輸、Registry 修改、執行政策繞過或 `explorer.exe` 強制終止邏輯；**技術上沒有明顯危險**。
+
+## 持久 Snapshot 與還原提示
+持久還原提示（本次實作，待 VM 互動驗收）：選 S 後，配置保存在 `%LOCALAPPDATA%\ResumeExplorer\Snapshots\BeforeSmoke\<RunId>.json`，同目錄有 `.recovery.json` 驗證紀錄及 `.restore.txt` 完整 PowerShell 7 還原命令。這些檔案在關窗前提交，不覆寫日常預設 Snapshot、不自動刪除或 Restore。前景 supervisor 等待 worker 結束後，在 JSON 後顯示還原提示；worker crash 時可依 RunId 找回，整個終端也被關閉時請查看持久命令檔。原有 suite/case 測試證據仍保存在 TEMP。新增 10 項離線 recovery 測試，總基準為 39＋17＋23＋47＋10＝136。先前 VM 截圖不代表本次 supervisor／互動流程已驗收。

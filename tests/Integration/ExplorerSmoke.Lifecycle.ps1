@@ -181,7 +181,11 @@ function Save-SmokeExistingSnapshot($Observation,$Native,[int]$SessionId,[string
     Assert-Smoke (-not (Test-Path -LiteralPath $path)) 'ExistingSnapshotAlreadyExists'
     $code=& $Native.Cli @('-Action','Capture','-Snapshot',$path) (Join-Path $SuiteRoot 'existing-Capture')
     Assert-Smoke ($code -eq 0 -and [IO.File]::Exists($path)) 'ExistingCaptureFailed: 配置儲存失敗；尚未關閉既有視窗，請檢查 existing-Capture 日誌。'
-    $snapshot=Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+    $snapshotBytes=[IO.File]::ReadAllBytes($path)
+    $snapshot=[Text.Encoding]::UTF8.GetString($snapshotBytes) | ConvertFrom-Json
+    $hasher=[Security.Cryptography.SHA256]::Create()
+    try { $validatedHash=[BitConverter]::ToString($hasher.ComputeHash($snapshotBytes)).Replace('-','') }
+    finally { $hasher.Dispose() }
     $groups=@($Observation.Views | Group-Object RootHwnd | ForEach-Object { @{ Paths=@($_.Group.Path) } })
     try { Assert-SmokeSnapshot $snapshot $groups }
     catch { throw 'ExistingCaptureIncomplete: Snapshot 未完整保存目前的視窗／分頁配置（例如 Home 或其他不支援的路徑）。尚未關閉既有視窗；請檢查 existing-snapshot.json，手動整理後重跑或明確選擇不儲存直接關閉。' }
@@ -189,7 +193,7 @@ function Save-SmokeExistingSnapshot($Observation,$Native,[int]$SessionId,[string
     Assert-SmokeRemainingScope $Observation $now $SessionId
     Assert-SmokeOriginalUnchanged $Observation $now
     Write-SmokeJson (Join-Path $SuiteRoot 'existing-snapshot-validation.json') @{
-        SHA256=(Get-FileHash -LiteralPath $path).Hash; Observation=(ConvertTo-SmokeEvidence $now) } -New
-    Write-Host "已儲存並核對配置：$path (不會自動 Restore)"
-    return $path
+        SHA256=$validatedHash; Observation=(ConvertTo-SmokeEvidence $now) } -New
+    $base=if ($Native.RecoveryBase) { & $Native.RecoveryBase } else { Get-SmokeRecoveryBase }
+    return Publish-SmokeRecovery $path $SuiteRoot $base $validatedHash
 }

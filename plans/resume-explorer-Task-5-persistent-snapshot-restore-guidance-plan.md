@@ -1,7 +1,7 @@
 # Task-5 — 持久保存測試前配置與結束後還原提示：詳細實作計畫
 
 - 日期：2026-11-03。
-- 狀態：**Reviewed / Proposed；尚未實作**。
+- 狀態：**Implemented / Offline Verified；VM 互動驗收待執行**。
 - Review 基準：`9dd7f9b`；開始時工作樹乾淨。
 - 使用者決策：採方案 2；Snapshot 保存於 `%LOCALAPPDATA%\ResumeExplorer\Snapshots\BeforeSmoke\<RunId>.json`；只要已成功保存，後續成功、失敗、取消或程序 crash 都應提供還原入口。
 - 本次只新增計畫。不修改 runner／產品／測試，不建立持久資料目錄、不執行 Capture／Restore／E2E，不建立 commit。
@@ -259,3 +259,14 @@ P03 以測試自己啟動的無 GUI process 模擬直接終止，不故意掛死
 保存時的資料夾／分頁配置不等於完整工作狀態；正常 Restore 不保證選取、捲動位置、進行中的檔案操作或不支援 Shell namespace。BeforeSmoke 檔案可能包含私人路徑，維持使用者範圍，不提交原始 runtime 資料到 repository。本方案不另引入 ACL 管理、資料保留清理或自動還原功能。
 
 實作、測試與驗收完成後再更新狀態；未達門檻不標記 Completed，也不將其他 Task-5 成功截圖當作本功能已驗證。
+
+
+## 11. 實作結果與尚待驗證
+
+已新增 Recovery helper、獨立 worker 及公開入口的前景 supervisor。S 路徑先捕捉並驗證 TEMP staging，再於 BeforeSmoke 先發布 descriptor／文字命令，最後以 final Snapshot 發布為提交點；日常 Snapshot 不變。suite.ExistingSnapshot 指向持久檔案。父程序以本次 RunId 找回，不依賴 worker 記憶體或解析混雜 stdout；子程序 handle 確認退出後顯示摘要，不自動 Restore。原 47 項 tests 保留斷言，僅為 synthetic adapter 加 RecoveryBase 指向 owned TEMP fixture，避免寫到真實使用者目錄。
+
+新增 10 項 recovery 測試，驗證提交與覆寫拒絕、各 terminal status／缺少 suite result、hash 變動／缺失、其他 run 隔離、descriptor IO fault、引號 literal、真正前景 child 的正常 exit codes 與 Environment.Exit(17) 不執行 finally 時仍能提供復原命令。baseline 實跑 39／17／23／47／10，共 136 PASS、各套 Exit 0。產品及原 39／17 tests 未修改。
+
+**尚未宣稱整份矩陣完成。** 無 GUI 程序邊界測試已通過；真實互動 Read-Host／Ctrl+C 在各 Windows terminal host 的行為、專用 VM 的 S→E01/E02→結束提示及人工複製 Restore 驗收尚待執行。完整 R01–R14／P01–P06 的每個 IO fault point 並未逐一注入；已有的核心覆蓋不等於所有列項全部驗收。BeforeSmoke 固定路徑／descriptor 目前以本次 GUID 與使用者 Known Folder 綁定，不增加另一份跨使用者復原機制。
+
+本次沒有操作目前桌面的 Explorer、實際建立使用者 BeforeSmoke 備份或使用日常預設 Snapshot；所有新增測試都使用自行建立且經 ownership 檢查後清理的 TEMP fixture。不自動歸檔或 commit。

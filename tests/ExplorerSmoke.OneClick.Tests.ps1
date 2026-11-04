@@ -21,6 +21,7 @@ function New-WizardFixture {
         DesktopAccessible=$true; DesktopName='Default'; CurrentDesktopName='Default' }
     $write=${function:Write-SmokeJson}; $invokeHarness=${function:Invoke-ExplorerSmoke}; $owned=$script:owned
     $native=@{
+        RecoveryBase={ Join-Path $script:storage 'BeforeSmoke' }
         Facts={ $state.FactsReads++; $facts }.GetNewClosure()
         Observe={
             $bad=$state.BadSamples -gt 0; if ($bad) { $state.BadSamples-- }
