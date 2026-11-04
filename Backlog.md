@@ -137,6 +137,32 @@
 
 為 `resume-explorer.ps1` 建立自動化測試，涵蓋 Snapshot 讀寫與驗證等可單元測試的邏輯；並評估在支援的 Windows 環境中加入端對端測試，驗證 Explorer 視窗與 Tabs 的還原行為。**目前已有** `tests/Issue2.Tests.ps1`（39 tests）及 `tests/RestoreSummary.Tests.ps1`（17 tests）；較完整的 Pester/CI 測試基建仍為計畫。真實 PS7 Explorer 最小 E2E 驗收獨立列為 **Task-5**，避免被 Task-1 的完整框架建置阻塞。
 
+### Task-5 後續 — 多組關窗延伸驗證（Open）
+
+**Open — 完整實機矩陣與追溯補強，非已證實的新產品缺陷。** 原 V01–V05 定義保留於歸檔計畫 §7.2：
+
+- [ ] V01：精確兩個獨立單 tab 視窗選 S，至少連續三次以新 roots 完成；現有成功 run 不足以證明此條件，批次中斷 run 不計為成功。
+- [ ] V02：兩窗選 C，以及 Enter 取消的實機路徑；離線成功／取消測試保留。
+- [ ] V03：額外更多組、多 tab、不同窗相同路徑；E01 內建多窗多 tab 已有成功 gate 證據，額外組合仍待驗證。
+- [ ] V04：零既有視窗啟動；現有自動 E01／E02 清理成功不等於此起始條件已驗證。
+- [ ] V05：安全可控的延遲／未知窗負向行為與現場保留；不故意掛死或強殺 Explorer，deterministic timeout／identity 測試不能代稱此項 live 證據。
+- [ ] 追溯：VM build／PS 完整版本／commit／session、suite/case roots、原始 ledger／JSONL／穩定空樣本；原始 COM 錯誤來源未完全確定，不外推為所有 Shell hang 已修復。
+
+### Task-3 — P2 — Single-Instance CLI Guard（Task-4 測試基線處置後建議獨立實作；FR-6 Phase 3/4 前置條件）
+
+- **需求（跨 Shell）**：同一 Windows 使用者、**共用相同鎖檔實際路徑**的新版 `resume-explorer.ps1`，不論透過不同 PowerShell 7 processes、CMD→`pwsh.exe`、Windows Terminal、VS Code Terminal 或不同工作目錄啟動，所有 Action（`Capture`／`Preview`／`Restore`／`PreviewRetry`／`Retry`，未來含 `Cleanup`）**同一時間只允許一個執行**。第二個命令在執行任何 Explorer／Snapshot／Report 副作用前 fail fast，**不等待、不排隊、不背景重試**。跨帳號／機器、舊版 CLI 或未共用鎖路徑不保證互斥。
+- **建議最小實作**：從 Windows 使用者的 LocalApplicationData 取得**固定絕對路徑**（候選 `%LOCALAPPDATA%\ResumeExplorer\resume-explorer.instance.lock`），不依賴 `$PWD`、Script 目錄、`-ReportPath`；在 CLI 最外層透過 OS 排他檔案開啟（`.NET FileStream`、`FileShare.None`）取得鎖。從 Action 開始到 **final checkpoint → summary → Retry family lock 釋放 → 同步 Cleanup 完成／跳過** 都保持 handle 開啟，最後在 `finally` 關閉；程序被終止時 OS 釋放 handle。檔案位於 `Runs` 之外，**不刪除 lock anchor，也不以 `.lock` 檔是否存在判定 Busy**；sharing violation 與 ACL／磁碟錯誤分開報告並 fail-closed。
+- **安全與相容性**：保留原有 per-family `Retry` lock、原子 checkpoint、Report JSON 與既有 CLI 參數／正常輸出。只保證遵守同一鎖的新版 CLI；舊版腳本、不同使用者與外部工具仍不受約束。此變更使既有同時執行的命令改為拒絕，應更新 README／版本與測試。拒絕 lock 失敗不得誤啟動 Explorer。
+- **測試／交付**：在**隔離鎖檔路徑**下，以兩個獨立 PowerShell Processes 測試兩個獨立 PowerShell 7 processes、不同 Terminal Tabs／VS Code／CMD→`pwsh.exe` 啟動、不同 `$PWD`、所有 Actions 與 cleanup 期間第二命令 fail-fast；驗證 sharing violation、權限錯誤、例外／Ctrl+C／程序終止與檔案仍存在但 handle 已釋放時能重新取得鎖。跨 RDP Sessions 只在確定使用相同本機鎖路徑時納入實測；不擾動真實 Explorer 或現有 Report。詳細 Review／實作計畫：[`plans/resume-explorer-Task-3-single-instance-cli-guard-plan.md`](plans/resume-explorer-Task-3-single-instance-cli-guard-plan.md)（2026-11-02 Reviewed / Proposed，**尚未實作**）；與 FR-6 的依賴：[`plans/resume-explorer-Feature-Request-6-report-size-plan.md`](plans/resume-explorer-Feature-Request-6-report-size-plan.md) §5.2、Phase 2A。
+
+### Task-2 — P2
+
+若開起的路徑或檔案不存在，應記錄警告訊息，並跳過該路徑或檔案。不需要中斷整個還原流程。
+
+---
+
+## Completed
+
 ### Task-5 — P1 — PowerShell 7 Explorer E2E Smoke Test（Completed／使用者 VM 驗收，2026-11-02）
 
 - **目標／原因**：2026-11-02 決定正式支援 Windows 上的 **PowerShell 7-only**；原有離線回歸不等於 GUI 驗收。使用者後續在 Win11 VM 完成一鍵 smoke，最新畫面顯示兩個案例目視 PASS、E02-Confirm、Complete、Error null、整體 Exit 0；依此記錄最小真實 E2E 通過。
@@ -154,17 +180,6 @@
 
 - **多組關窗核心修復 Done（2026-11-04）**：已完成[結案審閱並歸檔](plans/DONE/resume-explorer-Task-5-multi-group-close-regression-plan.md)。逐窗收斂、SC_CLOSE 命令選擇、安全停止與三個清理點的回歸保護均保留；新版主要流程有使用者 VM 通過證據。沿用本 chat 已執行且程式／測試無變更的 141 項離線基準（五套 Exit 0），本次另完成 STA native helper／UIA load-only 驗證；不以歸檔宣稱完整 V01–V05 通過。
 
-#### 多組關窗延伸驗證
-
-**Open — 完整實機矩陣與追溯補強，非已證實的新產品缺陷。** 原 V01–V05 定義保留於歸檔計畫 §7.2：
-
-- [ ] V01：精確兩個獨立單 tab 視窗選 S，至少連續三次以新 roots 完成；現有成功 run 不足以證明此條件，批次中斷 run 不計為成功。
-- [ ] V02：兩窗選 C，以及 Enter 取消的實機路徑；離線成功／取消測試保留。
-- [ ] V03：額外更多組、多 tab、不同窗相同路徑；E01 內建多窗多 tab 已有成功 gate 證據，額外組合仍待驗證。
-- [ ] V04：零既有視窗啟動；現有自動 E01／E02 清理成功不等於此起始條件已驗證。
-- [ ] V05：安全可控的延遲／未知窗負向行為與現場保留；不故意掛死或強殺 Explorer，deterministic timeout／identity 測試不能代稱此項 live 證據。
-- [ ] 追溯：VM build／PS 完整版本／commit／session、suite/case roots、原始 ledger／JSONL／穩定空樣本；原始 COM 錯誤來源未完全確定，不外推為所有 Shell hang 已修復。
-
 ### Task-4 — P1 — RestoreSummary S16 JSON 格式敏感斷言（Completed／2026-11-02）
 
 - **已重現／確認（2026-11-02）**：`tests/RestoreSummary.Tests.ps1` 在 Windows PowerShell **5.1** 執行時，S01–S15 通過但 **S16 Assertion Failed**；PowerShell **7** 則 **17/17 通過（Exit Code 0）**。受控診斷確認原始 `IOException` 物件保持一致、`Checkpoint failed` Warning 恰好 1 筆、Console fallback JSON 可解析且 `SchemaVersion=1`；S17 的原始 Exception 保護亦經獨立診斷驗證。
@@ -173,21 +188,6 @@
 - **優先序與驗收**：先以獨立 Test-only 變更處理本 Task，再進行 Task-3（Single-Instance CLI Guard）的實作基線驗證；需 `RestoreSummary.Tests.ps1` 在 PS5.1 與 PS7 **17/17 Passed、Exit Code 0**，既有 `Issue2.Tests.ps1` 回歸通過，且**不操作真實 Explorer**。本項 P1 是測試可靠性／後續開發基線，非已證實 P1 Production 缺陷。
 - **驗收結果**：PowerShell **5.1.22621.6931** 與 **7.6.1** 各自完整執行 Summary **17/17**、Issue2 **39/39**，四次 Exit Code 均 **0**。沙箱內 PS5.1 看不到使用者 RemoteSigned 政策；沙箱外依現有 CurrentUser RemoteSigned 完成實跑，沒有更改／繞過政策，沒有真實 Explorer 操作。Task-3 的 S16 baseline gate 已解除，Task-3 功能仍未實作。
 - **詳細 RCA 與結案證據**：[`plans/DONE/resume-explorer-Task-4-restore-summary-s16-regression-plan.md`](plans/DONE/resume-explorer-Task-4-restore-summary-s16-regression-plan.md)（**Completed；Test-only，已歸檔至 DONE，未自動 commit**）。
-
-### Task-3 — P2 — Single-Instance CLI Guard（Task-4 測試基線處置後建議獨立實作；FR-6 Phase 3/4 前置條件）
-
-- **需求（跨 Shell）**：同一 Windows 使用者、**共用相同鎖檔實際路徑**的新版 `resume-explorer.ps1`，不論透過不同 PowerShell 7 processes、CMD→`pwsh.exe`、Windows Terminal、VS Code Terminal 或不同工作目錄啟動，所有 Action（`Capture`／`Preview`／`Restore`／`PreviewRetry`／`Retry`，未來含 `Cleanup`）**同一時間只允許一個執行**。第二個命令在執行任何 Explorer／Snapshot／Report 副作用前 fail fast，**不等待、不排隊、不背景重試**。跨帳號／機器、舊版 CLI 或未共用鎖路徑不保證互斥。
-- **建議最小實作**：從 Windows 使用者的 LocalApplicationData 取得**固定絕對路徑**（候選 `%LOCALAPPDATA%\ResumeExplorer\resume-explorer.instance.lock`），不依賴 `$PWD`、Script 目錄、`-ReportPath`；在 CLI 最外層透過 OS 排他檔案開啟（`.NET FileStream`、`FileShare.None`）取得鎖。從 Action 開始到 **final checkpoint → summary → Retry family lock 釋放 → 同步 Cleanup 完成／跳過** 都保持 handle 開啟，最後在 `finally` 關閉；程序被終止時 OS 釋放 handle。檔案位於 `Runs` 之外，**不刪除 lock anchor，也不以 `.lock` 檔是否存在判定 Busy**；sharing violation 與 ACL／磁碟錯誤分開報告並 fail-closed。
-- **安全與相容性**：保留原有 per-family `Retry` lock、原子 checkpoint、Report JSON 與既有 CLI 參數／正常輸出。只保證遵守同一鎖的新版 CLI；舊版腳本、不同使用者與外部工具仍不受約束。此變更使既有同時執行的命令改為拒絕，應更新 README／版本與測試。拒絕 lock 失敗不得誤啟動 Explorer。
-- **測試／交付**：在**隔離鎖檔路徑**下，以兩個獨立 PowerShell Processes 測試兩個獨立 PowerShell 7 processes、不同 Terminal Tabs／VS Code／CMD→`pwsh.exe` 啟動、不同 `$PWD`、所有 Actions 與 cleanup 期間第二命令 fail-fast；驗證 sharing violation、權限錯誤、例外／Ctrl+C／程序終止與檔案仍存在但 handle 已釋放時能重新取得鎖。跨 RDP Sessions 只在確定使用相同本機鎖路徑時納入實測；不擾動真實 Explorer 或現有 Report。詳細 Review／實作計畫：[`plans/resume-explorer-Task-3-single-instance-cli-guard-plan.md`](plans/resume-explorer-Task-3-single-instance-cli-guard-plan.md)（2026-11-02 Reviewed / Proposed，**尚未實作**）；與 FR-6 的依賴：[`plans/resume-explorer-Feature-Request-6-report-size-plan.md`](plans/resume-explorer-Feature-Request-6-report-size-plan.md) §5.2、Phase 2A。
-
-### Task-2 — P2
-
-若開起的路徑或檔案不存在，應記錄警告訊息，並跳過該路徑或檔案。不需要中斷整個還原流程。
-
----
-
-## Completed
 
 ### Issue-6 — Closed (Mitigated) — Explorer `Not Responding`／Google Drive Shell 整合疑似相關
 
