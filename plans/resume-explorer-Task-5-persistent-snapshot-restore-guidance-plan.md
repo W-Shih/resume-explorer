@@ -1,7 +1,7 @@
 # Task-5 — 持久保存測試前配置與結束後還原提示：詳細實作計畫
 
 - 日期：2026-11-03。
-- 狀態：**Implemented / Offline Verified；VM 互動驗收待執行**。
+- 狀態：**Implemented / Offline Verified / User VM 主要流程與手動 Restore Passed**；Ctrl+C／其他 host 與完整故障矩陣仍未全部驗收。
 - Review 基準：`9dd7f9b`；開始時工作樹乾淨。
 - 使用者決策：採方案 2；Snapshot 保存於 `%LOCALAPPDATA%\ResumeExplorer\Snapshots\BeforeSmoke\<RunId>.json`；只要已成功保存，後續成功、失敗、取消或程序 crash 都應提供還原入口。
 - 本次只新增計畫。不修改 runner／產品／測試，不建立持久資料目錄、不執行 Capture／Restore／E2E，不建立 commit。
@@ -276,3 +276,13 @@ P03 以測試自己啟動的無 GUI process 模擬直接終止，不故意掛死
 使用者以正常分頁重跑後，持久 Snapshot、完整命令與失敗後提示已出現，E01 Verify Passed，但在 E01-AutomaticClose 投遞前發生 CloseScopeChanged。提供的 before/after 截圖顯示根視窗、分頁路徑分組及 process fingerprints 相同，只有 COM Identity 指標改變。已補回歸先 red，再於清理交接依視窗指紋與完整分組重新取得 live observation，保留其 RCWs 至關窗完成；交接之後原 identity gates 不放寬。保存／supervisor 邏輯不因這次修復改寫。
 
 目前離線五套 39／17／23／49／10，共 138 PASS。上述使用者 VM 結果支持保存及失敗提示，但整套仍未通過；新的清理交接與真實終端／Ctrl+C 驗收仍 pending，不標記 Completed。詳細證據與安全邊界見 ISSUE2-VALIDATION.md。
+
+## 13. 使用者 VM 主要流程與還原命令驗收通過
+
+使用者於 2026-11-03（client date）回報「通過了且也成功透過指令還原」，提供 `codex-clipboard-aad1bd8b-8e6f-4e64-bb5d-7b2fad699681.png`。畫面顯示 supervisor 的測試結果 Passed、整體 Exit 0，持久 Snapshot `3274dc4603a3417881d83823caf91b4c.json`、相同 RunId 的 restore.txt，以及已填妥 pwsh／工具／Snapshot 絕對路徑的 Restore 命令。使用者另行確認複製命令後成功還原；截圖本身沒有展示該 Restore 的 Report，不能自行推定 Verified 數量。
+
+這次支持 §9.3 的正常互動 S→E01/E02→清理→最終提示，以及人工執行所顯示 Restore 命令兩項主要驗收通過；同時支持清理交接修正後能完成正常自動流程。先前 Failed run 保留作回歸歷史，不與本次 RunId 混用。
+
+原始 JSON／hash、精確 VM Windows build／PS minor／執行 commit 未獨立取得；本地 review HEAD `3bc32b3` 不等於已驗證的 VM commit。仍未宣稱 Ctrl+C、所有 terminal hosts、保存後取消、整個終端消失及每個 IO fault point 已實機驗收。詳見[新版驗收紀錄](../tests/Integration/TASK5-VM-ACCEPTANCE.md)。
+
+本次只更新文件；主要功能已有使用者實機通過證據，不需要為這份紀錄再跑 E2E。完整延伸矩陣仍保留未完成標記，本計畫不自動移至 DONE 或 commit。

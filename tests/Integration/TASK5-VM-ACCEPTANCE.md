@@ -52,3 +52,19 @@ The reviewed launcher returns exit 0 only when both E01 and E02 verification cal
 This supplies the previously missing minimal live evidence for the SC_CLOSE correction. Exact VM build, PS minor/patch, commit, session facts and completion timestamp are not shown; local review revision `02849d0` must not be claimed as the verified VM commit. Preserve this suite root and its referenced case roots for traceability.
 
 The detailed follow-up [plan](../../plans/resume-explorer-Task-5-multi-group-close-regression-plan.md) records remaining extended-matrix gaps: three consecutive two-window runs, explicit close-without-save/cancel, larger/duplicate-path groups, zero-existing-window startup and live negative cases are not all established by this screenshot. **The main automatic smoke passed; the extended matrix is not declared fully complete.** No code or tests changed as part of recording this result, so no new GUI or unit-test run is required for this documentation update.
+
+## Persistent Snapshot and manual Restore acceptance (2026-11-03 client date)
+
+The user supplied `codex-clipboard-aad1bd8b-8e6f-4e64-bb5d-7b2fad699681.png` and explicitly confirmed both the test passing and successful restoration using the displayed command.
+
+| Item | Evidence / conclusion |
+| --- | --- |
+| Supervisor summary | `測試結果: Passed` and `Explorer smoke exit code: 0` |
+| Persistent Snapshot | `%LOCALAPPDATA%\ResumeExplorer\Snapshots\BeforeSmoke\3274dc4603a3417881d83823caf91b4c.json` |
+| Durable instructions | Same directory and RunId, suffix `.restore.txt` |
+| Command | Screenshot shows complete absolute pwsh, tool and Snapshot paths, with `-NoProfile -Sta -File`, `-Action Restore` and `-Snapshot` |
+| Actual restoration | User reports successfully restoring via that command; the separate Restore Report and item-level Verified counts are not shown |
+
+This supports one successful real VM run of persistent saving, foreground worker/supervisor interaction, both E01/E02 verification and cleanup (required by the reviewed success gate), final recovery guidance, and user-executed restoration. It also supplies the main-path live acceptance for the cleanup COM-identity handoff correction. It does not claim the harness automatically restored anything.
+
+This RunId is distinct from earlier failed or temporary-snapshot runs. Preserve its persistent JSON/descriptor/txt and associated TEMP suite/case evidence. Exact VM build, PS minor, commit and completion timestamp are not visible and were not independently extracted. Ctrl+C, alternate terminal hosts, cancellation and every IO/crash fault point are not newly certified by this screenshot. See [persistent recovery plan](../../plans/resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md) for remaining coverage.
