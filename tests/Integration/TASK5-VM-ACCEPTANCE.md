@@ -1,6 +1,6 @@
 # Task-5 VM smoke acceptance — user-provided evidence
 
-**Decision: Task-5 Closed / Completed, 2026-11-02 (America/Tijuana).** The user ran the guided one-click workflow in a Windows 11 test VM and supplied the final console screenshots. This records user-executed acceptance, not an agent-run or independently replayed GUI test.
+**Original guided-workflow decision: Task-5 Closed / Completed, 2026-11-02 (America/Tijuana).** The user ran the guided one-click workflow in a Windows 11 test VM and supplied the final console screenshots. This records user-executed acceptance, not an agent-run or independently replayed GUI test. The later automatic SC_CLOSE workflow also has a successful user VM smoke run; see the final section dated 2026-11-03.
 
 ## Evidence reviewed
 
@@ -34,3 +34,21 @@ The latest run's SuiteRoot is not visible in the supplied screenshot regions and
 For full build-specific traceability, retain the VM's complete suite root (session-evidence/suite-result) and both case roots (smoke-result Facts, snapshots, reports, sidecars and CLI logs). Exact runtime metadata is generated there by the harness; its raw values and artifact hashes have not been re-audited by the agent. Further release certification or reproduction should obtain those original facts rather than invent them.
 
 This closes the requested small smoke task on **user-reported VM acceptance**. It does not establish compatibility across all Windows/PowerShell/VDI builds, repeated reliability, every GUI failure path, or fixes for Issue-3/4/5/6, Task-3 locking, FR-6 cleanup, or the full Task-1 framework. No production change, version bump, GUI rerun or raw-report modification is part of this closeout.
+
+## Automatic whole-window close acceptance (2026-11-03)
+
+The user reported “通過了” after updating the window-close implementation and supplied `codex-clipboard-065782ae-c2c6-4e4a-a242-628f5fde06d3.png`. This is a new successful run, separate from both the original guided acceptance and the failed WM_CLOSE runs. The source screenshot remains outside the repository.
+
+| Item | Visible evidence / supported conclusion |
+| --- | --- |
+| OneClick offline suite | 47 PASS, ExitCode 0; screenshot does not show the other three rows. The independently executed local baseline for this implementation was 39/17/23/47 = 126 PASS |
+| Overall | `Explorer smoke exit code: 0`, `Error: null`, user confirms success |
+| Review mode | `VisualReview: NotRun`: normal automatic Verify mode, not a missing required approval or claimed human inspection |
+| Saved existing configuration | `ExistingSnapshot` points to `existing-snapshot.json` under the new suite root; supports the save-before-close path, but does not reveal the initial number of windows/tabs |
+| New suite root | `%TEMP%\ResumeExplorer-E2E-Suite-68d2f08e58f5445ea0c5e4f5d8ba3781` |
+
+The reviewed launcher returns exit 0 only when both E01 and E02 verification calls pass, both case cleanup calls finish, and the combined suite returns Passed. In the context of the user's updated-run report, this supports **one successful real VM run of the automatic workflow**, including existing-configuration saving/closure and E01/E02 verification/cleanup. E01's fixture exercises multiple windows and A/B tab grouping. The E01/E02 status rows, individual case root IDs, final empty-scope samples and command records are not visible in this screenshot and were not independently parsed by the agent.
+
+This supplies the previously missing minimal live evidence for the SC_CLOSE correction. Exact VM build, PS minor/patch, commit, session facts and completion timestamp are not shown; local review revision `02849d0` must not be claimed as the verified VM commit. Preserve this suite root and its referenced case roots for traceability.
+
+The detailed follow-up [plan](../../plans/resume-explorer-Task-5-multi-group-close-regression-plan.md) records remaining extended-matrix gaps: three consecutive two-window runs, explicit close-without-save/cancel, larger/duplicate-path groups, zero-existing-window startup and live negative cases are not all established by this screenshot. **The main automatic smoke passed; the extended matrix is not declared fully complete.** No code or tests changed as part of recording this result, so no new GUI or unit-test run is required for this documentation update.

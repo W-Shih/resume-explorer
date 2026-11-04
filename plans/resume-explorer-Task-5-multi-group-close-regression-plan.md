@@ -1,7 +1,7 @@
 # Task-5 — 多視窗關閉中斷：Review 與修復計畫
 
 - 日期：2026-11-03。
-- 狀態：**Implemented / Offline Verified；專用 VM 驗收待執行**。不標記 Completed、不移入 DONE。
+- 狀態：**Implemented / Offline Verified / User VM smoke Passed（單次自動流程）**；延伸 V01–V05 矩陣尚未全覆蓋。保留於 `plans/`，不宣稱整份矩陣 Completed。
 - Review 基準：`75477f3`（新增一鍵自動驗證與關窗流程）；本次開始時工作樹乾淨。
 - 範圍：一鍵 smoke 的既有視窗關閉、E01／E02 fixture 清理、觀測診斷與回歸測試。
 - 初始交付為 Review-only；使用者後續明確要求按計畫實施，已修改 harness／回歸測試及文件。產品、系統設定未改，不執行目前工作桌面的真實 Explorer 操作，不建立 commit。
@@ -268,3 +268,19 @@ V05 不以故意掛死 Explorer 或強殺程序製造條件；能 deterministic 
 OneClick 43 → **47**，四套基準合計 **39＋17＋23＋47＝126 PASS，全部 Exit 0**（PS7.6.1）。更新 README／Backlog／SOP／驗證紀錄與 baseline expected count；產品、原 39／17 測試及 V1 report/snapshot 均未變。
 
 此追加修正完成實作與離線驗證，**新 SC_CLOSE 版本的 V01–V05 仍待專用 VM**。下一次以新版一鍵入口取得 E01／E02 及清理結果，保留新的 suite/case roots；不混用本次失敗 run 或先前 Task-5 完成截圖，也不先刪掉現有證據。
+
+## 11. 新版使用者 VM 自動流程通過（2026-11-03）
+
+使用者更新後回報「通過了」，提供 `codex-clipboard-065782ae-c2c6-4e4a-a242-628f5fde06d3.png`。畫面顯示 OneClick 47／Exit 0、Error null、VisualReview NotRun、整體 Explorer smoke exit code 0，以及新 suite `68d2f08e58f5445ea0c5e4f5d8ba3781` 的 existing-snapshot.json。這取代「新版完全未實測」狀態，支持**單次自動整窗關閉／E01／E02 與清理的主要流程通過**。VisualReview NotRun 是自動模式正常結果，不偽稱人工目視已執行。
+
+依已審閱 launcher 的 Exit 0 gate，兩案例自動驗證與清理均須成功才能取得此結果；屬程式控制流程與使用者報告共同支持的推論。截圖沒有直接展示 case status rows、各 close ledger／最後空樣本、初始視窗數與精確 VM 版本／commit；未重新解析原 JSON。詳細來源與範圍見[驗收紀錄](../tests/Integration/TASK5-VM-ACCEPTANCE.md)。
+
+| 矩陣 | 更新後證據狀態 |
+| --- | --- |
+| V01 | 保存既有配置後執行整套流程通過；初始是否恰為兩窗、連續三次尚未證實 |
+| V02 | 本次為 save 路徑，C／Enter 的真實 VM 路徑未由本次截圖證實；離線覆蓋保留 |
+| V03 | E01 內建多窗／多 tab fixture 的自動流程通過；額外更多組與重複路徑未實測 |
+| V04 | E01／E02 驗證與兩階段清理通過；本次有 ExistingSnapshot，不能代稱零既有視窗起始條件已驗證 |
+| V05 | 真實 GUI 負向情境未由本次證據覆蓋；deterministic 停止／timeout／identity 測試仍通過 |
+
+主要 regression 的新版 VM smoke 已通過，不再要求為同一份文件紀錄重跑 E2E。完整矩陣與詳細原檔追溯仍未全完成，因此不把所有 V 項目勾為 Passed 或歸檔成全面驗收。本次只更新文件，不修改程式、測試、版本或原始 VM 證據，不建立 commit。

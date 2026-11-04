@@ -84,6 +84,12 @@ Changed the native request boundary to PostMessage(root, WM_SYSCOMMAND=0x0112, S
 
 Extracted the request-selection boundary with fakeable read-only probe and post-or-throw transport. First ran the new protocol regression with the old WM_CLOSE selection: Exit 1 at the expected WM_SYSCOMMAND/SC_CLOSE assertion. The corrected selector passes. Four additional tests check exact root/message/wParam/lParam, Gone/Changed/probe-error/send-error gates, lifecycle with an evidence-based tab-only-vs-window-close model, and failure after one tab-only close without another post. Existing tests are preserved; the fake semantic model is explicitly not live proof. OneClick 43 → 47, total **39 + 17 + 23 + 47 = 126 PASS**, all Exit 0 on PowerShell 7.6.1. New native-close behavior remains pending V01–V05; see [updated plan](plans/resume-explorer-Task-5-multi-group-close-regression-plan.md).
 
+## Automatic SC_CLOSE workflow: user VM smoke passed (2026-11-03)
+
+The user reported success and supplied `codex-clipboard-065782ae-c2c6-4e4a-a242-628f5fde06d3.png`: OneClick 47/Exit 0, overall Explorer smoke exit 0, Error null, VisualReview NotRun and ExistingSnapshot under suite `68d2f08e58f5445ea0c5e4f5d8ba3781`. The reviewed launcher's success gate requires both case verification and both cleanup calls to finish, supporting one successful automatic VM smoke run after the whole-window command correction. VisualReview NotRun is expected in automatic mode and does not imply the cases were skipped.
+
+This supersedes the earlier “new VM acceptance pending” status for the main workflow. Exact VM version/commit, case roots, initial window counts and raw artifacts are not visible or independently parsed; extended V01–V05 subcases are not all established. See [acceptance record](tests/Integration/TASK5-VM-ACCEPTANCE.md) and [matrix progress](plans/resume-explorer-Task-5-multi-group-close-regression-plan.md). This update changes documentation only; no additional code, test changes or GUI rerun occurred.
+
 ## Live acceptance still required
 
 - Reproduce the original failure with the diagnostic candidate; record Windows build, PowerShell version, group sizes, load, concurrent interaction and raw/root grouping.

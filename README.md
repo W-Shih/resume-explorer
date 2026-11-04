@@ -208,7 +208,7 @@ pwsh -NoProfile -Sta -File .\tests\Integration\Invoke-ExplorerSmoke.ps1
 
 開發初版 PS7.6.1 離線測試 **39＋17＋21 = 77** 項通過，僅驗證 harness 安全與合成流程；後續 GUI 通過依據為使用者的 VM 截圖與目視確認，不能以離線結果代替。Task-5 已結案，產品 CLI／Schema／既有測試未因結案改動。
 
-**一鍵入口**：在獨立 Win11 VM 雙擊 `tests\Integration\Run-ExplorerSmoke.cmd`，或執行 `pwsh -NoProfile -Sta -File .\tests\Integration\Start-ExplorerSmoke.ps1 -Run`。啟動時一次授權關窗與測試；既有 Explorer 可選先 Capture 保存配置，再透過系統整窗關閉命令 `WM_SYSCOMMAND / SC_CLOSE` 關窗，不終止程序。預設自動驗證 E01／E02 並清理已驗證測試視窗，無須 PASS／CONTINUE；加 `-RequireVisualReview` 可選人工目視。備註／截圖標為 Optional。多組關窗採逐窗投遞一次、等待可靠觀測收斂，每次關窗作業全部目標共用 10 秒；未知視窗、身分變更、保存不完整或逾時仍停止並保留 ledger／觀測時序。無 `-Run` 時零 dispatch。新版 **126 項離線測試通過**；先前 VM 的 Complete／Exit 0 只驗收原版互動流程，本次關窗修正仍待 VM 重跑。詳見 [一鍵 SOP](tests/Integration/ONE-CLICK.md)、[修復進度](plans/resume-explorer-Task-5-multi-group-close-regression-plan.md)。
+**一鍵入口**：在獨立 Win11 VM 雙擊 `tests\Integration\Run-ExplorerSmoke.cmd`，或執行 `pwsh -NoProfile -Sta -File .\tests\Integration\Start-ExplorerSmoke.ps1 -Run`。啟動時一次授權關窗與測試；既有 Explorer 可選先 Capture 保存配置，再透過系統整窗關閉命令 `WM_SYSCOMMAND / SC_CLOSE` 關窗，不終止程序。預設自動驗證 E01／E02 並清理已驗證測試視窗，無須 PASS／CONTINUE；加 `-RequireVisualReview` 可選人工目視。備註／截圖標為 Optional。多組關窗採逐窗投遞一次、等待可靠觀測收斂，每次關窗作業全部目標共用 10 秒；未知視窗、身分變更、保存不完整或逾時仍停止並保留 ledger／觀測時序。無 `-Run` 時零 dispatch。新版 **126 項離線測試通過，使用者 VM 的自動流程亦已 Exit 0／Error null**；VisualReview NotRun 為自動模式正常結果。這是單次主要流程驗收，延伸矩陣未全部實測。詳見 [一鍵 SOP](tests/Integration/ONE-CLICK.md)、[驗收證據](tests/Integration/TASK5-VM-ACCEPTANCE.md)、[修復進度](plans/resume-explorer-Task-5-multi-group-close-regression-plan.md)。
 
 ### 原有流程
 

@@ -140,6 +140,7 @@
 - **Review 改善（2026-11-03）**：使用者同意只關閉 Explorer 視窗、不終止程序。啟動一次授權；既有視窗選 S 先 Capture 完整核對後關閉、C 不保存直接關閉，或 Enter 取消。以 WM_CLOSE 關閉即時身分符合的視窗並確認清空，不因單純已有視窗擋測試。預設自動 Verify、人工目視可選，環境／目視備註 Optional，不再要求 CONTINUE。案例通過後清理本次 E01／E02 視窗；異常即停且保留證據。新增／調整 harness 測試對應已批准的流程變更，產品及其 39／17 套測試不變；總 102 項離線 PASS。**新版關窗與自動 Verify 的實機驗收仍待 VM 重跑**，原 Task-5 結案證據不擴張至本次新增功能。
 - **多組關窗 regression（2026-11-03，已實作／離線通過，待 VM）**：使用者回報兩窗只關一窗即中斷；已先新增測試重現短暫不可靠觀測導致第二窗未投遞，再改為逐窗投遞一次、兩筆可靠一致觀測後續行。每次清理共用 10 秒；未知／變更視窗仍立即停止。啟動關窗與 E01／E02 清理共用修復，保留 ledger、最多 256 行 JSONL 觀測／probe 時序及部分完成摘要。新增 20 項離線時序／失敗路徑測試，現為 39＋17＋23＋43＝122 PASS。原產品與 39／17 測試未改。詳見[計畫及 V01–V05 未完成驗收](plans/resume-explorer-Task-5-multi-group-close-regression-plan.md)；不把先前 VM 結案當成本次修正已實測。
 - **整窗命令修正（2026-11-03，待新版 VM）**：使用者提供正確 E01 ledger／JSONL／after 截圖，確認 root 329616 由 A|B 減成 A，4 個視窗仍在，Reliable true／Errors 空；先前 WM_CLOSE 作用於分頁而非完整視窗。保留收斂等待，改用 `WM_SYSCOMMAND / SC_CLOSE`。原測試僅 mock 整窗消失，故新增實際訊息選擇、發送前 gate、transport error、訊息驅動多組模擬與 tab-only 不得誤判成功等 4 項測試；OneClick 47，總 **126 PASS**。仍未宣稱新版已通過 VM；證據限使用者截圖，原 JSON／hash 未取得。
+- **新版 VM 主要流程驗收通過（2026-11-03）**：使用者回報通過，最新截圖為 OneClick 47／Exit 0、Error null、VisualReview NotRun、整體 Exit 0，以及 suite `68d2f08e58f5445ea0c5e4f5d8ba3781` 的 ExistingSnapshot。依 launcher 成功 gate，保存既有配置／關窗、E01／E02 自動驗證與清理均完成；未選用人工目視屬正常。這更新上述「待新版 VM」的歷史狀態。屬單次使用者 VM 通過，沒有將 V01 三次連跑／C 及取消／額外分組／live 負向全部標為完成；詳見[驗收紀錄](tests/Integration/TASK5-VM-ACCEPTANCE.md)與[矩陣進度](plans/resume-explorer-Task-5-multi-group-close-regression-plan.md)。
 
 ### Task-4 — P1 — RestoreSummary S16 JSON 格式敏感斷言（Completed／2026-11-02）
 

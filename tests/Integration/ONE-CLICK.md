@@ -72,4 +72,4 @@ pwsh -NoProfile -Sta -File .\resume-explorer.ps1 -Action Restore -Snapshot '<sui
 
 ## 驗證範圍
 
-原版一鍵流程已由使用者 VM 完成並關閉 Task-5，見[原驗收紀錄](TASK5-VM-ACCEPTANCE.md)。**該紀錄不涵蓋後續自動關窗／自動 Verify。** 使用者後續 VM 紀錄又確認整窗仍在但分頁減少；新版在保留逐窗收斂修復的同時，改用系統整窗關閉命令，並增加實際訊息邊界測試。詳見[修復計畫及驗證進度](../../plans/resume-explorer-Task-5-multi-group-close-regression-plan.md)、[驗證紀錄](../../ISSUE2-VALIDATION.md)。新版仍待專用 VM 的 V01–V05 驗收，不以 126 項合成 PASS 宣稱實機 regression 已排除。
+原版一鍵流程已由使用者 VM 完成並關閉 Task-5；後續改用系統整窗關閉命令並補上訊息邊界測試後，**新版自動流程也已由使用者 VM 回報通過：Exit 0、Error null、VisualReview NotRun，並保存既有配置**。這個 NotRun 僅指未選用人工目視，並非自動測試未執行。原版及新版分開記錄於[驗收紀錄](TASK5-VM-ACCEPTANCE.md)。本次單次主要流程通過，不等於重複可靠性、額外分組或所有真實負向案例均完成；延伸 V01–V05 的剩餘項目見[修復計畫](../../plans/resume-explorer-Task-5-multi-group-close-regression-plan.md)，離線基準仍為 126 PASS。
