@@ -23,7 +23,7 @@ Launcher 使用自身位置定位檔案，無須切換工作目錄。不要求�
 ## 執行流程
 
 1. 取得上述一次 GUI 授權，檢查實際 PS7／Win11／STA／互動式 desktop 與 session。建立唯一 TEMP suite root，並取得同 TEMP 的 launcher 排他鎖。
-2. 執行四套離線基準（39＋17＋23＋43＝**122 項**）；失敗時不關閉任何視窗。
+2. 執行四套離線基準（39＋17＋23＋47＝**126 項**）；失敗時不關閉任何視窗。
 3. 獨立觀測既有 Explorer。已有視窗本身不阻擋測試；依你的 `S`／`C` 選擇處理。
 4. 若選 `S`，以正式 CLI `Capture` 產生 `existing-snapshot.json`，核對與獨立觀測的視窗／路徑分組一致，重新確認原視窗未變。任何儲存失敗、不完整或過程中變更都停止，尚不關閉視窗。
 5. 對明確授權且身分仍符合的既有視窗送出正常關窗要求，確認所有視窗已消失，再做空桌面 Preflight。
@@ -45,7 +45,7 @@ E01 檢查 4 個可見視窗／6 分頁：原有 A|B 與 C，另有還原的 A|B
 
 ## 關窗、保存配置與停止條件
 
-- 只關閉 Explorer 視窗，使用 `WM_CLOSE`，**不終止／重啟 `explorer.exe`**，不關閉桌面與工作列，不處理其他應用程式。請先完成檔案操作；測試桌面執行中不要新增／操作視窗。
+- 只關閉 Explorer 視窗，使用 `WM_SYSCOMMAND / SC_CLOSE`（系統選單的整窗關閉命令），**不終止／重啟 `explorer.exe`**，不關閉桌面與工作列，不處理其他應用程式。使用者 VM 已發現直接發送 `WM_CLOSE` 只減少一個分頁、視窗仍在，因此不再使用該訊息或以重複關分頁作 fallback。請先完成檔案操作；測試桌面執行中不要新增／操作視窗。
 - 每個原 root／fingerprint 最多送出一次關窗要求；每次前重新觀測整個 scope、核對 identity、路徑、PID、process start time、session 與 HWND，原生發送前再次核對 fingerprint。**逐窗關閉：當前窗消失且取得兩筆相隔至少 200ms 的可靠一致觀測，才處理下一窗。** 已自行關閉的視窗不再操作；遇到已確認的新視窗、分頁變更或 HWND 重用立即停止，不擴大授權範圍。
 - 測試視窗的清理清單來自驗證結果，路徑須屬本次 case root。測試失敗時不自動清理，方便調查；清理失敗則保留案例結果，但整體測試失敗，不進入下一案例。
 - **每次關窗作業共用 10 秒預算**，從第一筆觀測前開始，包含全部目標及最後穩定空桌面檢查，不是每個視窗重新計時。既有視窗、E01、E02 各自是一次作業。已開始關窗後，暫時不完整／COM 與 Win32 不同步時只等待重新觀測，不向下一窗發送要求、不重送，也不把不可靠的空結果當成功。開始前觀測不可靠仍停止。
@@ -72,4 +72,4 @@ pwsh -NoProfile -Sta -File .\resume-explorer.ps1 -Action Restore -Snapshot '<sui
 
 ## 驗證範圍
 
-原版一鍵流程已由使用者 VM 完成並關閉 Task-5，見[原驗收紀錄](TASK5-VM-ACCEPTANCE.md)。**該紀錄不涵蓋後續自動關窗／自動 Verify。** 其後使用者 VM 回報多組關窗中斷，本次已完成逐窗收斂修正與離線驗證；詳見[修復計畫及驗證進度](../../plans/resume-explorer-Task-5-multi-group-close-regression-plan.md)、[驗證紀錄](../../ISSUE2-VALIDATION.md)。新版仍待專用 VM 的 V01–V05 驗收，不以 122 項合成 PASS 宣稱實機 regression 已排除。
+原版一鍵流程已由使用者 VM 完成並關閉 Task-5，見[原驗收紀錄](TASK5-VM-ACCEPTANCE.md)。**該紀錄不涵蓋後續自動關窗／自動 Verify。** 使用者後續 VM 紀錄又確認整窗仍在但分頁減少；新版在保留逐窗收斂修復的同時，改用系統整窗關閉命令，並增加實際訊息邊界測試。詳見[修復計畫及驗證進度](../../plans/resume-explorer-Task-5-multi-group-close-regression-plan.md)、[驗證紀錄](../../ISSUE2-VALIDATION.md)。新版仍待專用 VM 的 V01–V05 驗收，不以 126 項合成 PASS 宣稱實機 regression 已排除。

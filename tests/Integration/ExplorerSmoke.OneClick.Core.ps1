@@ -6,7 +6,7 @@ function Invoke-SmokeOfflineBaseline {
     $engine=(Get-Process -Id $PID).Path
     $tests=Split-Path $PSScriptRoot -Parent; $rows=@()
     foreach ($suite in @(@{ File='Issue2.Tests.ps1'; Expected=39 },@{ File='RestoreSummary.Tests.ps1'; Expected=17 },
-        @{ File='ExplorerSmoke.Tests.ps1'; Expected=23 },@{ File='ExplorerSmoke.OneClick.Tests.ps1'; Expected=43 })) {
+        @{ File='ExplorerSmoke.Tests.ps1'; Expected=23 },@{ File='ExplorerSmoke.OneClick.Tests.ps1'; Expected=47 })) {
         $output=@(& $engine -NoProfile -NonInteractive -File (Join-Path $tests $suite.File) 2>&1)
         $code=$LASTEXITCODE
         $count=@($output | Where-Object { $_.ToString().StartsWith('PASS ') }).Count
@@ -33,6 +33,17 @@ function Get-SmokeCloseTarget($Fingerprint) {
     return 'StillPresent'
 }
 
+function Invoke-SmokeWindowClose($View,[scriptblock]$Probe,[scriptblock]$PostOrThrow) {
+    # Keep message selection in the tested boundary; transport posts once or throws.
+    $status=& $Probe $View.Fingerprint
+    if ($status -eq 'Gone') { return 'Gone' }
+    Assert-Smoke ($status -eq 'StillPresent') 'CloseFingerprintChanged: 發送關窗要求前視窗身分已改變；未發送，請檢查測試桌面後重跑。'
+    # Direct WM_CLOSE can close just the active Explorer tab on Windows 11.
+    # Request the window's system-menu Close command (the title-bar close path).
+    $null=& $PostOrThrow ([IntPtr]::new($View.RootHwnd)) ([uint32]0x0112) ([IntPtr]::new(0xF060)) ([IntPtr]::Zero)
+    return 'Posted'
+}
+
 function New-SmokeOneClickAdapter {
     $native=New-SmokeAdapter
     $native.NewCloseClock={ [Diagnostics.Stopwatch]::StartNew() }
@@ -40,17 +51,15 @@ function New-SmokeOneClickAdapter {
     $native.ProbeWindow={ param($fingerprint) Get-SmokeCloseTarget $fingerprint }
     $native.CloseWindow={
         param($view)
-        $status=Get-SmokeCloseTarget $view.Fingerprint
-        if ($status -eq 'Gone') { return 'Gone' }
-        Assert-Smoke ($status -eq 'StillPresent') 'CloseFingerprintChanged: 發送關窗要求前視窗身分已改變；未發送，請檢查測試桌面後重跑。'
-        # WM_CLOSE to the verified Explorer window only; never terminate explorer.exe.
-        if (-not [ExplorerSmokeNative]::PostMessage([IntPtr]::new($view.RootHwnd),0x0010,[IntPtr]::Zero,[IntPtr]::Zero)) {
-            $code=[Runtime.InteropServices.Marshal]::GetLastWin32Error()
-            $closeException=[ComponentModel.Win32Exception]::new($code,'CloseMessageFailed: 系統未接受此視窗的關閉要求；未終止程序。')
-            $closeException.Data['NativeErrorCode']=$code
-            throw $closeException
+        Invoke-SmokeWindowClose $view { param($fp) Get-SmokeCloseTarget $fp } {
+            param([IntPtr]$handle,[uint32]$message,[IntPtr]$wparam,[IntPtr]$lparam)
+            if (-not [ExplorerSmokeNative]::PostMessage($handle,$message,$wparam,$lparam)) {
+                $code=[Runtime.InteropServices.Marshal]::GetLastWin32Error()
+                $closeException=[ComponentModel.Win32Exception]::new($code,'CloseMessageFailed: 系統未接受此視窗的關閉要求；未終止程序。')
+                $closeException.Data['NativeErrorCode']=$code
+                throw $closeException
+            }
         }
-        return 'Posted'
     }
     $native.Wait={ Start-Sleep -Milliseconds 200 }
     @{

@@ -162,6 +162,71 @@ function New-CloseFixture([int[]]$Roots=@(10,20)) {
         Prefix=(Join-Path $script:storage ([guid]::NewGuid().ToString('N'))) }
 }
 try {
+    Test 'native request selects system-menu close of the root once without touching GUI' {
+        $view=New-WizardExistingView; $view.RawHwnd=999
+        $calls=[Collections.Generic.List[object]]::new()
+        $probe={ param($fp) Assert ($fp.RootHwnd -eq 90); 'StillPresent' }
+        $post={ param($handle,$message,$wparam,$lparam) $calls.Add(@($handle.ToInt64(),$message,$wparam.ToInt64(),$lparam.ToInt64())) }.GetNewClosure()
+        $result=Invoke-SmokeWindowClose $view $probe $post
+        Assert ($result -eq 'Posted' -and $calls.Count -eq 1 -and $calls[0][0] -eq 90)
+        Assert ($calls[0][1] -eq 0x0112 -and $calls[0][2] -eq 0xF060 -and $calls[0][3] -eq 0) 'Use WM_SYSCOMMAND/SC_CLOSE for the whole window, not direct WM_CLOSE'
+    }
+    Test 'message boundary retains final fingerprint gates and forwards send errors without retries' {
+        foreach ($kind in @('Gone','Changed','ProbeError','SendError')) {
+            $state=@{ Kind=$kind; Probes=0; Posts=0 }
+            $probe={ param($fp)
+                $state.Probes++
+                if ($state.Kind -eq 'ProbeError') { throw 'SyntheticProbeFailure' }
+                if ($state.Kind -eq 'SendError') { return 'StillPresent' }
+                $state.Kind
+            }.GetNewClosure()
+            $post={ param($handle,$message,$wparam,$lparam)
+                $state.Posts++
+                $exception=[ComponentModel.Win32Exception]::new(5,'SyntheticSendFailure'); $exception.Data['NativeErrorCode']=5; throw $exception
+            }.GetNewClosure()
+            $result=$null; $exception=$null
+            try { $result=Invoke-SmokeWindowClose (New-WizardExistingView) $probe $post } catch { $exception=$_.Exception }
+            Assert ($state.Probes -eq 1)
+            if ($kind -eq 'Gone') { Assert ($result -eq 'Gone' -and $null -eq $exception -and $state.Posts -eq 0) }
+            if ($kind -eq 'Changed') { Assert ($exception.Message -like 'CloseFingerprintChanged:*' -and $state.Posts -eq 0) }
+            if ($kind -eq 'ProbeError') { Assert ($exception.Message -eq 'SyntheticProbeFailure' -and $state.Posts -eq 0) }
+            if ($kind -eq 'SendError') { Assert ($exception.Data['NativeErrorCode'] -eq 5 -and $state.Posts -eq 1) }
+        }
+    }
+    Test 'lifecycle uses actual request selection when a tab-close message would leave the root alive' {
+        $f=New-CloseFixture; $state=$f.State
+        $f.Expected.Views[0].Path='C:\synthetic\A'; $f.Expected.Views[1].Path='C:\synthetic\C'
+        $b=$f.Expected.Views[0] | Select-Object *; $b.Identity='tab-B'; $b.Path='C:\synthetic\B'
+        $f.Expected.Views+=@($b); $state.Views=$f.Expected.Views
+        $send=${function:Invoke-SmokeWindowClose}; $probe=$f.Native.ProbeWindow
+        $post={ param($handle,$message,$wparam,$lparam)
+            $root=$handle.ToInt64(); $state.Posts+=$root
+            if ($message -eq 0x0010) {
+                # VM evidence: direct WM_CLOSE removes active B, keeping root 10/A alive.
+                $active=@($state.Views | Where-Object RootHwnd -eq $root)[-1]
+                $state.Views=@($state.Views | Where-Object Identity -ne $active.Identity)
+            } elseif ($message -eq 0x0112 -and $wparam.ToInt64() -eq 0xF060) {
+                $state.Views=@($state.Views | Where-Object RootHwnd -ne $root)
+            } else { throw 'Unexpected window-close request' }
+        }.GetNewClosure()
+        $f.Native.CloseWindow={ param($view) & $send $view $probe $post }.GetNewClosure()
+        Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix
+        Assert (($state.Posts -join ',') -eq '10,20' -and $state.Views.Count -eq 0)
+        $ledger=Get-Content -LiteralPath ($f.Prefix+'-actions.json') -Raw | ConvertFrom-Json
+        Assert (@($ledger | Where-Object State -eq 'Closed').Count -eq 2)
+    }
+    Test 'a tab-only close never counts as window disappearance or triggers repeated closing' {
+        $f=New-CloseFixture; $state=$f.State
+        $b=$f.Expected.Views[0] | Select-Object *; $b.Identity='tab-B'; $b.Path='C:\synthetic\B'
+        $f.Expected.Views+=@($b); $state.Views=$f.Expected.Views
+        $f.Native.CloseWindow={ param($view) $state.Posts+=$view.RootHwnd; $state.Views=@($state.Views | Where-Object Identity -ne 'tab-B'); 'Posted' }.GetNewClosure()
+        $exception=$null
+        try { Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix } catch { $exception=$_.Exception }
+        Assert ($exception.Message -like 'ExplorerCloseIncomplete:*' -and ($state.Posts -join ',') -eq '10')
+        Assert ($state.Views.Count -eq 2 -and $state.Elapsed -eq 10000)
+        $ledger=Get-Content -LiteralPath ($f.Prefix+'-actions.json') -Raw | ConvertFrom-Json
+        Assert ($ledger[0].State -eq 'TimedOut' -and $ledger[1].State -eq 'Planned')
+    }
     Test 'multi-root close waits through incomplete observations and posts each root once' {
         $f=New-CloseFixture; $f.State.TransientAfterClose=2
         Close-SmokeWindows $f.Expected $f.Native 10 $f.Prefix

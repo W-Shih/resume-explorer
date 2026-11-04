@@ -9,7 +9,7 @@
 
 ## 1. Review 結論
 
-使用者回報「兩個 group 似乎只關閉一個」有可重現的程式控制流程缺陷支持。**不是已證實的「只遍歷第一個 group」或「WM_CLOSE 只關一個分頁」問題。**
+初次 Review 時，使用者回報「兩個 group 似乎只關閉一個」已有可重現的控制流程缺陷支持，並非只遍歷第一個 group。**後續使用者提供的正確 E01 觀測另證實直接 WM_CLOSE 只減少分頁、root 仍在的問題，見第 10 節。現行修復同時處理等待收斂與整窗命令選擇。**
 
 目前確實逐一遍歷所有 `RootHwnd`，但送出第一個非同步關窗訊息後，立即重新做全域 COM／Win32 觀測。只要該筆觀測 `Reliable=false`，就立即拋錯，無法到達第二個視窗的關窗步驟。函式尾端的 10 秒輪詢同樣先拋錯，而且計時器要到全部關窗要求送出後才啟動，無法涵蓋這段過渡期。
 
@@ -76,7 +76,7 @@ Microsoft 文件確認 [PostMessage](https://learn.microsoft.com/en-us/windows/w
 
 1. 支援零窗、單窗、多窗；一窗多分頁仍以 root window 為關閉單位，同一路徑存在不同窗不得合併成單一目標。
 2. 以可信、已授權的起始集合固定目標，不隨新觀測擴大；既有視窗依 S／C 選擇處理，fixture 限本次 case roots。
-3. 每個原始目標／fingerprint 最多投遞一次 WM_CLOSE；同一數字 HWND 被重用不視為原目標，不重試關窗或替換成殺程序／SendKeys／COM Quit。
+3. 每個原始目標／fingerprint 最多投遞一次關窗命令（目前採 `WM_SYSCOMMAND / SC_CLOSE`）；同一數字 HWND 被重用不視為原目標，不重試關窗或替換成殺程序／SendKeys／COM Quit。
 4. 不完整觀測可以在已開始關窗的階段**等待重新觀測**；等待期間不得向其他視窗送出關窗要求，不能認定空 scope 或宣稱成功。
 5. 偵測到可確認的新視窗、原有未關窗分頁改變、PID／process start／session 改變等矛盾，立即停止後續發送。無法確認的錯誤只能在有限時間內等待，逾時停止，不能排除錯誤樣本後假裝乾淨。
 6. 初始授權、Capture 完整性、Prepare／Run／Verify／Confirm 安全契約不放寬；產品 CLI、snapshot/report schema、正式 Runs 與 Restore／Retry 不改。
@@ -196,7 +196,7 @@ V05 不以故意掛死 Explorer 或強殺程序製造條件；能 deterministic 
 - [ ] V01–V04 有新版本 VM 證據，V05 的安全負向驗證及未實測限制明確記錄。
 - [ ] 文件、計畫狀態與實測範圍一致後才標記 Completed，依使用者要求再歸檔／commit。
 
-殘餘風險：COM／Win32 仍非原子快照；同一進程內 COM identity 在特定 build 可能不穩定；同步呼叫可能超過預算；WM_CLOSE 可能被應用程式延遲或拒絕。這些情況須停止並保留證據，不能以增加無限等待／重送／殺程序掩蓋。若證據顯示 observer 對穩定剩餘窗長期誤判，再另評估受控觀測修正，不能直接將所有不完整 sample 視為安全。
+殘餘風險：COM／Win32 仍非原子快照；同一進程內 COM identity 在特定 build 可能不穩定；同步呼叫可能超過預算；系統整窗關閉命令可能被應用程式延遲或拒絕。這些情況須停止並保留證據，不能以增加無限等待／重送／殺程序掩蓋。若證據顯示 observer 對穩定剩餘窗長期誤判，再另評估受控觀測修正，不能直接將所有不完整 sample 視為安全。
 
 回退時保留目前所有 run、Capture Snapshot 與關窗紀錄，改用既有手動 runner／手動整理測試窗。已關閉的視窗無法藉程式回退自動復原；是否使用保存的 Snapshot Restore 由操作者另行決定，不在失敗處理中偷偷執行。修復不得干擾工作桌面的 Explorer。
 
@@ -233,3 +233,38 @@ V05 不以故意掛死 Explorer 或強殺程序製造條件；能 deterministic 
 | V01–V05 | **NotRun／Pending**；agent 無專用 Windows 11 VM 互動桌面，尚無新版使用者實機證據 |
 
 實作保留 10 秒整次作業預算／約 200ms 輪詢，JSONL 額外硬限 256 行；不因 history 達上限而抹掉最後 actions／after。同步呼叫仍無 hard timeout，已披露。最後 VM gate 未通過前，本 follow-up 留在 `plans/`，不稱真實多組關窗已驗收，也不套用先前 Task-5 的完成截圖。
+
+## 10. 後續 VM 失敗證據與整窗命令修正（2026-11-03）
+
+### 10.1 採用的證據與判斷
+
+使用者明確撤回先前 `15:09:50Z` 的空觀測截圖。本節採新提供的 `codex-clipboard-28a8656d-06d1-4f26-b3db-8c88844344f0.png`（JSONL）與 `codex-clipboard-1f5c86f0-41a3-44b6-bbe7-ab6ff4adefff.png`（實際 E01 after），並對照先前該 run 的 ledger 截圖；未取得原 JSON、檔案 hashes 或精確 VM build／commit，不冒稱獨立解析完整原檔。
+
+| 資料 | 可確認事實 |
+| --- | --- |
+| 起始 ledger | 4 個 root／6 個分頁；第一個目標 329616 原本是 A|B，Posted true，最後 TimedOut／StillPresent；另外三個 Planned |
+| 最後觀測 | `2026-11-03T15:10:19.9361025Z`，Reliable true、Errors 空、EnumWindowsSucceeded true |
+| COM／Win32 | 同樣四個 roots：329616、656102、918854、1050294；視窗沒有消失 |
+| 最後 Views | 5 個分頁：329616 只剩 A；1050294 的 A|B、另兩窗 C 都仍在 |
+| 結果 | E01 已走到清理階段，root 不消失導致 ExplorerCloseIncomplete／Exit 1，後續清理及 E02 不繼續 |
+
+證據支持本次 VM 的直接 `WM_CLOSE` 作用於 active tab，沒有完成 root-window 關閉。上一輪已修正關窗過渡不可靠即中止，但本次是可靠觀測持續看到原窗的另一個缺陷；增加等待時間或忽略不消失目標都無法修正命令語意。V04 在舊 `WM_CLOSE` 實作上已有 **Attempted / Failed** 證據，不能繼續描述成從未執行；新命令仍 NotRun。
+
+### 10.2 修正與 API 依據
+
+以 `PostMessage(rootHwnd, WM_SYSCOMMAND=0x0112, SC_CLOSE=0xF060, 0)` 取代直接 `WM_CLOSE=0x0010`。Microsoft 的 [WM_SYSCOMMAND 文件](https://learn.microsoft.com/en-us/windows/win32/menurc/wm-syscommand) 定義 SC_CLOSE 為系統視窗關閉命令；[系統關閉路徑說明](https://devblogs.microsoft.com/oldnewthing/20190411-00/?p=102411) 說明標題列 ×／系統選單 Close 會先經過 SC_CLOSE。這支持改用整窗關閉路徑的設計，**仍不是該 Explorer build 的新版實機通過證明**。
+
+只抽出小型 `Invoke-SmokeWindowClose` 邊界，使實際命令選擇可用 fake probe／post-or-throw transport 驗證；native adapter 委派給此邊界，保留最後 fingerprint gate、Gone 時零投遞、Changed 時停止、原生錯誤碼與每目標最多一次的契約。lifecycle 的 common deadline、兩筆穩定消失驗證及未知視窗拒絕不變。沒有重複關 tab、改用其他方法 fallback、終止程序或加長 timeout。
+
+### 10.3 測試缺口與本次結果
+
+先前 122 項測試的 fake CloseWindow 直接移除整個 root，沒有檢查原生 message/wParam，因此漏了訊息選擇問題。本次保留既有測試，另新增四項：
+
+1. 真正 request selector 的 root／message／wParam／lParam 及單次投遞；先以原 `WM_CLOSE` 選擇執行，**Exit 1**，明確失敗於必須選 SC_CLOSE 的斷言；修正後通過。
+2. selector 的 Gone／Changed／probe-error／transport-error 門檻與不重送，保存 native error=5。
+3. lifecycle 接上真正 selector，以 VM 證據建立 fake transport：WM_CLOSE 只移除 B，SC_CLOSE 移除整窗。驗證兩組皆完成，每 root 一次；此語意模型不是實機證據。
+4. 負向 tab-only close：root 仍在時不能記為 Closed、不能關下一窗或重送；10 秒後仍失敗並保留現場。
+
+OneClick 43 → **47**，四套基準合計 **39＋17＋23＋47＝126 PASS，全部 Exit 0**（PS7.6.1）。更新 README／Backlog／SOP／驗證紀錄與 baseline expected count；產品、原 39／17 測試及 V1 report/snapshot 均未變。
+
+此追加修正完成實作與離線驗證，**新 SC_CLOSE 版本的 V01–V05 仍待專用 VM**。下一次以新版一鍵入口取得 E01／E02 及清理結果，保留新的 suite/case roots；不混用本次失敗 run 或先前 Task-5 完成截圖，也不先刪掉現有證據。
