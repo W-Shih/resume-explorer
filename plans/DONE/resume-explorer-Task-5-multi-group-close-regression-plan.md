@@ -1,11 +1,11 @@
 # Task-5 — 多視窗關閉中斷：Review 與修復計畫
 
 - 日期：2026-11-03。
-- 狀態：**Implemented / Offline Verified / User VM smoke Passed（單次自動流程）**；延伸 V01–V05 矩陣尚未全覆蓋。保留於 `plans/`，不宣稱整份矩陣 Completed。
+- 狀態：**Done — 核心 regression 修復與主要流程驗收完成（2026-11-04）**；逐窗收斂等待與 SC_CLOSE 整窗命令均有離線回歸及新版使用者 VM 通過證據。結案依據見 §12，延伸 V01–V05 未完成子項由 Backlog 追蹤，不宣稱完整矩陣全數通過。
 - Review 基準：`75477f3`（新增一鍵自動驗證與關窗流程）；本次開始時工作樹乾淨。
 - 範圍：一鍵 smoke 的既有視窗關閉、E01／E02 fixture 清理、觀測診斷與回歸測試。
 - 初始交付為 Review-only；使用者後續明確要求按計畫實施，已修改 harness／回歸測試及文件。產品、系統設定未改，不執行目前工作桌面的真實 Explorer 操作，不建立 commit。
-- 關聯：[原 Task-5 結案計畫](DONE/resume-explorer-Task-5-powershell7-explorer-e2e-smoke-plan.md)、[目前操作文件](../tests/Integration/ONE-CLICK.md)、[驗證紀錄](../ISSUE2-VALIDATION.md)。
+- 關聯：[原 Task-5 結案計畫](resume-explorer-Task-5-powershell7-explorer-e2e-smoke-plan.md)、[目前操作文件](../../tests/Integration/ONE-CLICK.md)、[驗證紀錄](../../ISSUE2-VALIDATION.md)。
 
 ## 1. Review 結論
 
@@ -15,7 +15,7 @@
 
 建議採用**逐窗送出一次關窗要求，等待該窗消失且全域觀測恢復可靠，再處理下一窗**。保留原授權範圍、未知視窗拒絕、fingerprint 檢查及正常關窗方式；不靠忽略 Errors、重新發送 WM_CLOSE、固定 sleep 或終止程序修補。
 
-原 Task-5 的舊版手動流程結案證據保留；本次控制流程缺陷已實作修正並離線驗證，**真實多組關窗尚未驗收**，不以舊紀錄宣稱已通過。
+原 Task-5 的舊版手動流程結案證據保留；初次 review 時真實多組關窗尚未驗收。後續新版主要流程已有獨立使用者 VM 通過證據（§11–12），不以舊手動紀錄代替。
 
 ## 2. 已知事實、重現與未決問題
 
@@ -41,13 +41,13 @@
 
 | 位置（本次基準行號） | 已驗證行為／缺口 |
 | --- | --- |
-| [Lifecycle](../tests/Integration/ExplorerSmoke.Lifecycle.ps1) `Assert-SmokeClosable`，L3 起 | `Reliable=false` 一律立即 throw，沒有過渡觀測狀態 |
+| [Lifecycle](../../tests/Integration/ExplorerSmoke.Lifecycle.ps1) `Assert-SmokeClosable`，L3 起 | `Reliable=false` 一律立即 throw，沒有過渡觀測狀態 |
 | 同檔 `Close-SmokeWindows`，L26 起 | foreach 按 RootHwnd 遍歷，並非固定只操作第一組 |
 | 同檔 L31–43 | 每窗送出前 Observe → Assert；第一窗關閉中的不完整觀測可阻止第二窗收到關閉要求 |
 | 同檔 L45–55 | timer 在 foreach 後才開始；輪詢內也立即 Assert，遇暫時不完整時沒有機會等待恢復 |
-| [OneClick core](../tests/Integration/ExplorerSmoke.OneClick.Core.ps1) L22–27 | native adapter 用 PostMessage 發送 WM_CLOSE；成功只表示訊息投遞成功 |
-| [Observer](../tests/Integration/ExplorerSmoke.Core.ps1) `Get-SmokeObservation`，L88–125 | 每筆 COM／fingerprint／path 例外都加入 Errors；COM roots 與另一次 Win32 枚舉不符也標為不可靠，兩者不是原子快照 |
-| [OneClick tests](../tests/ExplorerSmoke.OneClick.Tests.ps1) L24–30 | fake close 同步移除整窗且下一次 Observe 立即可靠，未模擬非同步關窗過渡 |
+| [OneClick core](../../tests/Integration/ExplorerSmoke.OneClick.Core.ps1) L22–27 | native adapter 用 PostMessage 發送 WM_CLOSE；成功只表示訊息投遞成功 |
+| [Observer](../../tests/Integration/ExplorerSmoke.Core.ps1) `Get-SmokeObservation`，L88–125 | 每筆 COM／fingerprint／path 例外都加入 Errors；COM roots 與另一次 Win32 枚舉不符也標為不可靠，兩者不是原子快照 |
+| [OneClick tests](../../tests/ExplorerSmoke.OneClick.Tests.ps1) L24–30 | fake close 同步移除整窗且下一次 Observe 立即可靠，未模擬非同步關窗過渡 |
 
 Microsoft 文件確認 [PostMessage](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-postmessagew) 不等待接收端處理完成；[WM_CLOSE](https://learn.microsoft.com/en-us/windows/win32/winmsg/wm-close) 可由接收端先處理確認再銷毀視窗。因此 Posted 不能等同 Closed，也不能保證下一筆跨 API 觀測已一致。
 
@@ -144,7 +144,7 @@ observer 可加上 harness-only 的結構化診斷欄位：取樣序號／時間
 | E | `tests/Integration/ExplorerSmoke.Core.ps1`：只在需要時補結構化 observer metadata／序列化欄位 | 一般可靠性斷言及 Run／Verify／Confirm 行為不變 |
 | F | 補完整測試矩陣；同步實際 baseline expected counts，不能為容納失敗而降數或略過案例 | 四套均 Exit 0，實際 PASS 數與 expected 一致 |
 | G | 更新 `tests/Integration/ONE-CLICK.md`、`README.md`、`ISSUE2-VALIDATION.md`、`Backlog.md` 與本計畫狀態 | 說清總預算、等待與拒絕條件、新舊實機證據範圍 |
-| H | 專用 VM 驗證及原始結果審閱 | 下列 VM 矩陣通過，才可稱多組關窗已修復 |
+| H | 專用 VM 驗證及原始結果審閱 | 核心結案依 §12 的新版主要流程證據；完整 V01–V05 認證仍須逐項取得實機結果 |
 
 不需變更產品 `resume-explorer.ps1`／`resume-explorer.core.ps1`、產品版本或 Schema。原核心 39／17 測試應維持內容；harness 測試的必要變更須逐項記錄理由。
 
@@ -193,8 +193,8 @@ V05 不以故意掛死 Explorer 或強殺程序製造條件；能 deterministic 
 - [x] 啟動及 E01／E02 清理均採同一修復；合成過渡樣本不再立即終止。
 - [x] 離線驗證一筆不可靠或空 sample 不導致誤關或誤判成功；每原目標至多一次副作用。
 - [x] ledger／JSONL／suite error 可追溯各目標、原 Errors、停止時間及 Snapshot 路徑。
-- [ ] V01–V04 有新版本 VM 證據，V05 的安全負向驗證及未實測限制明確記錄。
-- [ ] 文件、計畫狀態與實測範圍一致後才標記 Completed，依使用者要求再歸檔／commit。
+- [x] 新版主要流程已有 VM 通過證據，支持既有配置關窗、E01 多窗多分頁與 E02 清理；逐項缺口已明列於 §11–12 並移交 Backlog。V01–V05 的完整條件仍未全驗收。
+- [x] 文件、計畫狀態與實測範圍一致；核心修復 Done，依本次使用者要求歸檔，未建立 commit。
 
 殘餘風險：COM／Win32 仍非原子快照；同一進程內 COM identity 在特定 build 可能不穩定；同步呼叫可能超過預算；系統整窗關閉命令可能被應用程式延遲或拒絕。這些情況須停止並保留證據，不能以增加無限等待／重送／殺程序掩蓋。若證據顯示 observer 對穩定剩餘窗長期誤判，再另評估受控觀測修正，不能直接將所有不完整 sample 視為安全。
 
@@ -273,7 +273,7 @@ OneClick 43 → **47**，四套基準合計 **39＋17＋23＋47＝126 PASS，全
 
 使用者更新後回報「通過了」，提供 `codex-clipboard-065782ae-c2c6-4e4a-a242-628f5fde06d3.png`。畫面顯示 OneClick 47／Exit 0、Error null、VisualReview NotRun、整體 Explorer smoke exit code 0，以及新 suite `68d2f08e58f5445ea0c5e4f5d8ba3781` 的 existing-snapshot.json。這取代「新版完全未實測」狀態，支持**單次自動整窗關閉／E01／E02 與清理的主要流程通過**。VisualReview NotRun 是自動模式正常結果，不偽稱人工目視已執行。
 
-依已審閱 launcher 的 Exit 0 gate，兩案例自動驗證與清理均須成功才能取得此結果；屬程式控制流程與使用者報告共同支持的推論。截圖沒有直接展示 case status rows、各 close ledger／最後空樣本、初始視窗數與精確 VM 版本／commit；未重新解析原 JSON。詳細來源與範圍見[驗收紀錄](../tests/Integration/TASK5-VM-ACCEPTANCE.md)。
+依已審閱 launcher 的 Exit 0 gate，兩案例自動驗證與清理均須成功才能取得此結果；屬程式控制流程與使用者報告共同支持的推論。截圖沒有直接展示 case status rows、各 close ledger／最後空樣本、初始視窗數與精確 VM 版本／commit；未重新解析原 JSON。詳細來源與範圍見[驗收紀錄](../../tests/Integration/TASK5-VM-ACCEPTANCE.md)。
 
 | 矩陣 | 更新後證據狀態 |
 | --- | --- |
@@ -284,3 +284,22 @@ OneClick 43 → **47**，四套基準合計 **39＋17＋23＋47＝126 PASS，全
 | V05 | 真實 GUI 負向情境未由本次證據覆蓋；deterministic 停止／timeout／identity 測試仍通過 |
 
 主要 regression 的新版 VM smoke 已通過，不再要求為同一份文件紀錄重跑 E2E。完整矩陣與詳細原檔追溯仍未全完成，因此不把所有 V 項目勾為 Passed 或歸檔成全面驗收。本次只更新文件，不修改程式、測試、版本或原始 VM 證據，不建立 commit。
+
+## 12. 結案驗收與歸檔（2026-11-04）
+
+**結論：核心 regression 修復與主要流程驗收完成，移至 plans/DONE。** 本次 review HEAD 為 `002fb9f`，不是已驗證的 VM commit。核對 lifecycle、native request selector、coordinator 三個關窗點、observer 診斷與回歸測試後，未發現新的結案阻擋缺陷；程式、測試與產品版本均未修改。
+
+| 核心要求 | 審閱結果與證據 |
+| --- | --- |
+| 非同步關窗過渡可等待收斂 | 固定 ledger；逐窗投遞後等待兩筆相隔至少 200ms 的可靠一致觀測及 probe Gone；下窗不得提前投遞。既有 red→green 與 fake-clock 排程測試保留 |
+| 關閉完整 root window | 真正 request selector 使用 `WM_SYSCOMMAND / SC_CLOSE`；測試檢查確切參數、每 root 至多一次，以及 tab-only close 不得誤報成功；新版 VM 自動流程通過 |
+| 有界等待與失敗停止 | 全部目標共用 10 秒 Stopwatch 預算；未知／變更 scope、fingerprint、投遞或持久化失敗均停止，不重送、不 kill；同步 native／COM 呼叫仍無 hard timeout 保證 |
+| 整合與診斷 | 啟動、E01、E02 共用 lifecycle；case Passed 不取代清理成功。ledger／有界 256 行 JSONL／Errors／HRESULT／suite summary 保留；cleanup handoff 後續修正另有 2 項回歸 |
+| 本機驗證 | 沿用本 chat 上次真正 baseline helper 的 ASCII 結果：39/17/23/49/13，共 141 PASS、五套 Exit 0；已確認 `a3586fc..002fb9f` 的 PowerShell 程式與測試無差異，本次未重跑相同套件。本次另以 PS7.6.1 STA 編譯／載入 native helper 與 UIA assemblies 成功，未列舉 Shell 或操作視窗 |
+| VM 證據 | §11 的新版 SC_CLOSE suite `68d2f08e58f5445ea0c5e4f5d8ba3781` 已 Exit 0；後續持久還原流程另有 smoke Passed／Exit 0 與手動 Restore 4/4 Verified。依成功 gate 支持兩個案例及清理完成；未推定 VM commit、初始分組及詳細 ledger。來源見驗收紀錄 |
+
+本次將 §6 H／§8 的核心結案範圍明確化為「已證實機制修復＋局部回歸保護＋新版主要流程實機通過」。完整 V01–V05 包含重複可靠性、更多起始組合與額外實機負向認證；保留為後續工作而不當作核心修復永久未完成的條件。沒有把缺少證據的 V 子項改成 Passed，亦未改動測試或放寬安全 gate。
+
+未完成子項移交 [Backlog](../../Backlog.md)「多組關窗延伸驗證」：V01 精確兩個單 tab 視窗連續三次、V02 C／Enter、V03 額外多組／重複路徑、V04 零既有視窗起始、V05 可控延遲／未知窗的安全實機負向，以及 VM build／PS／commit／原始 ledger 與 case roots 的追溯。最新批次中斷截圖僅支持復原提示，不是一次關窗／清理成功，也不計入連續三次成功。
+
+§9–11 的 pending／不歸檔敘述保留為歷史狀態，以本節核心結案與 Backlog 的未完成項目為現況。原始 COM 錯誤來源仍未完全歸因；本計畫結案針對已驗證的控制流程與命令語意修復，未外推為所有 Explorer hang 的修復。

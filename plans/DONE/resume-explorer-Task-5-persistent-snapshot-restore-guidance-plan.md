@@ -5,7 +5,7 @@
 - Review 基準：`9dd7f9b`；開始時工作樹乾淨。
 - 使用者決策：採方案 2；Snapshot 保存於 `%LOCALAPPDATA%\ResumeExplorer\Snapshots\BeforeSmoke\<RunId>.json`；只要已成功保存，後續成功、失敗、取消或程序 crash 都應提供還原入口。
 - 原始規劃範圍（歷史）：當時只新增計畫，不修改 runner／產品／測試，不執行 Capture／Restore／E2E。後續實作與驗收依時間記錄於 §11–17。
-- 關聯：[一鍵 SOP](../../tests/Integration/ONE-CLICK.md)、[關窗 regression 計畫](../resume-explorer-Task-5-multi-group-close-regression-plan.md)、[既有 VM 驗收](../../tests/Integration/TASK5-VM-ACCEPTANCE.md)。
+- 關聯：[一鍵 SOP](../../tests/Integration/ONE-CLICK.md)、[關窗 regression 計畫](resume-explorer-Task-5-multi-group-close-regression-plan.md)、[既有 VM 驗收](../../tests/Integration/TASK5-VM-ACCEPTANCE.md)。
 
 ## 1. 需求解讀與設計決策
 

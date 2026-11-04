@@ -72,7 +72,7 @@ pwsh -NoProfile -Sta -File .\resume-explorer.ps1 -Action Restore -Snapshot '<Bef
 
 ## 驗證範圍
 
-原版一鍵流程已由使用者 VM 完成並關閉 Task-5；後續改用系統整窗關閉命令並補上訊息邊界測試後，**新版自動流程也已由使用者 VM 回報通過：Exit 0、Error null、VisualReview NotRun，並保存既有配置**。這個 NotRun 僅指未選用人工目視，並非自動測試未執行。原版及新版分開記錄於[驗收紀錄](TASK5-VM-ACCEPTANCE.md)。本次單次主要流程通過，不等於重複可靠性、額外分組或所有真實負向案例均完成；延伸 V01–V05 的剩餘項目見[修復計畫](../../plans/resume-explorer-Task-5-multi-group-close-regression-plan.md)，離線基準仍為 126 PASS。
+原版一鍵流程已由使用者 VM 完成並關閉 Task-5；後續改用系統整窗關閉命令並補上訊息邊界測試後，**新版自動流程也已由使用者 VM 回報通過：Exit 0、Error null、VisualReview NotRun，並保存既有配置**。這個 NotRun 僅指未選用人工目視，並非自動測試未執行。原版及新版分開記錄於[驗收紀錄](TASK5-VM-ACCEPTANCE.md)。多組關窗核心修復已於 2026-11-04 [結案歸檔](../../plans/DONE/resume-explorer-Task-5-multi-group-close-regression-plan.md)；當時 SC_CLOSE 實作的 126 PASS 為歷史基準，後續目前基準為 141 PASS。延伸 V01–V05 的三次連跑、其他起始組合與 live 負向驗證仍列於 [Backlog](../../Backlog.md)，不視為全數通過。
 
 ## 持久 Snapshot 與還原提示
 

@@ -148,9 +148,22 @@
 - **Live 驗收／結案**：**E01／E02 Passed，Task-5 Closed**；來源為使用者 VM 的最新截圖與人工確認，非 agent 親自重跑或重新解析原始報告。畫面環境註記 `Temp-VM-Ad001`，91 項離線測試均 Exit 0，整體流程亦 Exit 0。完成時間為 Tijuana **2026-11-02 22:04:19**（畫面 UTC 2026-11-03 06:04:19）。VM 的確切 Windows build、PS minor、commit 與 SuiteRoot 未在截圖中顯示，不能套用本機版本。詳見[驗收紀錄與限制](tests/Integration/TASK5-VM-ACCEPTANCE.md)、[DONE 計畫／矩陣](plans/DONE/resume-explorer-Task-5-powershell7-explorer-e2e-smoke-plan.md)；原始 VM 證據請保留，不提交含私有路徑的原始 JSON。
 - **一鍵互動入口（2026-11-02）**：新增 `Run-ExplorerSmoke.cmd`／`Start-ExplorerSmoke.ps1`，串接環境聲明、四套離線基準、唯一 case roots、真實 CLI 的 E01 fixture bootstrap 與既有 E01／E02 Run/Confirm；保留兩次人工目視與 E01 後手動關閉 fixture。預設／import 零 dispatch、同 TEMP 的 launcher 排他鎖、失敗立即停止且不 replay，產品與既有測試不變。新增 14 項合成測試後總 **91 PASS**；使用者 VM 的一鍵流程已實機完成，驗收範圍僅限該 run。詳見 [一鍵 SOP](tests/Integration/ONE-CLICK.md)。
 - **Review 改善（2026-11-03）**：使用者同意只關閉 Explorer 視窗、不終止程序。啟動一次授權；既有視窗選 S 先 Capture 完整核對後關閉、C 不保存直接關閉，或 Enter 取消。以 WM_CLOSE 關閉即時身分符合的視窗並確認清空，不因單純已有視窗擋測試。預設自動 Verify、人工目視可選，環境／目視備註 Optional，不再要求 CONTINUE。案例通過後清理本次 E01／E02 視窗；異常即停且保留證據。新增／調整 harness 測試對應已批准的流程變更，產品及其 39／17 套測試不變；總 102 項離線 PASS。**新版關窗與自動 Verify 的實機驗收仍待 VM 重跑**，原 Task-5 結案證據不擴張至本次新增功能。
-- **多組關窗 regression（2026-11-03，已實作／離線通過，待 VM）**：使用者回報兩窗只關一窗即中斷；已先新增測試重現短暫不可靠觀測導致第二窗未投遞，再改為逐窗投遞一次、兩筆可靠一致觀測後續行。每次清理共用 10 秒；未知／變更視窗仍立即停止。啟動關窗與 E01／E02 清理共用修復，保留 ledger、最多 256 行 JSONL 觀測／probe 時序及部分完成摘要。新增 20 項離線時序／失敗路徑測試，現為 39＋17＋23＋43＝122 PASS。原產品與 39／17 測試未改。詳見[計畫及 V01–V05 未完成驗收](plans/resume-explorer-Task-5-multi-group-close-regression-plan.md)；不把先前 VM 結案當成本次修正已實測。
+- **多組關窗 regression（2026-11-03，已實作／離線通過，待 VM）**：使用者回報兩窗只關一窗即中斷；已先新增測試重現短暫不可靠觀測導致第二窗未投遞，再改為逐窗投遞一次、兩筆可靠一致觀測後續行。每次清理共用 10 秒；未知／變更視窗仍立即停止。啟動關窗與 E01／E02 清理共用修復，保留 ledger、最多 256 行 JSONL 觀測／probe 時序及部分完成摘要。新增 20 項離線時序／失敗路徑測試，現為 39＋17＋23＋43＝122 PASS。原產品與 39／17 測試未改。詳見[計畫及 V01–V05 未完成驗收](plans/DONE/resume-explorer-Task-5-multi-group-close-regression-plan.md)；不把先前 VM 結案當成本次修正已實測。
 - **整窗命令修正（2026-11-03，待新版 VM）**：使用者提供正確 E01 ledger／JSONL／after 截圖，確認 root 329616 由 A|B 減成 A，4 個視窗仍在，Reliable true／Errors 空；先前 WM_CLOSE 作用於分頁而非完整視窗。保留收斂等待，改用 `WM_SYSCOMMAND / SC_CLOSE`。原測試僅 mock 整窗消失，故新增實際訊息選擇、發送前 gate、transport error、訊息驅動多組模擬與 tab-only 不得誤判成功等 4 項測試；OneClick 47，總 **126 PASS**。仍未宣稱新版已通過 VM；證據限使用者截圖，原 JSON／hash 未取得。
-- **新版 VM 主要流程驗收通過（2026-11-03）**：使用者回報通過，最新截圖為 OneClick 47／Exit 0、Error null、VisualReview NotRun、整體 Exit 0，以及 suite `68d2f08e58f5445ea0c5e4f5d8ba3781` 的 ExistingSnapshot。依 launcher 成功 gate，保存既有配置／關窗、E01／E02 自動驗證與清理均完成；未選用人工目視屬正常。這更新上述「待新版 VM」的歷史狀態。屬單次使用者 VM 通過，沒有將 V01 三次連跑／C 及取消／額外分組／live 負向全部標為完成；詳見[驗收紀錄](tests/Integration/TASK5-VM-ACCEPTANCE.md)與[矩陣進度](plans/resume-explorer-Task-5-multi-group-close-regression-plan.md)。
+- **新版 VM 主要流程驗收通過（2026-11-03）**：使用者回報通過，最新截圖為 OneClick 47／Exit 0、Error null、VisualReview NotRun、整體 Exit 0，以及 suite `68d2f08e58f5445ea0c5e4f5d8ba3781` 的 ExistingSnapshot。依 launcher 成功 gate，保存既有配置／關窗、E01／E02 自動驗證與清理均完成；未選用人工目視屬正常。這更新上述「待新版 VM」的歷史狀態。屬單次使用者 VM 通過，沒有將 V01 三次連跑／C 及取消／額外分組／live 負向全部標為完成；詳見[驗收紀錄](tests/Integration/TASK5-VM-ACCEPTANCE.md)與[矩陣進度](plans/DONE/resume-explorer-Task-5-multi-group-close-regression-plan.md)。
+
+- **多組關窗核心修復 Done（2026-11-04）**：已完成[結案審閱並歸檔](plans/DONE/resume-explorer-Task-5-multi-group-close-regression-plan.md)。逐窗收斂、SC_CLOSE 命令選擇、安全停止與三個清理點的回歸保護均保留；新版主要流程有使用者 VM 通過證據。沿用本 chat 已執行且程式／測試無變更的 141 項離線基準（五套 Exit 0），本次另完成 STA native helper／UIA load-only 驗證；不以歸檔宣稱完整 V01–V05 通過。
+
+#### 多組關窗延伸驗證
+
+**Open — 完整實機矩陣與追溯補強，非已證實的新產品缺陷。** 原 V01–V05 定義保留於歸檔計畫 §7.2：
+
+- [ ] V01：精確兩個獨立單 tab 視窗選 S，至少連續三次以新 roots 完成；現有成功 run 不足以證明此條件，批次中斷 run 不計為成功。
+- [ ] V02：兩窗選 C，以及 Enter 取消的實機路徑；離線成功／取消測試保留。
+- [ ] V03：額外更多組、多 tab、不同窗相同路徑；E01 內建多窗多 tab 已有成功 gate 證據，額外組合仍待驗證。
+- [ ] V04：零既有視窗啟動；現有自動 E01／E02 清理成功不等於此起始條件已驗證。
+- [ ] V05：安全可控的延遲／未知窗負向行為與現場保留；不故意掛死或強殺 Explorer，deterministic timeout／identity 測試不能代稱此項 live 證據。
+- [ ] 追溯：VM build／PS 完整版本／commit／session、suite/case roots、原始 ledger／JSONL／穩定空樣本；原始 COM 錯誤來源未完全確定，不外推為所有 Shell hang 已修復。
 
 ### Task-4 — P1 — RestoreSummary S16 JSON 格式敏感斷言（Completed／2026-11-02）
 
