@@ -18,6 +18,30 @@ function Assert-SmokeRemainingScope($Expected,$Now,[int]$SessionId) {
     Assert-SmokeCloseKnownViews $Expected $Now
 }
 
+function Get-SmokeCleanupBaseline($Verified,$Native,[int]$SessionId,[string]$EvidencePath='') {
+    # Verified.After is serialized evidence, not an owner of live COM references.
+    # Rebind only at this window-cleanup boundary; retain the returned RCWs until cleanup ends.
+    Assert-SmokeClosable $Verified $SessionId
+    $current=& $Native.Observe
+    if ($EvidencePath) {
+        Write-SmokeJson $EvidencePath @{ Verified=(ConvertTo-SmokeEvidence $Verified)
+            Live=(ConvertTo-SmokeEvidence $current) } -New
+    }
+    Assert-SmokeClosable $current $SessionId
+    $oldRoots=@($Verified.Views | Group-Object RootHwnd)
+    $newRoots=@($current.Views | Group-Object RootHwnd)
+    Assert-Smoke ($oldRoots.Count -eq $newRoots.Count) 'CleanupHandoffScopeChanged'
+    foreach ($group in $oldRoots) {
+        $now=@($current.Views | Where-Object RootHwnd -eq $group.Name)
+        Assert-Smoke ($now.Count -eq $group.Count -and
+            (Get-SmokePathKey $now.Path) -ceq (Get-SmokePathKey $group.Group.Path)) 'CleanupHandoffScopeChanged'
+        foreach ($view in $now) {
+            Assert-Smoke (Test-SmokeFingerprint $group.Group[0].Fingerprint $view.Fingerprint) 'CleanupHandoffFingerprintChanged'
+        }
+    }
+    return $current
+}
+
 function Assert-SmokeCloseKnownViews($Expected,$Now) {
     foreach ($view in @($Now.Views)) {
         $matches=@($Expected.Views | Where-Object { $_.Identity -ceq $view.Identity -and

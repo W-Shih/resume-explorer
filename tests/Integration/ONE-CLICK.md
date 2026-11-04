@@ -23,7 +23,7 @@ Launcher 使用自身位置定位檔案，無須切換工作目錄。不要求�
 ## 執行流程
 
 1. 取得上述一次 GUI 授權，檢查實際 PS7／Win11／STA／互動式 desktop 與 session。建立唯一 TEMP suite root，並取得同 TEMP 的 launcher 排他鎖。
-2. 執行五套離線基準（39＋17＋23＋47＋10＝**136 項**）；失敗時不關閉任何視窗。
+2. 執行五套離線基準（39＋17＋23＋49＋10＝**138 項**）；失敗時不關閉任何視窗。
 3. 獨立觀測既有 Explorer。已有視窗本身不阻擋測試；依你的 `S`／`C` 選擇處理。
 4. 若選 `S`，以正式 CLI `Capture` 產生 `existing-snapshot.json`，核對與獨立觀測的視窗／路徑分組一致，重新確認原視窗未變。任何儲存失敗、不完整或過程中變更都停止，尚不關閉視窗。
 5. 對明確授權且身分仍符合的既有視窗送出正常關窗要求，確認所有視窗已消失，再做空桌面 Preflight。
@@ -76,3 +76,5 @@ pwsh -NoProfile -Sta -File .\resume-explorer.ps1 -Action Restore -Snapshot '<Bef
 
 ## 持久 Snapshot 與還原提示
 持久還原提示（本次實作，待 VM 互動驗收）：選 S 後，配置保存在 `%LOCALAPPDATA%\ResumeExplorer\Snapshots\BeforeSmoke\<RunId>.json`，同目錄有 `.recovery.json` 驗證紀錄及 `.restore.txt` 完整 PowerShell 7 還原命令。這些檔案在關窗前提交，不覆寫日常預設 Snapshot、不自動刪除或 Restore。前景 supervisor 等待 worker 結束後，在 JSON 後顯示還原提示；worker crash 時可依 RunId 找回，整個終端也被關閉時請查看持久命令檔。原有 suite/case 測試證據仍保存在 TEMP。新增 10 項離線 recovery 測試，總基準為 39＋17＋23＋47＋10＝136。先前 VM 截圖不代表本次 supervisor／互動流程已驗收。
+
+清理交接會先以完整 HWND／process fingerprint 及每窗路徑 multiset 核對驗收結果，再取得並持有目前的 COM references。驗收 JSON 中的 Identity 指標不作為後續物件生命週期的憑證；交接後關窗仍嚴格比對 live identity。交接前後觀測另存 E01/E02-close-handoff.json。這不改變產品 Restore／Retry 的候選識別規則，也不表示能跨程序證明同一分頁 identity。

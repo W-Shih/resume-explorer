@@ -103,3 +103,11 @@ No strict wall-clock limit is claimed for blocking synchronous COM/UIA calls. Ba
 
 ## 持久 Snapshot 與還原提示
 持久還原提示（本次實作，待 VM 互動驗收）：選 S 後，配置保存在 `%LOCALAPPDATA%\ResumeExplorer\Snapshots\BeforeSmoke\<RunId>.json`，同目錄有 `.recovery.json` 驗證紀錄及 `.restore.txt` 完整 PowerShell 7 還原命令。這些檔案在關窗前提交，不覆寫日常預設 Snapshot、不自動刪除或 Restore。前景 supervisor 等待 worker 結束後，在 JSON 後顯示還原提示；worker crash 時可依 RunId 找回，整個終端也被關閉時請查看持久命令檔。原有 suite/case 測試證據仍保存在 TEMP。新增 10 項離線 recovery 測試，總基準為 39＋17＋23＋47＋10＝136。先前 VM 截圖不代表本次 supervisor／互動流程已驗收。
+
+## Cleanup COM identity handoff regression
+
+User-provided before/after screenshots 8a7d3e96-0e9b-4466-ae9a-4e76eea9d6aa / 0ad243f0-db10-4d66-b060-fbd2b1eb2a64 show four unchanged roots and six unchanged path/fingerprint records, Reliable true and Errors empty, approximately 259ms apart. Only the COM Identity pointer strings change. The saved Verify.After record does not retain live COM references, so treating those pointer strings as an anchored cleanup baseline causes a false CloseScopeChanged. This supports the lifetime/handoff mechanism; it is not proof of Windows internals or absence of same-path external replacement.
+
+A new coordinator regression first failed with the same CloseScopeChanged. Cleanup now re-observes and validates an exact per-root path multiset, raw/root constraints and process fingerprint against verified evidence, then retains that live observation (including RCWs) for the complete close operation. Serialized identities are not compared at this one handoff boundary. Subsequent cleanup still rejects changed live identities, unknown views, paths and fingerprints. Product Restore/Retry and case assertions remain unchanged. Handoff does not claim cross-lifetime tab identity continuity; its authorization is for the verified fixture windows and their complete current path groups.
+
+Two new tests cover handoff rebinding plus changed root/path/duplicate count/PID/session/process-start rejection. Existing live-identity-change tests are preserved. Offline baseline: 39 + 17 + 23 + 49 + 10 = 138 PASS, all Exit 0. The new handoff requires another targeted VM run; earlier success screenshots do not certify this revision. No real Explorer operation was performed by the agent.

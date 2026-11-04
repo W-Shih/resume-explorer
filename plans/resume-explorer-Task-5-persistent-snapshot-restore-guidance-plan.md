@@ -270,3 +270,9 @@ P03 以測試自己啟動的無 GUI process 模擬直接終止，不故意掛死
 **尚未宣稱整份矩陣完成。** 無 GUI 程序邊界測試已通過；真實互動 Read-Host／Ctrl+C 在各 Windows terminal host 的行為、專用 VM 的 S→E01/E02→結束提示及人工複製 Restore 驗收尚待執行。完整 R01–R14／P01–P06 的每個 IO fault point 並未逐一注入；已有的核心覆蓋不等於所有列項全部驗收。BeforeSmoke 固定路徑／descriptor 目前以本次 GUID 與使用者 Known Folder 綁定，不增加另一份跨使用者復原機制。
 
 本次沒有操作目前桌面的 Explorer、實際建立使用者 BeforeSmoke 備份或使用日常預設 Snapshot；所有新增測試都使用自行建立且經 ownership 檢查後清理的 TEMP fixture。不自動歸檔或 commit。
+
+## 12. 後續 VM 清理交接修正
+
+使用者以正常分頁重跑後，持久 Snapshot、完整命令與失敗後提示已出現，E01 Verify Passed，但在 E01-AutomaticClose 投遞前發生 CloseScopeChanged。提供的 before/after 截圖顯示根視窗、分頁路徑分組及 process fingerprints 相同，只有 COM Identity 指標改變。已補回歸先 red，再於清理交接依視窗指紋與完整分組重新取得 live observation，保留其 RCWs 至關窗完成；交接之後原 identity gates 不放寬。保存／supervisor 邏輯不因這次修復改寫。
+
+目前離線五套 39／17／23／49／10，共 138 PASS。上述使用者 VM 結果支持保存及失敗提示，但整套仍未通過；新的清理交接與真實終端／Ctrl+C 驗收仍 pending，不標記 Completed。詳細證據與安全邊界見 ISSUE2-VALIDATION.md。

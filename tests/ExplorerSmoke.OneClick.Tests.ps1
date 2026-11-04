@@ -163,6 +163,38 @@ function New-CloseFixture([int[]]$Roots=@(10,20)) {
         Prefix=(Join-Path $script:storage ([guid]::NewGuid().ToString('N'))) }
 }
 try {
+    Test 'cleanup handoff reacquires live COM identities after serialized verification' {
+        $f=New-WizardFixture; $state=$f.State; $harness=$f.Adapter.Harness
+        $f.Adapter.Harness={ param($options,$native)
+            $result=& $harness $options $native
+            if ($options.Mode -in @('Verify','Confirm')) {
+                $state.Views=@(foreach ($v in $state.Views) { $copy=$v | Select-Object *; $copy.Identity='rebound-'+$v.Identity; $copy })
+            }
+            $result
+        }.GetNewClosure()
+        $r=Invoke-SmokeOneClick $true $f.Adapter; Remember-WizardSuite $r
+        Assert ($r.Status -eq 'Passed' -and $state.Closes.Count -eq 5) $r.Reason
+    }
+    Test 'handoff rejects changed groups paths duplicate counts and fingerprints without closing' {
+        foreach ($change in @('Root','Path','Duplicate','PID','SessionId','ProcessStartedAtUtc')) {
+            $f=New-CloseFixture
+            $current=[pscustomobject]@{ Reliable=$true; Views=@(foreach ($v in $f.Expected.Views) {
+                $copy=$v | Select-Object *; $copy.Identity='new-'+$copy.Identity
+                $copy.Fingerprint=$v.Fingerprint | Select-Object *; $copy
+            }) }
+            switch ($change) {
+                Root { $current.Views[0].RootHwnd=999 }
+                Path { $current.Views[0].Path='C:\changed' }
+                Duplicate { $current.Views+=@($current.Views[0]) }
+                PID { $current.Views[0].Fingerprint.PID=99 }
+                SessionId { $current.Views[0].Fingerprint.SessionId=99 }
+                ProcessStartedAtUtc { $current.Views[0].Fingerprint.ProcessStartedAtUtc='2026-11-05T00:00:00Z' }
+            }
+            $f.Native.Observe={ $current }.GetNewClosure(); $caught=$false
+            try { Get-SmokeCleanupBaseline $f.Expected $f.Native 10 } catch { $caught=$true }
+            Assert ($caught -and $f.State.Posts.Count -eq 0)
+        }
+    }
     Test 'native request selects system-menu close of the root once without touching GUI' {
         $view=New-WizardExistingView; $view.RawHwnd=999
         $calls=[Collections.Generic.List[object]]::new()

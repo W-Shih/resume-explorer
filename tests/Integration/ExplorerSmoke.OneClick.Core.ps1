@@ -7,7 +7,7 @@ function Invoke-SmokeOfflineBaseline {
     $engine=(Get-Process -Id $PID).Path
     $tests=Split-Path $PSScriptRoot -Parent; $rows=@()
     foreach ($suite in @(@{ File='Issue2.Tests.ps1'; Expected=39 },@{ File='RestoreSummary.Tests.ps1'; Expected=17 },
-        @{ File='ExplorerSmoke.Tests.ps1'; Expected=23 },@{ File='ExplorerSmoke.OneClick.Tests.ps1'; Expected=47 },
+        @{ File='ExplorerSmoke.Tests.ps1'; Expected=23 },@{ File='ExplorerSmoke.OneClick.Tests.ps1'; Expected=49 },
         @{ File='ExplorerSmoke.Recovery.Tests.ps1'; Expected=10 })) {
         $output=@(& $engine -NoProfile -NonInteractive -File (Join-Path $tests $suite.File) 2>&1)
         $code=$LASTEXITCODE
@@ -247,6 +247,8 @@ function Invoke-SmokeOneClick([bool]$Run,$Adapter,[bool]$RequireVisualReview=$fa
                 Assert-Smoke ($view.Path.StartsWith($folderPrefix,[StringComparison]::OrdinalIgnoreCase)) 'CleanupPathOutsideFixture'
             }
             & $save ($case+'-AutomaticClose') $caseRoot $null
+            $live=Get-SmokeCleanupBaseline $expected $Adapter.Native $facts.SessionId (Join-Path $root ($case+'-close-handoff.json'))
+            $expected=$live # Strong RCW references, not persisted IUnknown pointer strings.
             Close-SmokeWindows $expected $Adapter.Native $facts.SessionId (Join-Path $root ($case+'-close'))
             $options.ConfirmVisibleAndGrouping=$false; $options.VisualEvidence=''
         }
