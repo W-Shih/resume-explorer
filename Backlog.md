@@ -72,6 +72,16 @@
 - **與 FR-6 分工**：這是**長期功能期望而非已實作行為**。目前仍是 V1 Full；**FR-6 先量測是否存在實質效能／儲存問題，FR-9 的實作優先序再依證據調整**，不可反過來要求 FR-6 先導入 Compact／Schema V2。
 - **狀態／計畫**：**Feature Requirement / Proposed，尚未實作**。見 [`plans/resume-explorer-Feature-Request-9-diagnostic-level-plan.md`](plans/resume-explorer-Feature-Request-9-diagnostic-level-plan.md)。
 
+### Feature Request-10 — P2 — Shell 虛擬分頁的保存／還原與未保存項目提示（待設計）
+
+- **狀態**：已確認現有支援限制；需求待設計，尚未實作。不因本項紀錄放寬目前完整備份／關窗的安全檢查。
+- **使用者證據（2026-11-03）**：提供的同次 `existing-observation.json`／`existing-snapshot.json` 截圖顯示，可靠觀測為 2 個視窗、5 個分頁：一窗有 3 個相同 Downloads 分頁，另一窗有 1 個實體資料夾及 1 個 `::{F874310E-B6B7-47DC-BC84-B9E6B38F5903}` Shell 虛擬分頁。Snapshot 保留 2 組、4 個實體資料夾分頁，漏掉該虛擬分頁；重複 Downloads 分頁未被去重。原始私人路徑與截圖不複製入 repository。
+- **目前原因與影響**：產品 `Save-Snapshot` 只保存 `PathReadable` 且 `Directory.Exists` 的路徑，虛擬 namespace 不符合條件；一鍵 runner 的完整性比對因此以 `ExistingCaptureIncomplete` 停止，尚未關閉既有視窗或提交持久備份。本次證據支持 Capture／Restore 的既有限制，不是已證實的新舊 JSON 解析差異；一般 Capture 也須評估明確列出略過項目，避免使用者誤以為所有分頁均已保存。
+- **設計方向**：盤點常見虛擬分頁可取得的穩定識別與可還原性，不以顯示名稱猜測本機路徑。評估正式保存／還原可支援的 namespace；對仍不支援的項目，明確列出所屬視窗、分頁與略過原因。若提供「僅保存支援項目後繼續」，必須顯示保存／未保存數量並取得明確選擇，標記為部分備份，不可默默略過或宣稱完整還原。是否採用及預設行為留待設計，不在本次決定。
+- **相容性與安全**：保留實體資料夾、視窗分組與同路徑多分頁語意；不把虛擬分頁當成失效磁碟路徑任意導覽，不降低 identity／fingerprint 驗證。若需要 Snapshot／Report schema 擴充，先定義 V1 相容讀取及遷移策略。未實作明確的部分備份選項前，完整性不符仍停止關窗；不以自動關掉虛擬分頁作為處理方式。
+- **驗收方向**：離線涵蓋實體／虛擬混合、完全虛擬、未知 namespace、同窗／跨窗分組與重複路徑；專用 VM 驗證支援項目的 Capture → Restore、正確分組與原有分頁保護，以及不支援項目的提示／取消／明確部分備份路徑。報告須如實區分完整、部分及無法還原，不能只依 Exit 0 判定全部完成。
+- **當前測試安排**：使用者將先以全部為正常實體資料夾的分頁，重測持久 Snapshot／還原提示流程；結果尚待提供，不與本功能的虛擬分頁驗收混用。關聯：[持久 Snapshot 計畫](plans/resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md)、[產品 core](resume-explorer.core.ps1)、[一鍵保存／驗證](tests/Integration/ExplorerSmoke.Lifecycle.ps1)。
+
 ### Feature Request-1 — P2
 
 當執行 `& .\resume-explorer.ps1 -Action Restore` 時，希望在背景還原 Explorer 視窗與標籤頁，不顯示或彈出 Explorer 視窗、不將其帶到前景，也不搶走目前使用中應用程式的焦點，以免打斷使用者操作。
