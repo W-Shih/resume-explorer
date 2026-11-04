@@ -1,7 +1,7 @@
 # Task-5 — 持久保存測試前配置與結束後還原提示：詳細實作計畫
 
 - 日期：2026-11-03。
-- 狀態：**Implemented / Offline Verified / User VM 主要流程與手動 Restore Passed**；Ctrl+C／其他 host 與完整故障矩陣仍未全部驗收。
+- 狀態：**Acceptance Not Complete**；主要流程與手動 Restore 已通過，但結案驗收發現 supervisor 可能在結果驗證失敗後仍顯示 Passed（§14）。修正前保留於 plans/，不移入 DONE。
 - Review 基準：`9dd7f9b`；開始時工作樹乾淨。
 - 使用者決策：採方案 2；Snapshot 保存於 `%LOCALAPPDATA%\ResumeExplorer\Snapshots\BeforeSmoke\<RunId>.json`；只要已成功保存，後續成功、失敗、取消或程序 crash 都應提供還原入口。
 - 本次只新增計畫。不修改 runner／產品／測試，不建立持久資料目錄、不執行 Capture／Restore／E2E，不建立 commit。
@@ -286,3 +286,23 @@ P03 以測試自己啟動的無 GUI process 模擬直接終止，不故意掛死
 原始 JSON／hash、精確 VM Windows build／PS minor／執行 commit 未獨立取得；本地 review HEAD `3bc32b3` 不等於已驗證的 VM commit。仍未宣稱 Ctrl+C、所有 terminal hosts、保存後取消、整個終端消失及每個 IO fault point 已實機驗收。詳見[新版驗收紀錄](../tests/Integration/TASK5-VM-ACCEPTANCE.md)。
 
 本次只更新文件；主要功能已有使用者實機通過證據，不需要為這份紀錄再跑 E2E。完整延伸矩陣仍保留未完成標記，本計畫不自動移至 DONE 或 commit。
+
+## 14. 結案驗收：未通過（review HEAD 78e2deb）
+
+使用者要求驗收並於完成後歸檔。本次核對程式、測試與 VM 證據，發現 A01，故尚不符合結案條件；不以正常流程已通過代替錯誤處理驗收。
+
+### A01 — P1 — 結果驗證失敗後仍可能顯示 Passed
+
+- 位置：`tests/Integration/Start-ExplorerSmoke.ps1` 的 rawCode/status 分派與 catch。
+- 觸發：worker 回傳 raw exit 0，但本次 suite-result 缺失、JSON 無效或 Status 並非 Passed。
+- 原因：入口先把 `$status` 設成 Passed，再驗證 suite-result。驗證 throw 後 catch 僅設 `$code=1`，除 WorkerStillRunning 情況外沒有重設 status。因此存在有效備份時，復原摘要可顯示 Passed，但公開入口實際回傳 1。
+- 已重現：複製原公開入口至 owned TEMP fixture，僅 stub worker return 0、suite-result 缺失及提示接收器。實際輸出 **NoticeStatus=Passed、PublicEntryExit=1**。沒有操作 Explorer、建立真實 BeforeSmoke 資料或修改 runner／tests；fixture 已安全清理。
+- 違反條件：§5.3「不可只因 child raw exit 0 就宣稱 Passed」、§6.3 失敗不能改為 Passed、§9.2 P04 的 raw 0 但缺少合法結束結果不得偽報 Passed。這是核心結果呈現錯誤，並非單純的延伸 host 矩陣未完成。
+- 修復要求：只在合法本次 suite-result 驗證成功後設 Passed；catch 將結果設為 Failed／結果不明，保留原始錯誤、WorkerStillRunning 提示與既有 Snapshot 的還原命令。不得以隱藏復原提示規避。
+- 必要回歸：以公開入口邏輯覆蓋 raw 0＋missing／malformed／Running／Failed result，以及合法 Passed result；失敗案例一律不能顯示 Passed，已保存配置仍須顯示還原入口。現有只直接呼叫 helper 並傳入正確 status 的測試不足以攔住此缺陷。
+
+持久保存、提交順序、獨立檔案、不覆寫日常 Snapshot、命令 quoting、正常 VM／手動 Restore 的既有成果仍成立。完整 IO fault／Ctrl+C 矩陣亦尚未全驗證；本次以已確實重現的 A01 判定暫不結案。修復摘要判定可先使用無 GUI 的回歸，不需要為本次驗收在工作桌面重跑 Explorer。
+
+本次只進行驗收與記錄，不擅自修改 production code 或既有測試；未移動計畫、未 commit。
+
+本次重新執行真正 baseline helper：39／17／23／49／10＝138 PASS，五套 Exit 0。A01 在這個全綠基準之外仍可重現，顯示公開入口錯誤路徑的測試缺口；不能以目前 suite 全過作為歸檔理由。
