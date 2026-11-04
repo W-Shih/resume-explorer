@@ -323,4 +323,6 @@ A01 已解除。此為結果判定與錯誤提示修正，沒有改動 GUI 操�
 
 修正僅在 `Invoke-SupervisorFixture` 的 native pwsh 輸出捕捉邊界暫設 `[Console]::OutputEncoding` 為 UTF-8，並以 finally 還原原編碼；不變更公開入口、產品行為、系統設定或原有斷言。新增一項回歸，分別在 ASCII／UTF-8 呼叫端驗證 Missing／Passed 的 exit、完整中文摘要、Restore 命令及編碼還原。新回歸於修正前先失敗，修正後通過；Recovery 12→13，baseline expected count 同步更新。
 
-本機 PowerShell 7.6.1 的完整五套基準在預設及 ASCII 環境皆為 39／17／23／49／13＝141 PASS，全部 Exit 0；ASCII 執行完成後仍保留 ASCII 編碼。修正後的 PowerShell 7.4.22 VM 重跑與真實 Explorer E2E 尚未驗證；使用者先前 UTF-8 workaround 的 12 項通過不等同於新版程式已在 VM 驗收。不建立 commit。
+本機 PowerShell 7.6.1 的完整五套基準在預設及 ASCII 環境皆為 39／17／23／49／13＝141 PASS，全部 Exit 0；ASCII 執行完成後仍保留 ASCII 編碼。本機驗證當時，修正版 VM／真實 Explorer E2E 尚待使用者執行；先前 UTF-8 workaround 的 12 項通過未被當作新版驗收。不建立 commit。
+
+後續使用者提供新的 VM 截圖：smoke 顯示 Passed／Exit 0，持久 Snapshot RunId 為 `c56cde9dad6a40c489fb61b49143b788`；使用同一 Snapshot 的手動 Restore 顯示 Completed／Verification Complete，4/4 Verified、0 Not verified。這補上一次主要流程與手動還原的使用者 VM 通過證據，詳見[驗收紀錄](../tests/Integration/TASK5-VM-ACCEPTANCE.md)。截圖未顯示實際 commit、當次編碼或離線各套數量，因此不宣稱已在原非 UTF-8 條件下驗收修正，也不將其外推為重複可靠性或完整延伸矩陣通過。

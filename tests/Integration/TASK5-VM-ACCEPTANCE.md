@@ -68,3 +68,18 @@ The user supplied `codex-clipboard-aad1bd8b-8e6f-4e64-bb5d-7b2fad699681.png` and
 This supports one successful real VM run of persistent saving, foreground worker/supervisor interaction, both E01/E02 verification and cleanup (required by the reviewed success gate), final recovery guidance, and user-executed restoration. It also supplies the main-path live acceptance for the cleanup COM-identity handoff correction. It does not claim the harness automatically restored anything.
 
 This RunId is distinct from earlier failed or temporary-snapshot runs. Preserve its persistent JSON/descriptor/txt and associated TEMP suite/case evidence. Exact VM build, PS minor, commit and completion timestamp are not visible and were not independently extracted. Ctrl+C, alternate terminal hosts, cancellation and every IO/crash fault point are not newly certified by this screenshot. See [persistent recovery plan](../../plans/resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md) for remaining coverage.
+
+## Smoke and manual Restore after the encoding correction (2026-11-04 client date)
+
+The user supplied `codex-clipboard-3bca4b45-8f77-46ad-bb72-9c9119274d55.png` and `codex-clipboard-78d1b451-91d9-4ada-a2fc-f3a8991a398b.png` following the Recovery output-encoding correction. This records user-executed VM acceptance; the agent did not run the VM workflow or inspect the original JSON reports. Raw screenshots remain outside the repository.
+
+| Item | Visible evidence / supported conclusion |
+| --- | --- |
+| Smoke result | Supervisor displays `測試結果: Passed`; launcher displays `Explorer smoke exit code: 0` |
+| Persistent Snapshot | `%LOCALAPPDATA%\ResumeExplorer\Snapshots\BeforeSmoke\c56cde9dad6a40c489fb61b49143b788.json` |
+| Recovery guidance | Full Restore command and matching `.restore.txt` path displayed; automatic restoration explicitly not performed |
+| Manual Restore | Second screenshot executes the displayed command against the same Snapshot; report status `(Completed)` |
+| Restore verification | `Verification: Complete`, `Total: 4`, `Verified: 4`, `Not verified: 0`, `All 4 items verified.` |
+| Restore report | `%LOCALAPPDATA%\ResumeExplorer\Runs\5e761290a68449d19127f14fb30f14a2.json` |
+
+This supports one successful VM smoke run and a subsequent manual Restore of the saved configuration. Under the reviewed success gate, smoke exit 0 requires both E01/E02 verification and cleanup to pass. The screenshots do not show individual case rows, offline baseline counts, active output encoding, exact VM runtime/build, or tested commit; none are inferred from local results or earlier screenshots. In particular, this does not independently establish that the temporary UTF-8 workaround was absent. Repeated reliability, other terminal hosts and the remaining failure matrix are not newly certified.

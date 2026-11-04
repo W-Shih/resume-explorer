@@ -218,3 +218,5 @@
 持久還原提示的主要 VM 驗收已通過：使用者提供 supervisor Passed／Exit 0 的新截圖，並確認已成功使用顯示的完整命令還原配置。持久 Snapshot RunId 為 `3274dc4603a3417881d83823caf91b4c`，完整來源見[驗收紀錄](tests/Integration/TASK5-VM-ACCEPTANCE.md)。這更新先前「正常互動與人工 Restore 待驗收」狀態；Ctrl+C、其他 host 與完整故障矩陣仍未宣稱實測完成。本次僅記錄結果，不改程式或重跑 E2E。
 
 持久 Snapshot 計畫結案驗收發現的 **A01／P1 已修正（2026-11-04）**：supervisor 僅在 suite-result 驗證成功後顯示 Passed，catch 重設失敗狀態，仍提供本次有效備份的還原命令。新增兩項公開入口程序測試，涵蓋缺失／損毀／非 Passed 結果、合法成功、非零 exit 與 worker 存活警告；原版先 red，修正後五套共 140 PASS。正常 VM 與手動 Restore 證據保留，延伸矩陣仍按實際狀態追蹤。詳見[持久 Snapshot 計畫 §14–15](plans/resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md)。
+
+編碼修正後另收到一次 VM 主要流程通過截圖（2026-11-04）：smoke Passed／Exit 0；Snapshot `c56cde9dad6a40c489fb61b49143b788` 的手動 Restore 為 Completed、4/4 Verified、0 Not verified。已記入[驗收紀錄](tests/Integration/TASK5-VM-ACCEPTANCE.md)及[持久 Snapshot 計畫 §16](plans/resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md)。當次 commit／編碼未顯示，不宣稱非 UTF-8 條件、重複可靠性或完整矩陣均已驗收。
