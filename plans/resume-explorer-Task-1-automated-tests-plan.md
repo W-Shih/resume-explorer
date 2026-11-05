@@ -1,7 +1,7 @@
 # Resume Explorer — Task-1 自動化測試：下一階段實作計畫
 
 - 初版日期：2026-11-01；本次重訂：2026-11-04。
-- 狀態：**本階段實作及本機離線驗證完成；待共享 baseline 新版 VM 整合驗收**。保留於 plans/，不標記 Done。實作證據見 §14；下文原規劃敘述保留作設計脈絡。
+- 狀態：**本階段實作、本機驗證及使用者新版主要整合流程通過；待結案 review**。保留於 plans/，不標記 Done。實作證據見 §14；下文原規劃敘述保留作設計脈絡。
 - Review HEAD：e146f85；開始時工作樹乾淨。本次僅更新文件，不修改程式／測試、安裝依賴或執行真實 Explorer。
 - 對應：[Backlog Task-1](../Backlog.md)、[目前測試說明](../README.md)、[Task-5 VM 證據](../tests/Integration/TASK5-VM-ACCEPTANCE.md)。
 - 本文件取代舊版要求先採 Pester／抽 Module／建立 Unit+Integration 統一 dispatcher 的實作順序。舊版 review 的歷史判定見 §13；後續以本文件的範圍、契約與完成標準為準。
@@ -155,7 +155,7 @@ A／B 可分開 review；C 必須以測試確認共同實作的整合，不只�
 - [x] 每次執行的 JSON／logs 可診斷失敗；E2E NotRun 明示，缺失／不完整／舊結果不被判為本次 Passed。
 - [x] 實際總基準為 141＋新增 cases，預期數與觀察數一致；不把未跑 cases 算 failed 或 Passed。
 - [x] Windows PS7 依賴、公開命令、結果位置／exit、證據與本機／VM 驗證範圍寫入文件。
-- [ ] 本批涉及共享 baseline 的 VM 一次整合驗收有結果；未涉及 GUI 的中間批次不強求逐 commit E2E。
+- [x] 本批涉及共享 baseline 的 VM 一次整合驗收有結果；未涉及 GUI 的中間批次不強求逐 commit E2E。
 - [x] 未操作真實預設 Snapshot／正式 Runs／使用者 Explorer；不新增自動 Restore、replay、kill／Registry／policy 修改。
 - [ ] 結案 Review 確認無必要工作剩餘後，才更新 Task-1 狀態並依使用者要求歸檔／commit。
 
@@ -209,4 +209,10 @@ Pester、CI、Module 遷移、完整 Task-5 延伸矩陣與其他功能的所有
 - 最終程式的 `Invoke-SmokeOfflineBaseline`：ASCII 呼叫端、PWD 切至 TEMP，**175 PASS**，七列 rows 正確、raw exit 均 0、外層 Exit 0，呼叫端仍為 ASCII。使用相同 collector／報告 formatter，此輪含最終 staging 與故障 assertions。證據：`%TEMP%/ResumeExplorer-OfflineTests-f355102a35c74a15862133f144b01d9b/result.json`。
 - `git diff --check` 通過，只有既有設定的 LF→CRLF 提示。原始 logs／本機私人絕對路徑不提交 repository。
 
-剩餘驗收：在原專用 Win11 VM 先執行公開離線入口，再執行一次既有一鍵 smoke，核對新 manifest、S 保存／關窗、E01／E02／清理與 supervisor 結果。記錄 tested revision（本次無新 commit）、PS／Windows／terminal、命令、suite/case roots、result.json 與 raw exits。7.4.22 未取得，標為未驗證；既有 VM 證據不適用此批，未在工作桌面執行 GUI 負向測試。Task-1 不標 Done、不歸檔、不建立 commit。
+實作交付時的剩餘驗收（後續結果見 §15）：在原專用 Win11 VM 先執行公開離線入口，再執行一次既有一鍵 smoke，核對新 manifest、S 保存／關窗、E01／E02／清理與 supervisor 結果。記錄 tested revision（本次無新 commit）、PS／Windows／terminal、命令、suite/case roots、result.json 與 raw exits。7.4.22 未取得，標為未驗證；既有 VM 證據不適用此批，未在工作桌面執行 GUI 負向測試。Task-1 不標 Done、不歸檔、不建立 commit。
+
+## 15. 使用者新版整合驗收（2026-11-04）
+
+使用者先提供 CMD 離線入口截圖：七套 39／17／23／49／13／18／16，共 **175 PASS**，各 suite raw exit 0、Offline Passed／E2E NotRun、launcher Exit 0；再提供新版一鍵 smoke 最終畫面：**Passed／Exit 0**，顯示本次持久 Snapshot 與完整 Restore 命令。依已核對的成功 gate，支持共享 baseline、E01／E02 驗證與清理、supervisor 的一次主要流程整合驗收；smoke 截圖未直接顯示逐 case rows，故這部分是依成功 gate 推論。使用者後續提供 `codex-clipboard-1b4477b1-2fd0-4edb-9e08-0e0714e9b697.png`，顯示執行同一份測試前 Snapshot 的 Restore 命令，Report Completed、Verification Complete、Total 4／Verified 4／Not verified 0，補足本次手動還原通過證據。截圖未顯示 `$LASTEXITCODE`，不另外宣稱 Restore 程序的 raw exit。
+
+截圖來源、Snapshot RunId 及證據限制見 [VM 驗收紀錄](../tests/Integration/TASK5-VM-ACCEPTANCE.md#task-1-shared-baseline-user-integration-acceptance-2026-11-04)。agent 未讀取 VM 原始 JSON/log，精確 tested revision、Windows／PS minor／terminal 與 case roots 未提供；本機 HEAD 不套用為 VM revision。7.4.22 與延伸矩陣保持未驗證。此次只更新文件、不重跑 GUI／離線測試，Task-1 待結案 review，不自動歸檔或建立 commit。

@@ -99,3 +99,26 @@ This supplies partial live evidence for F02: recovery guidance is retained durin
 The [multi-window close plan](../../plans/DONE/resume-explorer-Task-5-multi-group-close-regression-plan.md) is Done for its core correction and main-path acceptance. Source review at local HEAD `002fb9f` confirmed the convergence, exact SC_CLOSE selector, fingerprint/scope gates, shared deadline, one-post invariant, and integration at startup/E01/E02 cleanup. The previously executed ASCII baseline remains applicable (141 PASS, all exit 0): no PowerShell source/test changes exist between `a3586fc` and this review HEAD. It was not rerun for this documentation closeout. A new STA load-only probe passed for the native helper/UIA assemblies without any Shell enumeration or window action.
 
 The existing successful SC_CLOSE run and later successful persistent-recovery smoke support main-path live acceptance; no additional successful VM run or exact tested revision is invented. Remaining V01–V05 subcases and raw-artifact/runtime traceability are open in [Backlog](../../Backlog.md). The interrupted batch above is not counted as a successful close/cleanup or a consecutive reliability run. Archival certifies neither the entire matrix nor all Explorer hangs.
+
+## Task-1 shared baseline: user integration acceptance (2026-11-04)
+
+The user supplied two screenshots after the Task-1 implementation and CMD launcher delivery:
+
+- `codex-clipboard-8296da5a-f97d-4d90-b056-ffc008bacf9e.png`: executing `tests/Run-Tests.cmd`; seven suites report 39/17/23/49/13/18/16 (**175 PASS**), each raw exit 0, final Offline Passed / E2E NotRun (OfflineOnly), launcher exit 0, and a new offline evidence directory.
+- `codex-clipboard-a75ae75c-e601-4cf6-826a-dc55f7800cc0.png`: final supervisor summary `測試結果: Passed`, `Explorer smoke exit code: 0`, persistent Snapshot `%LOCALAPPDATA%/ResumeExplorer/Snapshots/BeforeSmoke/a8e72945e09d4e7db05e06cf1c026def.json`, matching `.restore.txt`, and a complete PowerShell Restore command. The summary explicitly says automatic restoration was not performed.
+
+Together these supply user-executed main-path integration acceptance following the new shared collector. Source review of the current success gate confirms that Passed requires the offline baseline, E01/E02 verification and cleanup, followed by supervisor validation of a Passed suite-result. Individual case rows and logs are not visible in the smoke screenshot; those steps are inferred from that gate, not independently inspected. Saving is supported by the displayed persistent Snapshot and recovery guidance.
+
+The agent did not run the VM, inspect original JSON/logs, or execute the displayed Restore command. Exact tested revision, VM Windows build, PS minor, terminal product, case roots and completion timestamp are not shown. Local review HEAD `5ded85b` is not asserted to be the VM revision. The preceding offline screenshot and smoke screenshot are separate runs; their evidence IDs are not conflated. PS7.4.22 and extended repeatability/negative matrices remain unverified. The subsequent manual-Restore screenshot below supplies a result for this same Snapshot. Original screenshots and private raw paths remain outside the repository. This documentation update does not change code or require a further GUI run.
+### Manual Restore of the Task-1 pre-smoke Snapshot (2026-11-04)
+
+The user supplied `codex-clipboard-1b4477b1-2fd0-4edb-9e08-0e0714e9b697.png`. It shows execution of the displayed PowerShell Restore command against the same `BeforeSmoke/a8e72945e09d4e7db05e06cf1c026def.json` Snapshot from the preceding successful smoke run.
+
+| Item | Visible evidence |
+| --- | --- |
+| Restore report | `%LOCALAPPDATA%/ResumeExplorer/Runs/1b28673b7c584dd6bd325582a530419d.json`, `(Completed)` |
+| Verification | `Complete` |
+| Items | Total 4, Verified 4, Not verified 0 |
+| Final message | `All 4 items verified.` followed by the PowerShell prompt |
+
+This supplies user-executed manual Restore acceptance for this saved configuration, in addition to the 175-case offline and smoke acceptance above. The agent did not perform Restore or inspect the original report. The screenshot does not display `$LASTEXITCODE`, so no raw Restore process exit is asserted. Existing runtime/revision and extended-matrix limitations remain unchanged. This update changes documentation only; no additional test run or commit was made.

@@ -135,7 +135,7 @@
 
 ### Task-1 — P1
 
-為 `resume-explorer.ps1` 建立自動化測試。**驗收狀態：In Progress／實作及本機離線驗證完成，待新版 VM 整合驗收（2026-11-04）。** 已新增 Snapshot 18 項、runner 16 項，保留原五套 141 項，共 **175 PASS**；共享 manifest／collector、`tests/Invoke-Tests.ps1`、逐 suite UTF-8 log 與 Version=1 test-run JSON 已實作。smoke baseline 委派同一 collector，維持 fail-fast、Suite／Passed／ExitCode rows 與 OfflineBaselineFailed Reason；產品 core／CLI／schemas 及原五套 tests 均未修改。報告明示 E2E NotRun，既有 Task-5 VM 成功不擴張到本次共享 baseline。PS7.4.22 與本批專用 VM 一鍵驗收仍待取得，暫不移至 Completed；Pester／Module／CI 非本階段必要條件。詳見 [Task-1 計畫 §14](plans/resume-explorer-Task-1-automated-tests-plan.md#14-本階段實作與驗證2026-11-04)。
+為 `resume-explorer.ps1` 建立自動化測試。**驗收狀態：In Progress／實作、本機驗證及使用者新版主要整合流程通過，待結案 review（2026-11-04）。** 已新增 Snapshot 18 項、runner 16 項，保留原五套 141 項，共 **175 PASS**；共享 manifest／collector、`tests/Invoke-Tests.ps1`、逐 suite UTF-8 log 與 Version=1 test-run JSON 已實作。smoke baseline 委派同一 collector，維持 fail-fast、Suite／Passed／ExitCode rows 與 OfflineBaselineFailed Reason；產品 core／CLI／schemas 及原五套 tests 均未修改。報告明示 E2E NotRun，既有 Task-5 VM 成功不擴張到本次共享 baseline。本批使用者已提供離線 175 PASS／CMD Exit 0 與 smoke Passed／Exit 0 截圖，並顯示本次持久 Snapshot 及還原命令。PS7.4.22、VM 精確版本／tested revision 與原始 JSON 未取得；使用者後續提供同一 Snapshot 手動 Restore Completed／4/4 Verified／0 Not verified 截圖，仍待結案 review，暫不移至 Completed；Pester／Module／CI 非本階段必要條件。詳見 [Task-1 計畫 §14](plans/resume-explorer-Task-1-automated-tests-plan.md#14-本階段實作與驗證2026-11-04)。
 
 ### Task-5 後續 — 多組關窗延伸驗證（Open）
 
