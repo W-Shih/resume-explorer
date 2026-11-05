@@ -1,5 +1,7 @@
 # 一鍵 Explorer smoke — Windows 11 測試桌面
 
+Task-1 已於 2026-11-04 完成結案 review 並[歸檔](../../plans/DONE/resume-explorer-Task-1-automated-tests-plan.md#16-結案-review-與歸檔2026-11-04)：公開離線入口重跑 175 PASS／Exit 0，使用者本批 smoke 及同一 Snapshot 的手動 Restore 4/4 Verified 證據保留；版本追溯與延伸矩陣限制不因結案而移除。
+
 2026-11-04 Task-1 更新：本機共用 baseline 已通過 175 項（含新增 Snapshot／runner suites）；使用者後續已提供新版 CMD 離線 175 PASS／Exit 0 及一鍵 smoke Passed／Exit 0 截圖，主要整合流程驗收通過，詳見 TASK5-VM-ACCEPTANCE.md；精確 tested revision／版本與原始報告未提供。下方舊版 141／126 項與 VM 通過紀錄僅屬當時版本。
 
 警告：測試會關閉 Explorer 視窗，可能影響目前工作。建議在可重設的 Windows 11 VM 或專用測試桌面執行，以降低干擾工作桌面或 VDI 的風險。需安裝 PowerShell 7，且 `pwsh.exe` 在 PATH。雙擊 `tests\Integration\Run-ExplorerSmoke.cmd`，或執行：

@@ -3,7 +3,7 @@
 - **建立日期：** 2026-11-02
 - **狀態：** **Completed / Closed（2026-11-02，使用者 VM 實機驗收）**。最新截圖顯示 E01／E02 人工確認完成、Phase Complete、Error null 與整體 Exit 0；詳見[驗收證據與限制](../../tests/Integration/TASK5-VM-ACCEPTANCE.md)
 - **優先級：** P1（PowerShell 7-only Runtime Support 的實際 GUI／COM 驗收關卡）
-- **對應：** [Backlog / Tasks](../../Backlog.md) 的 Task-5；[Task-1 Automated Tests Plan](../resume-explorer-Task-1-automated-tests-plan.md)
+- **對應：** [Backlog / Tasks](../../Backlog.md) 的 Task-5；[Task-1 Automated Tests Plan](resume-explorer-Task-1-automated-tests-plan.md)
 - **測試對象：** Windows 11 + `pwsh.exe` 7.x + 真實 Explorer Tabs；不再要求 Windows PowerShell 5.1
 - **範圍原則：** 先證明現有 CLI 行為；只在有可重現缺陷證據後，另案進行最小 production 修復
 
@@ -208,7 +208,7 @@ TestRoot\
 
 - [README](../../README.md)：正式 PowerShell 7-only 政策、Restore/Retry 使用與安全限制。
 - [Backlog](../../Backlog.md)：Task-1、Task-3、Issue-3/4、Task-5 與 Runtime Policy。
-- [Task-1 Automated Tests Plan](../resume-explorer-Task-1-automated-tests-plan.md)：較完整的 Unit／Pester／E2E 基建；含早期已過時的 repo 現況，須以本計畫的實際 Source Review 為準。
+- [Task-1 Automated Tests Plan](resume-explorer-Task-1-automated-tests-plan.md)：已結案的離線測試、共用 collector 與執行證據；沿用輕量框架，Pester／Module 不屬該階段必要條件，最新驗收見該計畫 §14–16。
 - `resume-explorer.ps1` / `resume-explorer.core.ps1`：當前具體行為及 Snapshot/Report/Retry 不變條件。
 - `tests/Issue2.Tests.ps1` / `tests/RestoreSummary.Tests.ps1`：現有 deterministic regression。
 

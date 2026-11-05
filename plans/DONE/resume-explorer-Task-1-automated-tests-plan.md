@@ -1,9 +1,9 @@
-# Resume Explorer — Task-1 自動化測試：下一階段實作計畫
+# Resume Explorer — Task-1 自動化測試：實作與結案驗收紀錄
 
 - 初版日期：2026-11-01；本次重訂：2026-11-04。
-- 狀態：**本階段實作、本機驗證及使用者新版主要整合流程通過；待結案 review**。保留於 plans/，不標記 Done。實作證據見 §14；下文原規劃敘述保留作設計脈絡。
-- Review HEAD：e146f85；開始時工作樹乾淨。本次僅更新文件，不修改程式／測試、安裝依賴或執行真實 Explorer。
-- 對應：[Backlog Task-1](../Backlog.md)、[目前測試說明](../README.md)、[Task-5 VM 證據](../tests/Integration/TASK5-VM-ACCEPTANCE.md)。
+- 狀態：**Done／本階段實作與主要流程驗收完成（2026-11-04）**。依使用者要求歸檔至 plans/DONE；結案判定見 §16，實作及使用者驗收證據見 §14–15。§1–15 中的規劃、待辦與中間狀態保留為歷史脈絡，以本狀態及 §16 為準。
+- 規劃 Review HEAD（歷史）：e146f85；當時僅更新文件。結案 Review HEAD：a96ae8c；本次重跑公開離線入口並核對 JSON／logs，未執行真實 Explorer。
+- 對應：[Backlog Task-1](../../Backlog.md)、[目前測試說明](../../README.md)、[Task-5 VM 證據](../../tests/Integration/TASK5-VM-ACCEPTANCE.md)。
 - 本文件取代舊版要求先採 Pester／抽 Module／建立 Unit+Integration 統一 dispatcher 的實作順序。舊版 review 的歷史判定見 §13；後續以本文件的範圍、契約與完成標準為準。
 
 ## 1. 本次 Review 結論
@@ -12,11 +12,11 @@ Task-1 的原始目的，是提供可重複、安全且有診斷價值的自動�
 
 | 已核對位置 | 現況與判斷 |
 | --- | --- |
-| [產品 core](../resume-explorer.core.ps1) 的 Read-Snapshot／Save-Snapshot／Start-RestoreRun（本次 L360／367／539） | 已有可載入的函式邊界；Restore 先讀 Snapshot 才建立 adapter，可測無效輸入是否在 UI 前拒絕。無須先重構 Module |
-| [Issue2 tests](../tests/Issue2.Tests.ps1) L291–309 | 一項實際 Save／Read／Preview 測試涵蓋兩組、重複路徑與 Preview hash 不變；尚未完整涵蓋空資料、單元素、UTF-8 及錯誤輸入的副作用邊界 |
-| [baseline helper](../tests/Integration/ExplorerSmoke.OneClick.Core.ps1) L6–18 | 已用獨立 current-engine processes 核對 exit 與精確 PASS 數量，零測試不會通過，並回傳 Suite／Passed／ExitCode rows。缺的是方便的離線入口與可查閱的失敗證據，不是完全沒有 runner 或結構化結果 |
+| [產品 core](../../resume-explorer.core.ps1) 的 Read-Snapshot／Save-Snapshot／Start-RestoreRun（本次 L360／367／539） | 已有可載入的函式邊界；Restore 先讀 Snapshot 才建立 adapter，可測無效輸入是否在 UI 前拒絕。無須先重構 Module |
+| [Issue2 tests](../../tests/Issue2.Tests.ps1) L291–309 | 一項實際 Save／Read／Preview 測試涵蓋兩組、重複路徑與 Preview hash 不變；尚未完整涵蓋空資料、單元素、UTF-8 及錯誤輸入的副作用邊界 |
+| [baseline helper](../../tests/Integration/ExplorerSmoke.OneClick.Core.ps1) L6–18 | 已用獨立 current-engine processes 核對 exit 與精確 PASS 數量，零測試不會通過，並回傳 Suite／Passed／ExitCode rows。缺的是方便的離線入口與可查閱的失敗證據，不是完全沒有 runner 或結構化結果 |
 | 同一 helper 的失敗處理 | 原始子程序輸出只存於區域變數；外層只見 OfflineBaselineFailed，這次編碼 regression 的診斷因此多次往返。應保留原始輸出與環境資訊 |
-| [Recovery fixture](../tests/ExplorerSmoke.Recovery.Tests.ps1) L52–62 | 暫用 UTF-8 捕捉 native pwsh 輸出、finally 還原呼叫端編碼，已有 ASCII／UTF-8 回歸；新 collector 應沿用這項已驗證契約 |
+| [Recovery fixture](../../tests/ExplorerSmoke.Recovery.Tests.ps1) L52–62 | 暫用 UTF-8 捕捉 native pwsh 輸出、finally 還原呼叫端編碼，已有 ASCII／UTF-8 回歸；新 collector 應沿用這項已驗證契約 |
 | Task-5 | E01／E02、整窗關閉及持久復原主要流程已有使用者 VM 證據；不重建另一個 E2E runner，也不把離線 green 當成 VM 通過 |
 
 既有離線基準為 **39＋17＋23＋49＋13＝141 PASS**；來源是本 chat 前次實際執行，非本次新增執行結果。已確認該次 review 後的 PowerShell 程式／測試沒有變更。這個數字不能代表所有 Snapshot 契約已被覆蓋。
@@ -156,8 +156,8 @@ A／B 可分開 review；C 必須以測試確認共同實作的整合，不只�
 - [x] 實際總基準為 141＋新增 cases，預期數與觀察數一致；不把未跑 cases 算 failed 或 Passed。
 - [x] Windows PS7 依賴、公開命令、結果位置／exit、證據與本機／VM 驗證範圍寫入文件。
 - [x] 本批涉及共享 baseline 的 VM 一次整合驗收有結果；未涉及 GUI 的中間批次不強求逐 commit E2E。
-- [x] 未操作真實預設 Snapshot／正式 Runs／使用者 Explorer；不新增自動 Restore、replay、kill／Registry／policy 修改。
-- [ ] 結案 Review 確認無必要工作剩餘後，才更新 Task-1 狀態並依使用者要求歸檔／commit。
+- [x] agent 未操作真實預設 Snapshot／正式 Runs／使用者 Explorer；不新增自動 Restore、replay、kill／Registry／policy 修改。
+- [x] 結案 Review 確認本階段無必要工作剩餘；已依使用者要求更新 Task-1 狀態並歸檔，未要求／建立 commit。
 
 Pester、CI、Module 遷移、完整 Task-5 延伸矩陣與其他功能的所有 R-cases，不再是本階段必須完成的條件。
 
@@ -174,9 +174,9 @@ Pester、CI、Module 遷移、完整 Task-5 延伸矩陣與其他功能的所有
 
 ## 12. 文件與相依項目
 
-- 現有測試入口說明：[README](../README.md)；本計畫中尚未實作的 command 不得寫成現成可執行功能。
-- E2E 操作與證據：[一鍵 SOP](../tests/Integration/ONE-CLICK.md)、[VM 驗收](../tests/Integration/TASK5-VM-ACCEPTANCE.md)。
-- 已完成的相關工作：[Issue-2](DONE/resume-explorer-Issue-2-fix-plan.md)、[整窗關閉修復](DONE/resume-explorer-Task-5-multi-group-close-regression-plan.md)、[持久 Snapshot／復原提示](DONE/resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md)。
+- 現有測試入口說明：[README](../../README.md)；本計畫中尚未實作的 command 不得寫成現成可執行功能。
+- E2E 操作與證據：[一鍵 SOP](../../tests/Integration/ONE-CLICK.md)、[VM 驗收](../../tests/Integration/TASK5-VM-ACCEPTANCE.md)。
+- 已完成的相關工作：[Issue-2](resume-explorer-Issue-2-fix-plan.md)、[整窗關閉修復](resume-explorer-Task-5-multi-group-close-regression-plan.md)、[持久 Snapshot／復原提示](resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md)。
 - Task-2／Task-3、Issue-4、FR-10 保持獨立；Snapshot 的部分 invalid-path 行為雖已在 core 中存在，也不等於那些獨立需求已全面驗收。
 
 ## 13. 歷史驗收與本次修訂依據
@@ -215,4 +215,15 @@ Pester、CI、Module 遷移、完整 Task-5 延伸矩陣與其他功能的所有
 
 使用者先提供 CMD 離線入口截圖：七套 39／17／23／49／13／18／16，共 **175 PASS**，各 suite raw exit 0、Offline Passed／E2E NotRun、launcher Exit 0；再提供新版一鍵 smoke 最終畫面：**Passed／Exit 0**，顯示本次持久 Snapshot 與完整 Restore 命令。依已核對的成功 gate，支持共享 baseline、E01／E02 驗證與清理、supervisor 的一次主要流程整合驗收；smoke 截圖未直接顯示逐 case rows，故這部分是依成功 gate 推論。使用者後續提供 `codex-clipboard-1b4477b1-2fd0-4edb-9e08-0e0714e9b697.png`，顯示執行同一份測試前 Snapshot 的 Restore 命令，Report Completed、Verification Complete、Total 4／Verified 4／Not verified 0，補足本次手動還原通過證據。截圖未顯示 `$LASTEXITCODE`，不另外宣稱 Restore 程序的 raw exit。
 
-截圖來源、Snapshot RunId 及證據限制見 [VM 驗收紀錄](../tests/Integration/TASK5-VM-ACCEPTANCE.md#task-1-shared-baseline-user-integration-acceptance-2026-11-04)。agent 未讀取 VM 原始 JSON/log，精確 tested revision、Windows／PS minor／terminal 與 case roots 未提供；本機 HEAD 不套用為 VM revision。7.4.22 與延伸矩陣保持未驗證。此次只更新文件、不重跑 GUI／離線測試，Task-1 待結案 review，不自動歸檔或建立 commit。
+截圖來源、Snapshot RunId 及證據限制見 [VM 驗收紀錄](../../tests/Integration/TASK5-VM-ACCEPTANCE.md#task-1-shared-baseline-user-integration-acceptance-2026-11-04)。agent 未讀取 VM 原始 JSON/log，精確 tested revision、Windows／PS minor／terminal 與 case roots 未提供；本機 HEAD 不套用為 VM revision。7.4.22 與延伸矩陣保持未驗證。此次只更新文件、不重跑 GUI／離線測試，Task-1 待結案 review，不自動歸檔或建立 commit。
+## 16. 結案 Review 與歸檔（2026-11-04）
+
+**結論：Done，符合本階段完成條件，依使用者要求移至 plans/DONE。** Review 使用本機 HEAD `a96ae8c`，開始時工作樹乾淨；不將此 revision 套用為 VM tested revision。
+
+- 已核對 S01–S10／T01–T08、單一 manifest／collector、離線公開入口、CMD launcher、smoke 相容層與 §10 DoD，未發現阻擋本階段結案的問題。
+- Git 比對 `9e5325f` 至 Review HEAD：產品 CLI／core 及原五套測試均未變更；`8658d43` 至 Review HEAD 的 collector／新 suites／smoke wrapper 亦無變更。原 141 項回歸與 assertions 保留，沒有以調整舊斷言換取通過。
+- 本次重新執行 `pwsh -NoProfile -NonInteractive -File tests/Invoke-Tests.ps1`：**39＋17＋23＋49＋13＋18＋16＝175 PASS**，入口及七套 raw exit 均為 0。再次讀取 result.json 及七份 log，核對每套 observed／expected／實際 PASS 行一致、OverallStatus Passed、E2E NotRun／OfflineOnly。證據：`%TEMP%/ResumeExplorer-OfflineTests-1abdb5ee0391423298b7f0098012f731/result.json`，環境版本以該 JSON 為準。
+- 共享 baseline 的主要整合驗收沿用 §15 使用者本批截圖：CMD 離線 175 PASS／Exit 0、一鍵 smoke Passed／Exit 0，以及同一持久 Snapshot 手動 Restore Completed、4/4 Verified、0 Not verified。本次沒有重新操作真實 Explorer。
+- 文件狀態、Backlog Completed 分類、所有指向本計畫的 Markdown 連結及本計畫內相對路徑同步調整；不變更程式、測試、版本號或產品 schemas，不建立 commit。
+
+PS7.4.22 未實測、VM 精確 Windows／PS／terminal／tested revision 及原始 JSON 未取得，仍是已記錄的相容性／證據限制。依 §2、§3、§9 與 §10，本階段接受已驗證 PS7.6.1 及使用者本批主要流程證據，不宣稱所有 PS7 minor 或所有環境通過；這些限制不列為未完成的必要實作。Task-5 延伸重複／取消／故障矩陣仍由 Backlog 原項目追蹤，Pester／Module／CI、Task-2／Task-3／Issue-4／FR-10 仍屬獨立工作，未因本次歸檔被標為完成。

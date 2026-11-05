@@ -133,10 +133,6 @@
 
 ## Tasks
 
-### Task-1 — P1
-
-為 `resume-explorer.ps1` 建立自動化測試。**驗收狀態：In Progress／實作、本機驗證及使用者新版主要整合流程通過，待結案 review（2026-11-04）。** 已新增 Snapshot 18 項、runner 16 項，保留原五套 141 項，共 **175 PASS**；共享 manifest／collector、`tests/Invoke-Tests.ps1`、逐 suite UTF-8 log 與 Version=1 test-run JSON 已實作。smoke baseline 委派同一 collector，維持 fail-fast、Suite／Passed／ExitCode rows 與 OfflineBaselineFailed Reason；產品 core／CLI／schemas 及原五套 tests 均未修改。報告明示 E2E NotRun，既有 Task-5 VM 成功不擴張到本次共享 baseline。本批使用者已提供離線 175 PASS／CMD Exit 0 與 smoke Passed／Exit 0 截圖，並顯示本次持久 Snapshot 及還原命令。PS7.4.22、VM 精確版本／tested revision 與原始 JSON 未取得；使用者後續提供同一 Snapshot 手動 Restore Completed／4/4 Verified／0 Not verified 截圖，仍待結案 review，暫不移至 Completed；Pester／Module／CI 非本階段必要條件。詳見 [Task-1 計畫 §14](plans/resume-explorer-Task-1-automated-tests-plan.md#14-本階段實作與驗證2026-11-04)。
-
 ### Task-5 後續 — 多組關窗延伸驗證（Open）
 
 **Open — 完整實機矩陣與追溯補強，非已證實的新產品缺陷。** 原 V01–V05 定義保留於歸檔計畫 §7.2：
@@ -162,6 +158,13 @@
 ---
 
 ## Completed
+
+### Task-1 — P1 — 自動化測試（Completed／2026-11-04）
+
+- **交付**：Snapshot 18 項、runner 16 項，保留原五套 141 項，共 **175 PASS**；單一 manifest／collector、`tests/Invoke-Tests.ps1`／`tests/Run-Tests.cmd`、逐 suite UTF-8 logs 與 Version=1 test-run JSON。smoke 保留 fail-fast、Suite／Passed／ExitCode rows 與 OfflineBaselineFailed Reason；產品程式、原五套 assertions 及產品 schemas 未修改。
+- **驗收**：結案 Review HEAD `a96ae8c`，公開離線入口重跑 175 PASS、入口／七套 raw exit 均 0，JSON 與 logs 逐套核對通過；使用者本批 CMD 離線 175 PASS、一鍵 smoke Passed／Exit 0，以及同一 Snapshot 手動 Restore Completed／4/4 Verified／0 Not verified 的截圖支持主要流程驗收。
+- **範圍／限制**：本機 PS7.6.1 已驗證，7.4.22、VM 精確版本／tested revision 與原始 JSON 未取得，不宣稱所有環境或完整延伸矩陣通過。其他 Task／FR、Pester／Module／CI 不屬本階段必要完成條件。
+- **結案**：已完成 Review，依使用者要求[歸檔計畫與證據](plans/DONE/resume-explorer-Task-1-automated-tests-plan.md#16-結案-review-與歸檔2026-11-04)，未建立 commit。
 
 ### Task-5 — P1 — PowerShell 7 Explorer E2E Smoke Test（Completed／使用者 VM 驗收，2026-11-02）
 

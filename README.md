@@ -214,7 +214,7 @@ tests\Run-Tests.cmd
 
 測試以注入的時鐘和觀測 adapter 驗證副作用次數，不操作實際 Explorer，也不需安裝 Pester。
 
-目前七套基準為 39／17／23／49／13／18／16，共 **175 項**；原五套 141 項與既有 assertions 保留。Snapshot 與 runner 新測試的 S01–S10／T01–T08 對照直接標在 case 名稱中。公開入口 dot-source 只載入函式；沒有 Integration dispatch 或 timeout／殺程序策略。PS7.6.1 本機離線通過，7.4.22 未驗證；使用者已提供新版離線 175 PASS 與一鍵 smoke Passed／Exit 0 截圖，主要整合流程驗收通過；Task-1 待結案 review，截圖未顯示的版本／原始報告資訊仍列為證據限制。詳見 [Task-1 實作／驗收紀錄](plans/resume-explorer-Task-1-automated-tests-plan.md#14-本階段實作與驗證2026-11-04)。
+目前七套基準為 39／17／23／49／13／18／16，共 **175 項**；原五套 141 項與既有 assertions 保留。Snapshot 與 runner 新測試的 S01–S10／T01–T08 對照直接標在 case 名稱中。公開入口 dot-source 只載入函式；沒有 Integration dispatch 或 timeout／殺程序策略。PS7.6.1 本機離線通過，7.4.22 未驗證；使用者已提供新版離線 175 PASS 與一鍵 smoke Passed／Exit 0 截圖，主要整合流程驗收通過；Task-1 已完成結案 review 並歸檔至 plans/DONE，截圖未顯示的版本／原始報告資訊仍列為證據限制。詳見 [Task-1 實作／驗收紀錄](plans/DONE/resume-explorer-Task-1-automated-tests-plan.md#14-本階段實作與驗證2026-11-04)。
 
 ### PowerShell 7 真實 Explorer smoke runner（Task-5）
 

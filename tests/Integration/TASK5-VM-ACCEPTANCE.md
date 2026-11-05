@@ -102,6 +102,8 @@ The existing successful SC_CLOSE run and later successful persistent-recovery sm
 
 ## Task-1 shared baseline: user integration acceptance (2026-11-04)
 
+Task-1 subsequently passed closeout review at local HEAD `a96ae8c` and its [plan was archived as Done](../../plans/DONE/resume-explorer-Task-1-automated-tests-plan.md#16-結案-review-與歸檔2026-11-04). The agent reran the public offline entry (175 PASS, all exit 0) and checked its JSON/logs; the user-provided live evidence below was reused, with no additional GUI operation. The local review revision does not identify the tested VM revision.
+
 The user supplied two screenshots after the Task-1 implementation and CMD launcher delivery:
 
 - `codex-clipboard-8296da5a-f97d-4d90-b056-ffc008bacf9e.png`: executing `tests/Run-Tests.cmd`; seven suites report 39/17/23/49/13/18/16 (**175 PASS**), each raw exit 0, final Offline Passed / E2E NotRun (OfflineOnly), launcher exit 0, and a new offline evidence directory.

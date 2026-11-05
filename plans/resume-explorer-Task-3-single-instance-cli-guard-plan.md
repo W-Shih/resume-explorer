@@ -4,7 +4,7 @@
 - **優先級：** P2；[Task-4 S16 測試基線修復](DONE/resume-explorer-Task-4-restore-summary-s16-regression-plan.md) 已完成並歸檔，建議作為下一個獨立實作；FR-6 Phase 3/4 的必要前置
 - **狀態：** **Reviewed / Proposed；僅規劃，尚未實作**
 - **來源：** [Backlog.md — Task-3](../Backlog.md)（原 Review 範圍 L122–L128）
-- **對應：** [FR-6 Report Retention Plan](resume-explorer-Feature-Request-6-report-size-plan.md) §5.2 / Phase 2A；[Task-1 Tests Plan](resume-explorer-Task-1-automated-tests-plan.md)
+- **對應：** [FR-6 Report Retention Plan](resume-explorer-Feature-Request-6-report-size-plan.md) §5.2 / Phase 2A；[Task-1 Tests Plan](DONE/resume-explorer-Task-1-automated-tests-plan.md)
 - **本次範圍：** 全命令互斥的需求／設計／測試規劃；**不修改 Production Code、Tests、Version，不實作 Cleanup，也不建立 Commit**。
 
 ## Runtime Policy（2026-11-02 後續決策）
@@ -241,5 +241,5 @@ Track B: FR-6 Phase 0 --> Phase 1 --> Phase 2 ---------+
 
 - [Backlog.md](../Backlog.md)：Task-3 描述、優先序、與 FR-6 Phase 3/4 的相依。
 - [FR-6 Report Retention Plan](resume-explorer-Feature-Request-6-report-size-plan.md)：同步 Cleanup 的完整 Family／Crash Recovery 保護。
-- [Task-1 Automated Tests Plan](resume-explorer-Task-1-automated-tests-plan.md)：既有測試基礎與隔離測試方法；文件內部分歷史敘述未完全反映目前已拆分的 Core 和 39 個 adapter tests，未來可另行刷新。
+- [Task-1 Automated Tests Plan](DONE/resume-explorer-Task-1-automated-tests-plan.md)：已結案的離線測試基礎與隔離測試方法；目前七套共 175 項，實作與主要流程驗收範圍及限制見該計畫 §14–16。
 - [Issue-4 Synchronous Timeout Plan](resume-explorer-Issue-4-synchronous-timeout-plan.md)：獨立調查同步 COM/UIA 卡住問題。
