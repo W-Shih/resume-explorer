@@ -192,6 +192,12 @@ Windows PowerShell 7 的完整離線入口（使用目前實際 `pwsh.exe`，不
 pwsh -NoProfile -NonInteractive -File .\tests\Invoke-Tests.ps1
 ```
 
+CMD 可從專案根目錄執行以下命令，或直接雙擊 `tests\Run-Tests.cmd`。Launcher 使用自身位置定位入口，不依賴工作目錄；需要 PATH 中有 `pwsh.exe`。結束後按任意鍵關閉，並保留原退出碼（找不到 PowerShell 7 為 2）。
+
+```cmd
+tests\Run-Tests.cmd
+```
+
 入口只執行明確的七套離線 manifest，不操作真實 Explorer。每次執行印出新的 `%TEMP%\ResumeExplorer-OfflineTests-<RunId>`；保留 Version=1 的 `result.json` 及各 suite 的完整 UTF-8 `.log`。JSON 包含 engine／PS／OS、起訖時間、expected／observed PASS、raw child exit、suite Status／Reason／LogPath，並明示 `E2E: NotRun / OfflineOnly`。只有所有 suite 通過且必要證據提交完成才 Exit 0；suite 失敗為 1；環境、manifest、啟動或證據保存錯誤為 2（優先於 1）。未執行列為 NotRun、raw exit 為 null；不推算 failed／skipped case 數。報告寫入失敗時以非零退出並指出已有日誌位置。TEMP 證據由操作者保留／清理，不屬於產品 Runs。
 
 也可個別執行以下 suites：
