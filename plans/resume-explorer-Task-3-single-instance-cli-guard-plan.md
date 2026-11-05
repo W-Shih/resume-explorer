@@ -243,3 +243,32 @@ Track B: FR-6 Phase 0 --> Phase 1 --> Phase 2 ---------+
 - [FR-6 Report Retention Plan](resume-explorer-Feature-Request-6-report-size-plan.md)：同步 Cleanup 的完整 Family／Crash Recovery 保護。
 - [Task-1 Automated Tests Plan](DONE/resume-explorer-Task-1-automated-tests-plan.md)：已結案的離線測試基礎與隔離測試方法；目前七套共 175 項，實作與主要流程驗收範圍及限制見該計畫 §14–16。
 - [Issue-4 Synchronous Timeout Plan](resume-explorer-Issue-4-synchronous-timeout-plan.md)：獨立調查同步 COM/UIA 卡住問題。
+
+## 10. 2026-11-04 Re-review：可直接執行的實作補強
+
+**狀態：Ready for Implementation（文件更新；Production Code 尚未實作）。** 本輪再次核對 HEAD `63ce922`、`resume-explorer.ps1`、`Start-RetryRun`、`tests/TestRunner.Core.ps1` 與 Backlog L147–153。原方案的固定使用者 Lock Anchor、`FileShare.None`、CLI 外層 `try/finally`、保留 Retry family lock 均維持；無須新增 Service／Pester／Mutex 或重構 Restore。Task-1 現有離線基準為 **七套 175 項**（39+17+23+49+13+18+16），不能沿用本計畫舊的兩套驗證口徑作為交付依據。
+
+### 10.1 新發現與必要調整
+
+1. **正式離線 manifest 是固定清單。** `tests/TestRunner.Core.ps1::Get-OfflineTestManifest` 明列七個 suite 與固定 `Expected`。新增 `tests/InstanceLock.Tests.ps1` 後，必須同步將它納入 manifest，更新預期新增測試數目、runner 自身相關驗證，以及 README 中的 suite／case 基準。這是因為新增 suite 的合理更新，**不可弱化、刪除或修改原七套既有 assertions 來湊 PASS**；若既有測試需修改，先提供可證實原因。
+2. **鎖前副作用邊界。** 目前 CLI 在 Action dispatch 前只 dot-source core、建立 config、執行 `Assert-RestoreConfig`。鎖應放在任何 Action 存取 Explorer、Snapshot、Report 之前；既有參數繫結／純計算驗證可保留在鎖外，但驗證失敗仍不得進入 Action。不要用寬泛 `catch` 把 Core 的 IOException 誤判為 Busy。
+3. **實際 CLI entrypoint 必測。** 單獨 Helper 互斥不能證明所有五個 Action 都走到同一把鎖。使用測試專屬的 CLI copy／測試注入 seams 及 action stubs，或安全的隔離 Windows profile，證明 Busy 前沒有 Explorer／Snapshot／Report 讀寫與 Action dispatch；不得讓測試佔用正式使用者的 Anchor 或呼叫真實 Explorer。
+4. **錯誤和結束碼必測。** 以 `IOException.HResult` 可辨識的 Windows sharing violation（低 16-bit code 32）做 Busy 分類；未經證明的 IOException、ACL／路徑失敗皆 fail-closed 並回報不同訊息。由獨立 `pwsh -NoProfile -NonInteractive -File` 驗證 Busy 與其他失敗皆非零、正常 Action 原退出行為不變；保留原 exception／stack 可診斷性。不要在 `finally` 中 `exit` 或 `return` 遮蔽錯誤。
+5. **Lock 生命周期必測。** 先取得 Global，再執行 Action；Retry 的內層 family lock 在自己的 `finally` 關閉，Global 最後關閉。正常結束、Action throw、可控取消、子程序意外終止後，另一個 process 應能取得鎖；Anchor 保留且不代表 Busy。未來 FR-6 Cleanup 的持鎖測試屬 integration contract，現在不必實作不存在的 Cleanup。
+6. **實測環境與 Scope。** 跨 host、CMD、不同 PWD 的決定性測試可用獨立 `pwsh` 子程序模擬；VS Code／RDP 差異只在有真實隔離環境與可驗證相同 Anchor 時列入現場測試，不能把未執行的矩陣標為 PASS。僅支援 Windows PowerShell 7。
+
+### 10.2 建議實作順序與提交前 Gates
+
+| 順序 | 工作 | 必要驗收 |
+| --- | --- | --- |
+| A | 保存 baseline：`git status`、`pwsh -NoProfile -NonInteractive -File .\\tests\\Invoke-Tests.ps1` | 七套、175 項原有行為及原始 log／exit 記錄；若現有失敗，先 RCA |
+| B | 加入兩個聚焦的 Core lock helper（預設 Known Folder、內部 path injection、OpenOrCreate/FileShare.None），不增加公開 CLI switch | 新的離線 unit/cross-process cases：唯一 anchor、sharing violation、I/O 和 ACL fail-closed、release/reacquire；同步 ready/release，不靠 sleep |
+| C | 最小化修改薄 CLI：完整 `switch($Action)` 包入 `try/finally`；Global handle 涵蓋現有 Retry family `finally` | 五種 Action 的 Busy-before-dispatch；一次只有一個 holder；正常與錯誤 exit；沒有新 Explorer／Snapshot／Report 副作用 |
+| D | 把 `InstanceLock.Tests.ps1` 納入 `Get-OfflineTestManifest`，調整必要的 runner 基準與補充測試 | 舊七套測試全部保持原契約；八套測試的 Expected 等於實際穩定 PASS 行數；新報告與 logs 完整 |
+| E | 更新 README、Backlog、FR-6 的實際狀態／版本，檢查 diff 與證據 | 單例保證範圍、Busy 訊息、有意的並行行為變更、未驗證 RDP/VDI 情境如實記錄 |
+
+**CLI 隔離設計 Gate：** 不應僅因 Helper 接受測試 Path 就把正式 CLI 改成可任意指定 `-LockPath`。若測試副本需要替換 lock-path helper，應證明注入僅作用於測試複本或 test fixture；正式入口在 production 始終使用同一個 per-user anchor。檢查測試 fixture 對 repo 原始檔沒有永久修改、無安全性繞過遺留。
+
+**額外負向案例：** 目錄初始化競爭、anchor 指向目錄或不可存取路徑、父路徑無法建立、已存在但未持鎖的 lock file、共享衝突以外的 IOException，以及持鎖期間第二命令沒有任何 Action stdout／output artifact。只有 lock anchor 初始化副作用可以例外。
+
+**完成定義：** 新舊測試均有 log／ExitCode，跨獨立 process 互斥及 CLI guard 實際可驗；不修改既有報告／Snapshot Schema、Explorer / Retry safety、不操作生產 Explorer。**本次 Review 沒有執行新測試或實作 guard，不能把原先的 175 PASS 當成 Task-3 的驗收。**
