@@ -135,7 +135,7 @@
 
 ### Task-1 — P1
 
-為 `resume-explorer.ps1` 建立自動化測試，涵蓋 Snapshot 讀寫與驗證等可單元測試的邏輯。**驗收狀態：In Progress／部分完成（2026-11-04），暫不移至 Completed。** 已有 core／adapter 測試邊界、五套 39/17/23/49/13＝141 項離線基準，以及會檢查 exit／PASS 數量的 baseline helper；真實 E01／E02 已由 Task-5 另案結案。仍需補齊 Snapshot 首批契約與零 UI 副作用測試，並交付／驗證獨立 Unit 入口、依賴政策及機器可讀的 Unit／E2E 結果契約。Pester／Module 是可重新評估的選型，CI 為選用，不以未採用它們作為單獨阻擋條件。詳見 [Task-1 計畫 §13 驗收紀錄](plans/resume-explorer-Task-1-automated-tests-plan.md)。
+為 `resume-explorer.ps1` 建立自動化測試。**驗收狀態：In Progress／實作及本機離線驗證完成，待新版 VM 整合驗收（2026-11-04）。** 已新增 Snapshot 18 項、runner 16 項，保留原五套 141 項，共 **175 PASS**；共享 manifest／collector、`tests/Invoke-Tests.ps1`、逐 suite UTF-8 log 與 Version=1 test-run JSON 已實作。smoke baseline 委派同一 collector，維持 fail-fast、Suite／Passed／ExitCode rows 與 OfflineBaselineFailed Reason；產品 core／CLI／schemas 及原五套 tests 均未修改。報告明示 E2E NotRun，既有 Task-5 VM 成功不擴張到本次共享 baseline。PS7.4.22 與本批專用 VM 一鍵驗收仍待取得，暫不移至 Completed；Pester／Module／CI 非本階段必要條件。詳見 [Task-1 計畫 §14](plans/resume-explorer-Task-1-automated-tests-plan.md#14-本階段實作與驗證2026-11-04)。
 
 ### Task-5 後續 — 多組關窗延伸驗證（Open）
 

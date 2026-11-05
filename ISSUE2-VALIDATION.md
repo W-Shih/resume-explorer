@@ -1,5 +1,7 @@
 # Issue-2 implementation validation
 
+Task-1 update (2026-11-04, working tree based on `9e5325f`): the public offline entry is now `pwsh -NoProfile -NonInteractive -File tests/Invoke-Tests.ps1`. Original suites remain unchanged (39/17/23/49/13); Snapshot adds 18 and runner adds 16, for **175 PASS**, all raw exits 0. The final shared smoke baseline also passed under ASCII from another PWD with encoding restored. Windows NT 10.0.22631.0 / PS7.6.1 only; PS7.4.22 and this revision's dedicated VM smoke remain unverified. No production or real Explorer changes were made. Each run saves full UTF-8 suite logs and a Version=1 test-run JSON with E2E NotRun; final baseline evidence is `%TEMP%/ResumeExplorer-OfflineTests-f355102a35c74a15862133f144b01d9b/result.json`. [Implementation and remaining acceptance](plans/resume-explorer-Task-1-automated-tests-plan.md#14-本階段實作與驗證2026-11-04). Counts and VM results below are historical for their respective revisions.
+
 Date: 2026-11-01. Candidate: `0.1.0-beta.1+issue2`.
 
 The implementation covers stages B/C and adds observation traces for stage A. The actual Group 2 failure has not been reproduced in the original Horizon VDI environment. No production RCA is claimed. Stage D live acceptance is still pending; the version is deliberately not promoted to beta.2. Issue-2 is closed as implementation-complete only; closure does not imply successful live acceptance or a confirmed production RCA.

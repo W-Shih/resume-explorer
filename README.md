@@ -186,17 +186,29 @@ Retry 子 run 的 Total 只計算本次選取項目，Report 指向該次 child 
 
 ### 執行離線測試
 
+Windows PowerShell 7 的完整離線入口（使用目前實際 `pwsh.exe`，不需安裝模組）：
+
+```powershell
+pwsh -NoProfile -NonInteractive -File .\tests\Invoke-Tests.ps1
+```
+
+入口只執行明確的七套離線 manifest，不操作真實 Explorer。每次執行印出新的 `%TEMP%\ResumeExplorer-OfflineTests-<RunId>`；保留 Version=1 的 `result.json` 及各 suite 的完整 UTF-8 `.log`。JSON 包含 engine／PS／OS、起訖時間、expected／observed PASS、raw child exit、suite Status／Reason／LogPath，並明示 `E2E: NotRun / OfflineOnly`。只有所有 suite 通過且必要證據提交完成才 Exit 0；suite 失敗為 1；環境、manifest、啟動或證據保存錯誤為 2（優先於 1）。未執行列為 NotRun、raw exit 為 null；不推算 failed／skipped case 數。報告寫入失敗時以非零退出並指出已有日誌位置。TEMP 證據由操作者保留／清理，不屬於產品 Runs。
+
+也可個別執行以下 suites：
+
 ```powershell
 & .\tests\Issue2.Tests.ps1
 & .\tests\RestoreSummary.Tests.ps1
 & .\tests\ExplorerSmoke.Tests.ps1
 & .\tests\ExplorerSmoke.OneClick.Tests.ps1
 & .\tests\ExplorerSmoke.Recovery.Tests.ps1
+& .\tests\Snapshot.Tests.ps1
+& .\tests\TestRunner.Tests.ps1
 ```
 
 測試以注入的時鐘和觀測 adapter 驗證副作用次數，不操作實際 Explorer，也不需安裝 Pester。
 
-目前五套離線基準為 39／17／23／49／13，共 141 項。Task-1 測試基建仍為部分完成：Snapshot 首批契約覆蓋、獨立 Unit runner 與結果契約尚待補齊；Task-5 E2E 成功不代表整項已完成。詳見 [Task-1 驗收紀錄](plans/resume-explorer-Task-1-automated-tests-plan.md)；Pester 選型可重議，CI 為選用。
+目前七套基準為 39／17／23／49／13／18／16，共 **175 項**；原五套 141 項與既有 assertions 保留。Snapshot 與 runner 新測試的 S01–S10／T01–T08 對照直接標在 case 名稱中。公開入口 dot-source 只載入函式；沒有 Integration dispatch 或 timeout／殺程序策略。PS7.6.1 本機離線通過，7.4.22 未驗證；共享 baseline 的新版 VM 一鍵整合驗收仍待執行，Task-1 保持 In Progress。詳見 [Task-1 實作／驗收紀錄](plans/resume-explorer-Task-1-automated-tests-plan.md#14-本階段實作與驗證2026-11-04)。
 
 ### PowerShell 7 真實 Explorer smoke runner（Task-5）
 
@@ -211,7 +223,7 @@ pwsh -NoProfile -Sta -File .\tests\Integration\Invoke-ExplorerSmoke.ps1
 
 開發初版 PS7.6.1 離線測試 **39＋17＋21 = 77** 項通過，僅驗證 harness 安全與合成流程；後續 GUI 通過依據為使用者的 VM 截圖與目視確認，不能以離線結果代替。Task-5 已結案，產品 CLI／Schema／既有測試未因結案改動。
 
-**一鍵入口**：在獨立 Win11 VM 雙擊 `tests\Integration\Run-ExplorerSmoke.cmd`，或執行 `pwsh -NoProfile -Sta -File .\tests\Integration\Start-ExplorerSmoke.ps1 -Run`。啟動時一次授權關窗與測試；既有 Explorer 可選先 Capture 保存配置，再透過系統整窗關閉命令 `WM_SYSCOMMAND / SC_CLOSE` 關窗，不終止程序。預設自動驗證 E01／E02 並清理已驗證測試視窗，無須 PASS／CONTINUE；加 `-RequireVisualReview` 可選人工目視。備註／截圖標為 Optional。多組關窗採逐窗投遞一次、等待可靠觀測收斂，每次關窗作業全部目標共用 10 秒；未知視窗、身分變更、保存不完整或逾時仍停止並保留 ledger／觀測時序。無 `-Run` 時零 dispatch。關窗核心修復已完成並歸檔；SC_CLOSE 實作時的歷史基準為 126 項，目前離線基準為 **141 項通過，使用者 VM 的自動流程亦已 Exit 0／Error null**；VisualReview NotRun 為自動模式正常結果。這是單次主要流程驗收，延伸矩陣未全部實測。詳見 [一鍵 SOP](tests/Integration/ONE-CLICK.md)、[驗收證據](tests/Integration/TASK5-VM-ACCEPTANCE.md)、[修復進度](plans/DONE/resume-explorer-Task-5-multi-group-close-regression-plan.md)。
+**一鍵入口**：在獨立 Win11 VM 雙擊 `tests\Integration\Run-ExplorerSmoke.cmd`，或執行 `pwsh -NoProfile -Sta -File .\tests\Integration\Start-ExplorerSmoke.ps1 -Run`。啟動時一次授權關窗與測試；既有 Explorer 可選先 Capture 保存配置，再透過系統整窗關閉命令 `WM_SYSCOMMAND / SC_CLOSE` 關窗，不終止程序。預設自動驗證 E01／E02 並清理已驗證測試視窗，無須 PASS／CONTINUE；加 `-RequireVisualReview` 可選人工目視。備註／截圖標為 Optional。多組關窗採逐窗投遞一次、等待可靠觀測收斂，每次關窗作業全部目標共用 10 秒；未知視窗、身分變更、保存不完整或逾時仍停止並保留 ledger／觀測時序。無 `-Run` 時零 dispatch。關窗核心修復已完成並歸檔；SC_CLOSE 實作時的歷史基準為 126 項，該次驗收基準為 **141 項通過，使用者 VM 的自動流程亦已 Exit 0／Error null**；VisualReview NotRun 為自動模式正常結果。這是單次主要流程驗收，延伸矩陣未全部實測。詳見 [一鍵 SOP](tests/Integration/ONE-CLICK.md)、[驗收證據](tests/Integration/TASK5-VM-ACCEPTANCE.md)、[修復進度](plans/DONE/resume-explorer-Task-5-multi-group-close-regression-plan.md)。
 
 ### 原有流程
 
@@ -269,6 +281,6 @@ pwsh -NoProfile -Sta -File .\tests\Integration\Invoke-ExplorerSmoke.ps1
 
 **核心實作與主要流程已完成（2026-11-04）**；[計畫與結案驗收](plans/DONE/resume-explorer-Task-5-persistent-snapshot-restore-guidance-plan.md)已歸檔。最新使用者 VM smoke Passed／Exit 0，手動 Restore 4/4 Verified；延伸驗證由 [Backlog](Backlog.md) 追蹤。
 
-持久還原提示（核心實作與主要 VM 流程已驗收）：選 S 後，配置保存在 `%LOCALAPPDATA%\ResumeExplorer\Snapshots\BeforeSmoke\<RunId>.json`，同目錄有 `.recovery.json` 驗證紀錄及 `.restore.txt` 完整 PowerShell 7 還原命令。這些檔案在關窗前提交，不覆寫日常預設 Snapshot、不自動刪除或 Restore。前景 supervisor 等待 worker 結束後，在 JSON 後顯示還原提示；worker crash 時可依 RunId 找回，整個終端也被關閉時請查看持久命令檔。原有 suite/case 測試證據仍保存在 TEMP。目前有 13 項離線 recovery 測試，總基準為 39＋17＋23＋49＋13＝141；公開入口 fixture 捕捉子程序輸出時暫用 UTF-8 並還原呼叫端編碼，避免非 UTF-8 終端造成中文摘要斷言誤判。主要流程已取得使用者 VM 證據；驗收範圍與延伸缺口以驗收紀錄為準。
+持久還原提示（核心實作與主要 VM 流程已驗收）：選 S 後，配置保存在 `%LOCALAPPDATA%\ResumeExplorer\Snapshots\BeforeSmoke\<RunId>.json`，同目錄有 `.recovery.json` 驗證紀錄及 `.restore.txt` 完整 PowerShell 7 還原命令。這些檔案在關窗前提交，不覆寫日常預設 Snapshot、不自動刪除或 Restore。前景 supervisor 等待 worker 結束後，在 JSON 後顯示還原提示；worker crash 時可依 RunId 找回，整個終端也被關閉時請查看持久命令檔。原有 suite/case 測試證據仍保存在 TEMP。該次驗收有 13 項離線 recovery 測試，總基準為 39＋17＋23＋49＋13＝141；公開入口 fixture 捕捉子程序輸出時暫用 UTF-8 並還原呼叫端編碼，避免非 UTF-8 終端造成中文摘要斷言誤判。主要流程已取得使用者 VM 證據；驗收範圍與延伸缺口以驗收紀錄為準。
 
 持久還原提示的主要 VM 驗收已通過：使用者提供 supervisor Passed／Exit 0 的新截圖，並確認已成功使用顯示的完整命令還原配置。持久 Snapshot RunId 為 `3274dc4603a3417881d83823caf91b4c`，完整來源見[驗收紀錄](tests/Integration/TASK5-VM-ACCEPTANCE.md)。這更新先前「正常互動與人工 Restore 待驗收」狀態；Ctrl+C、其他 host 與完整故障矩陣仍未宣稱實測完成。本次僅記錄結果，不改程式或重跑 E2E。

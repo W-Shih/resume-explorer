@@ -2,20 +2,22 @@
 . (Join-Path $PSScriptRoot 'ExplorerSmoke.Core.ps1')
 . (Join-Path $PSScriptRoot 'ExplorerSmoke.Lifecycle.ps1')
 . (Join-Path $PSScriptRoot 'ExplorerSmoke.Recovery.ps1')
+. (Join-Path (Split-Path $PSScriptRoot -Parent) 'TestRunner.Core.ps1')
 
 function Invoke-SmokeOfflineBaseline {
-    $engine=(Get-Process -Id $PID).Path
-    $tests=Split-Path $PSScriptRoot -Parent; $rows=@()
-    foreach ($suite in @(@{ File='Issue2.Tests.ps1'; Expected=39 },@{ File='RestoreSummary.Tests.ps1'; Expected=17 },
-        @{ File='ExplorerSmoke.Tests.ps1'; Expected=23 },@{ File='ExplorerSmoke.OneClick.Tests.ps1'; Expected=49 },
-        @{ File='ExplorerSmoke.Recovery.Tests.ps1'; Expected=13 })) {
-        $output=@(& $engine -NoProfile -NonInteractive -File (Join-Path $tests $suite.File) 2>&1)
-        $code=$LASTEXITCODE
-        $count=@($output | Where-Object { $_.ToString().StartsWith('PASS ') }).Count
-        Write-Host "$($suite.File): $count/$($suite.Expected), Exit $code"
-        Assert-Smoke ($code -eq 0 -and $count -eq $suite.Expected) ('OfflineBaselineFailed:'+ $suite.File)
-        $rows+=[pscustomobject]@{ Suite=$suite.File; Passed=$count; ExitCode=$code }
+    $result=Invoke-OfflineTestRun -FailFast
+    $rows=@()
+    foreach ($suite in $result.Run.Suites) {
+        if ($suite.Status -eq 'NotRun') { continue }
+        Write-Host "$($suite.Name): $($suite.ObservedPassed)/$($suite.Expected), Exit $($suite.RawExitCode)"
+        if ($suite.Status -ne 'Passed') {
+            foreach ($line in $suite.Output) { Write-Host $line }
+            Write-Host "Offline evidence: $($result.EvidencePath)"
+            Assert-Smoke $false ('OfflineBaselineFailed:'+ $suite.Name)
+        }
+        $rows+=[pscustomobject]@{ Suite=$suite.Name; Passed=$suite.ObservedPassed; ExitCode=$suite.RawExitCode }
     }
+    Assert-Smoke ($result.ExitCode -eq 0) 'OfflineBaselineFailed:Runner'
     return $rows
 }
 

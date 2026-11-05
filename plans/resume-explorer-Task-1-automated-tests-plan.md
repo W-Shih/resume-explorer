@@ -1,7 +1,7 @@
 # Resume Explorer — Task-1 自動化測試：下一階段實作計畫
 
 - 初版日期：2026-11-01；本次重訂：2026-11-04。
-- 狀態：**既有測試部分完成；本階段方案已更新，尚待實作**。保留於 plans/，不標記 Done。
+- 狀態：**本階段實作及本機離線驗證完成；待共享 baseline 新版 VM 整合驗收**。保留於 plans/，不標記 Done。實作證據見 §14；下文原規劃敘述保留作設計脈絡。
 - Review HEAD：e146f85；開始時工作樹乾淨。本次僅更新文件，不修改程式／測試、安裝依賴或執行真實 Explorer。
 - 對應：[Backlog Task-1](../Backlog.md)、[目前測試說明](../README.md)、[Task-5 VM 證據](../tests/Integration/TASK5-VM-ACCEPTANCE.md)。
 - 本文件取代舊版要求先採 Pester／抽 Module／建立 Unit+Integration 統一 dispatcher 的實作順序。舊版 review 的歷史判定見 §13；後續以本文件的範圍、契約與完成標準為準。
@@ -147,16 +147,16 @@ A／B 可分開 review；C 必須以測試確認共同實作的整合，不只�
 
 ## 10. 更新後的 Definition of Done
 
-- [ ] S01–S10 有實際 cases 與對照，原五套回歸及 assertions 保留。
-- [ ] 真正 Save／Read 的空資料、singleton arrays、group/path multiset、UTF-8 與已定義拒絕邊界經驗證；未新增未授權 schema 限制。
-- [ ] runner／core import 無副作用；直接執行僅跑明確離線 manifest，不 dispatch E2E。
-- [ ] 單一 manifest／collector；smoke wrapper 的 rows／Reason／順序／fail-fast 契約有測試。
-- [ ] T01–T08 涵蓋真實 process exit、count、launch／寫檔錯誤、編碼、路徑與不遞迴的 runner 自測。
-- [ ] 每次執行的 JSON／logs 可診斷失敗；E2E NotRun 明示，缺失／不完整／舊結果不被判為本次 Passed。
-- [ ] 實際總基準為 141＋新增 cases，預期數與觀察數一致；不把未跑 cases 算 failed 或 Passed。
-- [ ] Windows PS7 依賴、公開命令、結果位置／exit、證據與本機／VM 驗證範圍寫入文件。
+- [x] S01–S10 有實際 cases 與對照，原五套回歸及 assertions 保留。
+- [x] 真正 Save／Read 的空資料、singleton arrays、group/path multiset、UTF-8 與已定義拒絕邊界經驗證；未新增未授權 schema 限制。
+- [x] runner／core import 無副作用；直接執行僅跑明確離線 manifest，不 dispatch E2E。
+- [x] 單一 manifest／collector；smoke wrapper 的 rows／Reason／順序／fail-fast 契約有測試。
+- [x] T01–T08 涵蓋真實 process exit、count、launch／寫檔錯誤、編碼、路徑與不遞迴的 runner 自測。
+- [x] 每次執行的 JSON／logs 可診斷失敗；E2E NotRun 明示，缺失／不完整／舊結果不被判為本次 Passed。
+- [x] 實際總基準為 141＋新增 cases，預期數與觀察數一致；不把未跑 cases 算 failed 或 Passed。
+- [x] Windows PS7 依賴、公開命令、結果位置／exit、證據與本機／VM 驗證範圍寫入文件。
 - [ ] 本批涉及共享 baseline 的 VM 一次整合驗收有結果；未涉及 GUI 的中間批次不強求逐 commit E2E。
-- [ ] 未操作真實預設 Snapshot／正式 Runs／使用者 Explorer；不新增自動 Restore、replay、kill／Registry／policy 修改。
+- [x] 未操作真實預設 Snapshot／正式 Runs／使用者 Explorer；不新增自動 Restore、replay、kill／Registry／policy 修改。
 - [ ] 結案 Review 確認無必要工作剩餘後，才更新 Task-1 狀態並依使用者要求歸檔／commit。
 
 Pester、CI、Module 遷移、完整 Task-5 延伸矩陣與其他功能的所有 R-cases，不再是本階段必須完成的條件。
@@ -186,3 +186,27 @@ Pester、CI、Module 遷移、完整 Task-5 延伸矩陣與其他功能的所有
 - 上次 review HEAD 5ad1d52 將 Task-1 判為部分完成並保留於 plans/；Snapshot 首批覆蓋與測試入口／結果交付仍有工作，此判定維持。
 - 本次 review HEAD e146f85 修正該 review 的解讀：現有 helper 已有 count／exit gate 與結構化 rows，獨立 runner 的價值在易用性、共用實作與失敗證據；不是要重造一套測試框架。JSON 新增範圍縮為離線 test-run，不要求統一 E2E result schema。
 - 此版本已明確選擇沿用輕量框架，重訂實作順序與 DoD；§1–12 為現在的工作方案，不需再依舊版 Pester／src 目錄範例執行。未實作、未新增測試執行或 VM 通過聲明，也未建立 commit。
+
+## 14. 本階段實作與驗證（2026-11-04）
+
+本批以 `9e5325f` 為基底，在未提交工作樹實作 A／B／C 及 D 的本機部分。產品 core／CLI、原五套 tests、Snapshot／Report／suite-result schemas 未修改，沒有新增依賴或操作真實 Explorer。
+
+| 檔案 | 實作／案例對照 |
+| --- | --- |
+| `tests/Snapshot.Tests.ps1` | 18 cases，名稱含 S01–S10。先驗證 platform spies 再 import；真正 writer／reader、空集合、singleton arrays、2／3 groups multiset、UTF-8 特殊字元、過濾與拒絕前保護；missing property／FileShare.None；真正 Restore 先拒絕、adapter／report spies 不被呼叫；公開 Preview 使用 child TEMP sentinel。實測壞 JSON／missing 的 pwsh -File 非零（本機為 1），不新增產品 exit 契約 |
+| `tests/TestRunner.Core.ps1` | 唯一 manifest／collector、當前 Windows PS7 engine、UTF-8 捕捉並還原、raw exit／精確且無重複 PASS 行 gate、collect-all／fail-fast、四種 row statuses。logs 全部關閉，再以 `.partial` → `result.json` 發布完整摘要；不覆寫舊檔。manifest 錯誤盡量保存 Error 報告，證據錯誤不重試或覆蓋原錯誤 |
+| `tests/Invoke-Tests.ps1` | 公開離線入口；dot-source 無 dispatch，唯一 owned TEMP 證據目錄；exit 0／1／2 與 E2E NotRun 說明見 README |
+| `tests/TestRunner.Tests.ps1` | 16 cases，名稱含 T01–T08；真正 child exit／throw、零／不足／過多／duplicate PASS、early exit、缺檔／launch／manifest errors、fail-fast NotRun JSON、collect-all、原始錯誤／UTF-8 log、ASCII／UTF-8、6000 行 stdout／stderr、不同 PWD、特殊字元 script／engine 路徑（owned junction）。複製未修改 entry/core、替換依賴測 exit/report、log／report 真實 IO fault、stale result、import；不遞迴跑完整 manifest |
+| `tests/Integration/ExplorerSmoke.OneClick.Core.ps1` | baseline 委派共用 collector，維持首次失敗即停及 Suite／Passed／ExitCode rows／Reason；失敗印原始輸出與證據位置 |
+
+測試開發時確認：即使 `-NoProfile`，PS7 自身也會在隔離 LOCALAPPDATA 建立 `Microsoft/PowerShell` startup／telemetry 檔案。因此 fixture 改以未變 sentinel、沒有產品 ResumeExplorer 資料及沒有 dot-source run 目錄驗證安全；原五套 assertions 未改。Snapshot schema 寬鬆政策、原子 Snapshot 寫入與其他 Task／FR 保持另案。
+
+實際環境：Windows NT 10.0.22631.0、PS7.6.1，agent PowerShell native-process capture，非互動式 Windows Terminal／VM 認證。驗證結果：
+
+- `pwsh -NoProfile -NonInteractive -File tests/Snapshot.Tests.ps1`：18 PASS，Exit 0。
+- `pwsh -NoProfile -NonInteractive -File tests/TestRunner.Tests.ps1`：16 PASS，Exit 0，含後補 stale result、真實 log／report IO 故障及 Error report 驗證。
+- `pwsh -NoProfile -NonInteractive -File tests/Invoke-Tests.ps1`：39＋17＋23＋49＋13＋18＋16＝**175 PASS**，七套 raw exit 0、入口 Exit 0、OverallStatus Passed／E2E NotRun。證據：`%TEMP%/ResumeExplorer-OfflineTests-ffd1423fc7a14708a98f296e836e1428/result.json`（首次整合，後續再補 staging 及負向 assertions）。
+- 最終程式的 `Invoke-SmokeOfflineBaseline`：ASCII 呼叫端、PWD 切至 TEMP，**175 PASS**，七列 rows 正確、raw exit 均 0、外層 Exit 0，呼叫端仍為 ASCII。使用相同 collector／報告 formatter，此輪含最終 staging 與故障 assertions。證據：`%TEMP%/ResumeExplorer-OfflineTests-f355102a35c74a15862133f144b01d9b/result.json`。
+- `git diff --check` 通過，只有既有設定的 LF→CRLF 提示。原始 logs／本機私人絕對路徑不提交 repository。
+
+剩餘驗收：在原專用 Win11 VM 先執行公開離線入口，再執行一次既有一鍵 smoke，核對新 manifest、S 保存／關窗、E01／E02／清理與 supervisor 結果。記錄 tested revision（本次無新 commit）、PS／Windows／terminal、命令、suite/case roots、result.json 與 raw exits。7.4.22 未取得，標為未驗證；既有 VM 證據不適用此批，未在工作桌面執行 GUI 負向測試。Task-1 不標 Done、不歸檔、不建立 commit。
