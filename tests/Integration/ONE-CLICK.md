@@ -1,5 +1,7 @@
 # 一鍵 Explorer smoke — Windows 11 測試桌面
 
+Task-3 本批更新：正式離線基準為八套 195 PASS；新版產品 CLI 取得使用者全域鎖後才執行 Action，原一鍵／case 鎖保留。這批真實 Explorer E2E 尚未重跑，既有 Task-1／Task-5 VM 證據僅屬先前版本。
+
 Task-1 已於 2026-11-04 完成結案 review 並[歸檔](../../plans/DONE/resume-explorer-Task-1-automated-tests-plan.md#16-結案-review-與歸檔2026-11-04)：公開離線入口重跑 175 PASS／Exit 0，使用者本批 smoke 及同一 Snapshot 的手動 Restore 4/4 Verified 證據保留；版本追溯與延伸矩陣限制不因結案而移除。
 
 2026-11-04 Task-1 更新：本機共用 baseline 已通過 175 項（含新增 Snapshot／runner suites）；使用者後續已提供新版 CMD 離線 175 PASS／Exit 0 及一鍵 smoke Passed／Exit 0 截圖，主要整合流程驗收通過，詳見 TASK5-VM-ACCEPTANCE.md；精確 tested revision／版本與原始報告未提供。下方舊版 141／126 項與 VM 通過紀錄僅屬當時版本。
@@ -27,7 +29,7 @@ Launcher 使用自身位置定位檔案，無須切換工作目錄。不要求�
 ## 執行流程
 
 1. 取得上述一次 GUI 授權，檢查實際 PS7／Win11／STA／互動式 desktop 與 session。建立唯一 TEMP suite root，並取得同 TEMP 的 launcher 排他鎖。
-2. 使用共用 collector 執行七套離線基準（39＋17＋23＋49＋13＋18＋16＝**175 項**），首次失敗即停，後續 suite 為 NotRun；失敗時不關閉任何視窗。完整輸出與獨立 test-run JSON 保留在印出的 `%TEMP%\ResumeExplorer-OfflineTests-<RunId>`，不改原 suite-result 格式。離線證據明示 E2E NotRun；只執行離線驗證可用 `pwsh -NoProfile -NonInteractive -File .\tests\Invoke-Tests.ps1`。
+2. 使用共用 collector 執行八套離線基準（39＋17＋23＋49＋13＋18＋16＋20＝**195 項**），首次失敗即停，後續 suite 為 NotRun；失敗時不關閉任何視窗。完整輸出與獨立 test-run JSON 保留在印出的 `%TEMP%\ResumeExplorer-OfflineTests-<RunId>`，不改原 suite-result 格式。離線證據明示 E2E NotRun；只執行離線驗證可用 `pwsh -NoProfile -NonInteractive -File .\tests\Invoke-Tests.ps1`。
 3. 獨立觀測既有 Explorer。已有視窗本身不阻擋測試；依你的 `S`／`C` 選擇處理。
 4. 若選 `S`，以正式 CLI `Capture` 產生 `existing-snapshot.json`，核對與獨立觀測的視窗／路徑分組一致，重新確認原視窗未變。任何儲存失敗、不完整或過程中變更都停止，尚不關閉視窗。
 5. 對明確授權且身分仍符合的既有視窗送出正常關窗要求，確認所有視窗已消失，再做空桌面 Preflight。

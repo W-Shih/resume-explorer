@@ -112,7 +112,9 @@ try {
         Assert ($script:adapterCalls -eq 0 -and $script:reportCalls -eq 0 -and -not [IO.File]::Exists($report))
     }
     $engine=(Get-Process -Id $PID).Path
-    $cli=Join-Path $root 'resume-explorer.ps1'
+    # Preserve the public entry unchanged, isolate the newly added user-wide lock.
+    . (Join-Path $PSScriptRoot 'Fixtures/IsolatedCli.ps1')
+    $cli=New-IsolatedTestCli $storage
     $childTemp=Join-Path $storage 'child-temp'; [void][IO.Directory]::CreateDirectory($childTemp)
     $sentinel=Join-Path $childTemp 'ExplorerTabs-snapshot.json'; [IO.File]::WriteAllText($sentinel,'default sentinel')
     function Preview($Path) {

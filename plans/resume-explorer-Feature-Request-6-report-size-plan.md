@@ -9,9 +9,9 @@
 
 ## Implementation Order & Dependency Gate（2026-11-02 決策）
 
-**優先實作建議：[Task-4 S16 測試基線修復](DONE/resume-explorer-Task-4-restore-summary-s16-regression-plan.md) 已完成跨版本驗收並歸檔（2026-11-02）；下一步獨立實作 Task-3 Single-Instance CLI Guard，然後才允許 FR-6 的實際清理功能上線。** 這是 **FR-6 工作流內的相對優先序**，並不覆蓋全專案已存在的 P1 Issue-4／Task-1 或提高本 FR 的 P2 優先級。
+**優先實作建議：[Task-4 S16 測試基線修復](DONE/resume-explorer-Task-4-restore-summary-s16-regression-plan.md) 已完成跨版本驗收並歸檔（2026-11-02）；Task-3 Single-Instance CLI Guard 已獨立實作並離線驗證（2026-11-04，195 PASS）；FR-6 實際清理仍須所有分類／DryRun／跨檔恢復及 Phase 4 持鎖整合 Gate，不能只因已有 global guard 即上線。** 這是 **FR-6 工作流內的相對優先序**，並不覆蓋全專案已存在的 P1 Issue-4／Task-1 或提高本 FR 的 P2 優先級。
 
-**Task-3 詳細設計／測試計畫：** [`resume-explorer-Task-3-single-instance-cli-guard-plan.md`](resume-explorer-Task-3-single-instance-cli-guard-plan.md)（2026-11-02 Reviewed / Proposed；**尚未實作**）。本 FR §5.2／Phase 2A 保留依賴與 Cleanup 整合界線；實作／驗收 Global CLI Guard 的詳細依據以 Task-3 獨立計畫為準。
+**Task-3 詳細設計／測試計畫：** [`resume-explorer-Task-3-single-instance-cli-guard-plan.md`](resume-explorer-Task-3-single-instance-cli-guard-plan.md)（2026-11-04 **Implemented / Offline Verified**；現有五種 Action 的 global lock 契約已驗證，未實作 Cleanup，互動／RDP／新版 Explorer E2E 限制見該計畫 §11）。本 FR §5.2／Phase 2A 保留依賴與 Cleanup 整合界線；實作／驗收 Global CLI Guard 的詳細依據以 Task-3 獨立計畫為準。
 
 | 工作線／順序 | 工作項目 | 先決條件 | 可獨立交付／驗收 |
 | --- | --- | --- | --- |
@@ -253,7 +253,7 @@ CLI 取得 single-instance lock（失敗則立即退出，不做副作用）
 3. 在不同 Report 狀態、缺漏 metadata、數量邊界（0／1／5／6／100）、時間相同、跨時區、Grace period、Pin／Unpin 下驗證排序與保護邏輯。
 4. **Gate**：DryRun 多次執行結果決定性、沒有對檔案的副作用，且能清楚說明「為什麼這個 Family 被保留／候選清理」。
 
-### Phase 2A — Single-instance 執行保護（Task-3：建議優先獨立實作，不必等待 Phase 0–2）
+### Phase 2A — Single-instance 執行保護（Task-3 已實作／離線驗證，不依賴 Phase 0–2）
 
 1. 先寫**不接觸 Explorer** 的兩個 PowerShell process 排他測試，涵蓋所有 `-Action`、不同 `pwsh.exe` processes／hosts、第二個命令 fail fast、無等待及錯誤訊息；使用隔離的測試 lock path，**不得在測試時佔用使用者的真實 instance lock**。
 2. 在 `resume-explorer.ps1` 最外層加一個共享所有 Action 的 `FileShare.None` guard（helper 可小型化、與 Report Retention 邏輯分離），並以 `try/finally` 保證釋放。鎖檔位於 `Runs` 之外，永久不列入清理；測試檔案存在但 handle 已釋放時**可以重新取得**。

@@ -1,6 +1,7 @@
 # Deterministic adapter tests. No Explorer, UIA, network or Pester dependency.
 $ErrorActionPreference='Stop'
 . (Join-Path (Split-Path $PSScriptRoot -Parent) 'resume-explorer.core.ps1')
+. (Join-Path $PSScriptRoot 'Fixtures/IsolatedCli.ps1')
 $script:passed=0
 function Assert($Condition, $Message='Assertion failed') { if (-not $Condition) { throw $Message } }
 function Test($Name, [scriptblock]$Body) {
@@ -303,7 +304,9 @@ Test 'snapshot Capture and Preview preserve groups and duplicate paths' {
         $data=Read-Snapshot $path
         Assert ($data.Windows.Count -eq 2 -and $data.Windows[0].Paths.Count -eq 2)
         $before=(Get-FileHash -LiteralPath $path).Hash
-        & (Join-Path (Split-Path $PSScriptRoot -Parent) 'resume-explorer.ps1') -Action Preview -Snapshot $path
+        # New guard would otherwise open the real user's anchor. Preserve Preview/hash assertions.
+        $isolatedCli=New-IsolatedTestCli $directory
+        & $isolatedCli -Action Preview -Snapshot $path
         Assert ((Get-FileHash -LiteralPath $path).Hash -eq $before)
     } finally { Get-ChildItem -LiteralPath $directory -File | Remove-Item; [IO.Directory]::Delete($directory) }
 }

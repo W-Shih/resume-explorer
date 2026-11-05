@@ -5,7 +5,7 @@
 > **Beta 版本：`0.1.0-beta.1`（實驗性）**  
 > 在一台 Windows 11 Enterprise 23H2（Build 22631）的 VMware Horizon VDI 上，已實測 `Capture` 和 `Restore` 可將 **2 個視窗、3 個 Tabs** 還原為原本的視窗／分頁分組。此結果不保證適用於其他 Windows 或 Horizon 版本。
 
-目前程式包含 **Issue-2 修復候選版 `0.1.0-beta.1+issue2`**。上述實機結果屬於原 beta.1，不能當作此修復的實機驗收。原 VDI 重現、根因歸因與 20 次正常多 Group 還原尚待完成，因此尚未標記 beta.2；Issue-2 已按核心修復實作完成而結案，但實機驗收仍待完成。自動測試及限制見 [Issue-2 實作驗證](ISSUE2-VALIDATION.md)。
+目前程式版本為 **`0.1.0-beta.1+issue2.instanceguard`**，包含 Issue-2 修復候選及 Task-3 全命令單執行保護。上述實機結果屬於原 beta.1，不能當作此修復的實機驗收。原 VDI 重現、根因歸因與 20 次正常多 Group 還原尚待完成，因此尚未標記 beta.2；Issue-2 已按核心修復實作完成而結案，但實機驗收仍待完成。自動測試及限制見 [Issue-2 實作驗證](ISSUE2-VALIDATION.md)。
 
 ## 功能
 
@@ -14,6 +14,14 @@
 - **Restore**：依 Snapshot **新增** Explorer 視窗，在對應視窗中新增 Tabs，再導向記錄的資料夾。
 - 不使用全域 `SendKeys`、不修改 Clipboard、不修改 Registry、不更改 PowerShell Execution Policy。
 - 不需要手動輸入 `OPEN` 或其他確認文字。
+
+### 全命令單執行保護（Task-3）
+
+`Capture`／`Preview`／`Restore`／`PreviewRetry`／`Retry` 共用一把使用者鎖，位置由 Windows LocalApplicationData Known Folder 決定：`%LOCALAPPDATA%\ResumeExplorer\resume-explorer.instance.lock`（不以環境變數覆寫 Known Folder）。兩個新版 CLI 開啟相同實際鎖檔時，只有一個命令能執行；第二個會立即以 `InstanceLockBusy` 拒絕並非零退出，不等待或排隊，也不執行 Action 的 Explorer／Snapshot／Report 存取。這是有意的並行行為變更，包括唯讀 Preview；原參數、成功輸出與資料 schemas 保留。
+
+全域 handle 持續到命令的 checkpoint、summary 與 Retry family lock 的 finally 完成。鎖檔存在本身不表示 Busy；結束時只關閉 handle，**不要刪除或輪替鎖檔**，它也不屬於 Runs 清理範圍。Access Denied 與路徑／其他 I/O 錯誤會分別以 `InstanceLockAccessDenied`、`InstanceLockPathError`／`InstanceLockOpenFailed` 拒絕。Busy 只證明檔案無法排他開啟，不推定持有者 PID。
+
+此保護涵蓋遵守同一鎖的新版 CLI，不限制舊版、直接 core 呼叫、其他帳號／機器或外部工具，也無法解除 COM/UIA hang。跨 RDP、不同互動 terminal hosts、Ctrl+C 與新版真實 Explorer E2E 尚須各自驗證；離線測試只操作 owned TEMP 的測試 anchor／ACL 與自己建立的子程序。
 
 **尚未提供** `Restart` / 一鍵重啟 Explorer 功能。`Restore` **不會**關閉既有視窗，也**不會**終止 `explorer.exe`。
 
@@ -198,7 +206,7 @@ CMD 可從專案根目錄執行以下命令，或直接雙擊 `tests\Run-Tests.c
 tests\Run-Tests.cmd
 ```
 
-入口只執行明確的七套離線 manifest，不操作真實 Explorer。每次執行印出新的 `%TEMP%\ResumeExplorer-OfflineTests-<RunId>`；保留 Version=1 的 `result.json` 及各 suite 的完整 UTF-8 `.log`。JSON 包含 engine／PS／OS、起訖時間、expected／observed PASS、raw child exit、suite Status／Reason／LogPath，並明示 `E2E: NotRun / OfflineOnly`。只有所有 suite 通過且必要證據提交完成才 Exit 0；suite 失敗為 1；環境、manifest、啟動或證據保存錯誤為 2（優先於 1）。未執行列為 NotRun、raw exit 為 null；不推算 failed／skipped case 數。報告寫入失敗時以非零退出並指出已有日誌位置。TEMP 證據由操作者保留／清理，不屬於產品 Runs。
+入口只執行明確的八套離線 manifest，不操作真實 Explorer。每次執行印出新的 `%TEMP%\ResumeExplorer-OfflineTests-<RunId>`；保留 Version=1 的 `result.json` 及各 suite 的完整 UTF-8 `.log`。JSON 包含 engine／PS／OS、起訖時間、expected／observed PASS、raw child exit、suite Status／Reason／LogPath，並明示 `E2E: NotRun / OfflineOnly`。只有所有 suite 通過且必要證據提交完成才 Exit 0；suite 失敗為 1；環境、manifest、啟動或證據保存錯誤為 2（優先於 1）。未執行列為 NotRun、raw exit 為 null；不推算 failed／skipped case 數。報告寫入失敗時以非零退出並指出已有日誌位置。TEMP 證據由操作者保留／清理，不屬於產品 Runs。
 
 也可個別執行以下 suites：
 
@@ -210,11 +218,12 @@ tests\Run-Tests.cmd
 & .\tests\ExplorerSmoke.Recovery.Tests.ps1
 & .\tests\Snapshot.Tests.ps1
 & .\tests\TestRunner.Tests.ps1
+& .\tests\InstanceLock.Tests.ps1
 ```
 
 測試以注入的時鐘和觀測 adapter 驗證副作用次數，不操作實際 Explorer，也不需安裝 Pester。
 
-目前七套基準為 39／17／23／49／13／18／16，共 **175 項**；原五套 141 項與既有 assertions 保留。Snapshot 與 runner 新測試的 S01–S10／T01–T08 對照直接標在 case 名稱中。公開入口 dot-source 只載入函式；沒有 Integration dispatch 或 timeout／殺程序策略。PS7.6.1 本機離線通過，7.4.22 未驗證；使用者已提供新版離線 175 PASS 與一鍵 smoke Passed／Exit 0 截圖，主要整合流程驗收通過；Task-1 已完成結案 review 並歸檔至 plans/DONE，截圖未顯示的版本／原始報告資訊仍列為證據限制。詳見 [Task-1 實作／驗收紀錄](plans/DONE/resume-explorer-Task-1-automated-tests-plan.md#14-本階段實作與驗證2026-11-04)。
+目前八套基準為 39／17／23／49／13／18／16／20，共 **195 項**；原七套 175 項的行為契約保留；Issue2／Snapshot 只隔離新鎖的 fixture，runner 只擴充 manifest 斷言，詳見 Task-3 計畫。Snapshot／runner 的 S01–S10／T01–T08 及 Task-3 的 L-cases 對照直接標在 case 名稱中。Task-3 本機八套 **195 PASS／Exit 0**；本批新版真實 Explorer E2E 未執行，不能沿用 Task-1 的 VM 截圖視為新版本通過。公開入口 dot-source 只載入函式；沒有 Integration dispatch 或 timeout／殺程序策略。PS7.6.1 本機離線通過，7.4.22 未驗證；使用者已提供新版離線 175 PASS 與一鍵 smoke Passed／Exit 0 截圖，主要整合流程驗收通過；Task-1 已完成結案 review 並歸檔至 plans/DONE，截圖未顯示的版本／原始報告資訊仍列為證據限制。詳見 [Task-1 實作／驗收紀錄](plans/DONE/resume-explorer-Task-1-automated-tests-plan.md#14-本階段實作與驗證2026-11-04)。
 
 ### PowerShell 7 真實 Explorer smoke runner（Task-5）
 

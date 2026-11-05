@@ -8,6 +8,7 @@ function Get-OfflineTestManifest {
         @{ File='ExplorerSmoke.Recovery.Tests.ps1'; Expected=13 }
         @{ File='Snapshot.Tests.ps1'; Expected=18 }
         @{ File='TestRunner.Tests.ps1'; Expected=16 }
+        @{ File='InstanceLock.Tests.ps1'; Expected=20 }
     )
 }
 

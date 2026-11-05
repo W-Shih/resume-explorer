@@ -2,10 +2,10 @@
 
 - **Review 日期：** 2026-11-02
 - **優先級：** P2；[Task-4 S16 測試基線修復](DONE/resume-explorer-Task-4-restore-summary-s16-regression-plan.md) 已完成並歸檔，建議作為下一個獨立實作；FR-6 Phase 3/4 的必要前置
-- **狀態：** **Reviewed / Proposed；僅規劃，尚未實作**
+- **狀態：** **Implemented / Offline Verified（2026-11-04）；待結案 Review**。本批實作與證據見 §11；§1–10 為原設計／歷史 review，不再代表尚未實作。真實 Explorer／互動取消／跨 RDP 的驗證限制保留。
 - **來源：** [Backlog.md — Task-3](../Backlog.md)（原 Review 範圍 L122–L128）
 - **對應：** [FR-6 Report Retention Plan](resume-explorer-Feature-Request-6-report-size-plan.md) §5.2 / Phase 2A；[Task-1 Tests Plan](DONE/resume-explorer-Task-1-automated-tests-plan.md)
-- **本次範圍：** 全命令互斥的需求／設計／測試規劃；**不修改 Production Code、Tests、Version，不實作 Cleanup，也不建立 Commit**。
+- **範圍：** 全命令互斥 helper、CLI 最外層 guard、隔離跨程序測試與文件／版本；不實作 Cleanup、不建立 commit。先前只規劃的範圍敘述保留於歷史章節，以 §11 實作紀錄為準。
 
 ## Runtime Policy（2026-11-02 後續決策）
 
@@ -214,18 +214,18 @@ Track B: FR-6 Phase 0 --> Phase 1 --> Phase 2 ---------+
 
 ## 7. Acceptance Criteria / Definition of Done
 
-- [ ] 全部現有 CLI Actions 在任何 Action 層 Explorer／Snapshot／Report 副作用前取得全域鎖。
-- [ ] 共用相同 Lock Path 的不同 PowerShell Process 不能同時進入 Action；Busy Fail Fast、非零 Exit、不等待。
-- [ ] Lock Path 使用 LocalApplicationData Known Folder，與 PWD／Script 路徑／ReportPath 無關且不位於 `Runs`。
-- [ ] 不使用 Lock Anchor 存在與否判斷 Busy；不存在 handle 即可重新取得，不刪除 Anchor。
-- [ ] Busy／Access Denied／一般 I/O 錯誤分類正確；例外／退出後能再次取得鎖。
-- [ ] 既有 per-family Retry Lock／原子 checkpoint／identity 與一次 Invoke／Navigate 保護不被破壞。
-- [ ] Helper、跨 Process、CLI orchestration 及相關回歸測試有實際且可重現的結果。
-- [ ] S16 已調查並處置／明確註記為既有 blocker，沒有任意削弱既有測試。
-- [ ] 正常 Action 的 CLI Parameters、Snapshot/Report Schema、console output 與 Exit Behavior 保持相容。
-- [ ] README／Backlog／FR-6 Plan／版本及測試紀錄同步；正確說明有意改變的同時執行行為。
-- [ ] 沒有操作真實 Explorer、重啟 Shell、改 Registry／Execution Policy 或引入不必要的依賴。
-- [ ] Task-3 已驗證 Global Lock 覆蓋目前所有 Action 的完整生命週期，包括 Retry 內部 family lock 的 `finally`；**尚未實作的 FR-6 Cleanup 不屬 Task-3 結案必要條件**。未來 FR-6 Phase 4 才驗證 Cleanup 在同一 Global Lock 內且於 Retry family lock 釋放後執行。
+- [x] 全部現有 CLI Actions 在任何 Action 層 Explorer／Snapshot／Report 副作用前取得全域鎖。
+- [x] 共用相同 Lock Path 的不同 PowerShell Process 不能同時進入 Action；Busy Fail Fast、非零 Exit、不等待。
+- [x] Lock Path 使用 LocalApplicationData Known Folder，與 PWD／Script 路徑／ReportPath 無關且不位於 `Runs`。
+- [x] 不使用 Lock Anchor 存在與否判斷 Busy；不存在 handle 即可重新取得，不刪除 Anchor。
+- [x] Busy／Access Denied／一般 I/O 錯誤分類正確；例外／退出後能再次取得鎖。
+- [x] 既有 per-family Retry Lock／原子 checkpoint／identity 與一次 Invoke／Navigate 保護不被破壞。
+- [x] Helper、跨 Process、CLI orchestration 及相關回歸測試有實際且可重現的結果。
+- [x] S16 已調查並處置／明確註記為既有 blocker，沒有任意削弱既有測試。
+- [x] 正常 Action 的 CLI Parameters、Snapshot/Report Schema、console output 與 Exit Behavior 保持相容。
+- [x] README／Backlog／FR-6 Plan／版本及測試紀錄同步；正確說明有意改變的同時執行行為。
+- [x] 沒有操作真實 Explorer、重啟 Shell、改 Registry／Execution Policy 或引入不必要的依賴。
+- [x] Task-3 已驗證 Global Lock 覆蓋目前所有 Action 的完整生命週期，包括 Retry 內部 family lock 的 `finally`；**尚未實作的 FR-6 Cleanup 不屬 Task-3 結案必要條件**。未來 FR-6 Phase 4 才驗證 Cleanup 在同一 Global Lock 內且於 Retry family lock 釋放後執行。
 
 ## 8. Risks／限界
 
@@ -272,3 +272,57 @@ Track B: FR-6 Phase 0 --> Phase 1 --> Phase 2 ---------+
 **額外負向案例：** 目錄初始化競爭、anchor 指向目錄或不可存取路徑、父路徑無法建立、已存在但未持鎖的 lock file、共享衝突以外的 IOException，以及持鎖期間第二命令沒有任何 Action stdout／output artifact。只有 lock anchor 初始化副作用可以例外。
 
 **完成定義：** 新舊測試均有 log／ExitCode，跨獨立 process 互斥及 CLI guard 實際可驗；不修改既有報告／Snapshot Schema、Explorer / Retry safety、不操作生產 Explorer。**本次 Review 沒有執行新測試或實作 guard，不能把原先的 175 PASS 當成 Task-3 的驗收。**
+
+## 11. 實作與離線驗證（2026-11-04）
+
+**Implemented / Offline Verified；待結案 Review。** 起始本機 HEAD `3afbf57`、工作樹乾淨；本次變更尚未建立 commit。§1–10 的 Proposed／未實作等字樣屬歷史規劃，以本節與文件頂部狀態為準。沒有執行 Cleanup 或真實 Explorer。
+
+### 11.1 實際變更與相容性
+
+- `resume-explorer.core.ps1` 新增兩個聚焦 helper。Known Folder resolver 僅解析 Windows LocalApplicationData 絕對路徑；Acquire 只開啟傳入的絕對 anchor、受控建立父目錄、以 OpenOrCreate／ReadWrite／FileShare.None 持有 FileStream。只有 Open 的底層 IOException／Win32 32 分類 Busy；ACL、路徑與其他 I/O 保留不同診斷及 inner exception。沒有 wait／queue／retry／刪除 anchor。
+- `resume-explorer.ps1` 在現有純參數驗證後取得全域 handle，整個既有 switch 放在最外層 try/finally；finally 只 Dispose，沒有 return／exit 或 catch Action 的例外。保留既有 Action／參數／正常輸出與原錯誤行為。第二個同鎖命令被立即拒絕是已授權的行為變更，五種 Action 都適用。
+- 版本更新為 `0.1.0-beta.1+issue2.instanceguard`；只更新 build metadata，不宣稱 beta.2 或 Issue-2 原 VDI 驗收已完成。Snapshot／Report schemas、Restore／Retry、原子 checkpoint、identity、一個 Invoke／Navigate 及既有 family lock 的程式碼均未重構。
+- 新增 `tests/InstanceLock.Tests.ps1`（20 cases）及 `tests/Fixtures/InstanceLock.Worker.ps1`／`IsolatedCli.ps1`。Worker 使用實際獨立 PID、ready/release／共同起跑閘門與有界等待；只有本次建立的 process objects 可以被失敗清理／終止。ACL deny 僅加在 owned TEMP fixture 檔案，finally 移除精確新增的規則。
+- 正式 manifest 追加第八套，原七套 expected 39／17／23／49／13／18／16 不變，新增 20，共 **195**。沿用既有 collector、test-run JSON 與完整 logs。
+
+### 11.2 既有測試修改的必要性與保護
+
+依原測試完整性規則，本次對既有測試的修改限於三處，沒有刪除、skip、弱化斷言或減少原 expected：
+
+| 檔案 | 已證實的原因／保留的契約 |
+| --- | --- |
+| `tests/Issue2.Tests.ps1` | 既有 Snapshot case 原本直接執行 repo CLI；新 Guard 會因此初始化／佔用正式使用者 anchor。改為未修改 CLI copy＋原 core shim，僅覆寫測試副本的 path resolver；原 group／duplicate／Preview hash 斷言保留，39 cases 不變 |
+| `tests/Snapshot.Tests.ps1` | 三項公開 Preview 程序測試同樣需隔離新的全域 anchor；改用相同副本 seam，仍是真正 CLI dispatch／Read-Snapshot／Preview，既有 input hash、exit、diagnostic、child TEMP sentinel 斷言與 18 cases 保留 |
+| `tests/TestRunner.Tests.ps1` | 新 suite 是經本計畫明確批准的 manifest 擴充，原 Count=7 已不符合新需求。更新為 8，保留原五套順序／數量斷言，再明確核對原七套全部 expected 及新 suite File／Expected；16 cases 不變 |
+
+副本只替換 owned TEMP 內的 core 依賴，正式 CLI 沒有 `-LockPath` 或環境變數 bypass。Lock suite 另核對 copied CLI 與 repo 入口 hash 相同；只讀取正式 resolver 的路徑、不開啟正式 anchor。其餘原測試不改。
+
+### 11.3 L-cases 實作與限制
+
+| ID | 結果／證據 |
+| --- | --- |
+| L01／L04 | Known Folder 路徑穩定、絕對且在 Runs 外；建立父目錄，released／stale anchor 可以再取得且不覆寫既有 bytes |
+| L02／L03／L06 | 不同實際 pwsh PIDs；contender 非零 Busy 退出時 holder 仍活著且未收到 release；正常 Dispose 後 child 再取得 |
+| L05 | CMD→當前 pwsh、不同 PWD、含空白／中文／單引號／& 的 script copy，仍排他；沒有互動 Windows Terminal／VS Code 實機驗證 |
+| L07／L08／L13／L17 | 未修改的 CLI copy 對五種 Action 均先拒絕 Busy，Action spies 不被碰觸；Snapshot／Report／sidecar hash、時間戳與目錄 entries 不變 |
+| L09 | ReadOnly 及真實 ACL deny 皆為 AccessDenied、非 Busy；CLI 非零且無 dispatch；fixture ACL 還原後可再取得 |
+| L10 | 相對／空路徑、父層是檔案、anchor 是目錄、非 sharing IO 及 CLI 初始化失敗均拒絕；共同閘門的競爭測試也涵蓋同時初始化不存在的父目錄 |
+| L11 | 五種成功 Action 執行中確實持鎖；Action IOException 的相同 Exception object／診斷未被改為 Busy，程序非零，finally 後可再取得 |
+| L12 | 只終止本次建立且已回報 ready 的持鎖 worker，確認 anchor 仍在、後續獨立 child 成功取得；沒有終止 Explorer |
+| L14 | 真正 Start-RetryRun／Complete-Run／checkpoint，以合成 fingerprint／adapter／RestoreGroups 避免平台；summary 時 global／family 均持有且 final checkpoint 已提交；實際 family finally 後 global 仍持有，CLI 返回後兩把都可再取得 |
+| L15 | **Deferred**：FR-6 Cleanup 尚未實作，不新增假 Cleanup，也不宣稱該持鎖路徑已驗收 |
+| L16 | 三輪、每輪兩個 PID 回報 ready 後才打開共同閘門；敗者 Busy 退出時勝者仍持鎖，只有一份 acquired 訊號，釋放後可再取得。採逐一確認 startup ready、再一起開始 acquisition；不以任意 sleep 猜測持鎖。開發時的 combined-startup ready timeout 未視為產品互斥缺陷或產品 RCA |
+| L18 | 正常 Dispose、Action throw 與 CLI `exit 7` 均驗證釋放。互動 Ctrl+C 未在隔離 terminal 實測，標為 **NotRun**，不以 Exit／Kill 代稱 Ctrl+C 通過 |
+
+跨 RDP、VS Code／其他互動 terminal hosts、PS7.4.22 及本批新版真實 Explorer E2E 均 **NotRun**。這些限制與保證範圍已寫入 README；本批離線合約的驗證不宣稱 Task-5 舊版 VM 證據適用新版本。
+
+### 11.4 實際命令與執行證據
+
+環境：Windows NT 10.0.22631.0、PowerShell 7.6.1；當前 engine 的絕對路徑、完整版本與起訖時間見 JSON。透過 agent 的非互動式程序捕捉執行，不推定 VS Code／Windows Terminal／RDP 情況。
+
+1. 修改前：`pwsh -NoProfile -NonInteractive -File tests/Invoke-Tests.ps1`，**七套 175 PASS**、入口／所有 child Exit 0。證據：`%TEMP%/ResumeExplorer-OfflineTests-54b5b9138a1f44ef8d0c0f89480ee14c/result.json`。
+2. 開發迭代：原 Issue2 39／Snapshot 18 與新增 InstanceLock **20 PASS**，均 Exit 0；未更改原斷言來迎合失敗。
+3. 最終正式入口同一命令：**八套 195 PASS**（39＋17＋23＋49＋13＋18＋16＋20），入口及八套 raw exit 均 **0**。證據：`%TEMP%/ResumeExplorer-OfflineTests-5d1389716e794142b39d148a1dbade0c/result.json` 與同目錄八份 UTF-8 logs。再次逐套核對 actual／expected、唯一 PASS 行及 raw exit，JSON OverallStatus Passed、E2E NotRun／OfflineOnly；不從差額推算未執行案例。
+4. 新增／修改腳本 parser 檢查及 `git diff --check` 通過；Markdown 連結與最後 diff 另核對。原始私人路徑與原始 logs 不加入 repository。
+
+所有計畫要求的現有 Action 離線 Gate 已完成；本批維持未提交工作樹供 review，不自動歸檔計畫或將 FR-6 Cleanup 標為可用。若要做新版 Explorer 現場驗證，沿用專用 Win11 VM 的 `tests/Run-Tests.cmd`（應為 195 項）及 `tests/Integration/Run-ExplorerSmoke.cmd`，不要在工作桌面故意觸發負向 GUI／Ctrl+C 情境。

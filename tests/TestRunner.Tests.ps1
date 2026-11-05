@@ -191,7 +191,10 @@ try {
         $manifest=@(Get-OfflineTestManifest)
         Assert (($manifest[0..4].File -join ',') -eq 'Issue2.Tests.ps1,RestoreSummary.Tests.ps1,ExplorerSmoke.Tests.ps1,ExplorerSmoke.OneClick.Tests.ps1,ExplorerSmoke.Recovery.Tests.ps1')
         Assert (($manifest[0..4].Expected -join ',') -eq '39,17,23,49,13')
-        Assert ($manifest.Count -eq 7 -and $manifest[5].File -eq 'Snapshot.Tests.ps1' -and $manifest[6].File -eq 'TestRunner.Tests.ps1')
+        # Task-3 deliberately appends a suite; retain every original filename/count contract.
+        Assert ($manifest.Count -eq 8 -and $manifest[5].File -eq 'Snapshot.Tests.ps1' -and $manifest[6].File -eq 'TestRunner.Tests.ps1')
+        Assert (($manifest[0..6].Expected -join ',') -eq '39,17,23,49,13,18,16')
+        Assert ($manifest[7].File -eq 'InstanceLock.Tests.ps1' -and $manifest[7].Expected -eq 20)
     }
     Test 'T08 smoke wrapper retains rows and failure Reason with fail fast delegation' {
         & {

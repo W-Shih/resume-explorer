@@ -1,5 +1,37 @@
 # Internal core: dot-sourcing defines functions only; it never starts Explorer.
-$script:ResumeExplorerVersion = '0.1.0-beta.1+issue2'
+$script:ResumeExplorerVersion = '0.1.0-beta.1+issue2.instanceguard'
+
+function Get-ResumeExplorerInstanceLockPath {
+    # Known Folder is independent of PWD, script copies, ReportPath and env overrides.
+    $base=[Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+    if (-not $IsWindows -or [string]::IsNullOrWhiteSpace($base) -or -not [IO.Path]::IsPathFullyQualified($base)) {
+        throw 'InstanceLockPathError: Windows LocalApplicationData Known Folder is unavailable.'
+    }
+    Join-Path (Join-Path $base 'ResumeExplorer') 'resume-explorer.instance.lock'
+}
+
+function Enter-ResumeExplorerInstanceLock([string]$Path) {
+    # Internal injection for tests only; the public CLI always uses the Known Folder.
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not [IO.Path]::IsPathFullyQualified($Path)) {
+        throw 'InstanceLockPathError: an absolute lock path is required.'
+    }
+    try { [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($Path)) }
+    catch { throw [IO.IOException]::new("InstanceLockPathError: cannot initialize lock directory: $Path",$_.Exception) }
+    try {
+        # The open handle is the lock. Never delete/rotate this anchor, including on exit.
+        return [IO.File]::Open($Path,[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+    } catch {
+        $cause=$_.Exception
+        while ($null -ne $cause.InnerException) { $cause=$cause.InnerException }
+        if ($cause -is [IO.IOException] -and ($cause.HResult -band 0xffff) -eq 32) {
+            throw [IO.IOException]::new("InstanceLockBusy: cannot exclusively open lock: $Path. No action ran; retry after the holder finishes. Do not delete the lock file.",$cause)
+        }
+        if ($cause -is [UnauthorizedAccessException]) {
+            throw [UnauthorizedAccessException]::new("InstanceLockAccessDenied: cannot open lock: $Path",$cause)
+        }
+        throw [IO.IOException]::new("InstanceLockOpenFailed: cannot open lock: $Path",$cause)
+    }
+}
 
 function Assert-RestoreConfig($Config) {
     foreach ($key in @('DetectionTimeoutSeconds','PollIntervalMs','StableDurationMs','BaselineTimeoutSeconds','NavigationTimeoutSeconds')) {
