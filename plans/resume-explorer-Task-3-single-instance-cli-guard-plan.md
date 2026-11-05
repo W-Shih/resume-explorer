@@ -93,7 +93,7 @@ $stream = [IO.File]::Open(
 
 - **保持 FileStream handle 開啟就是持鎖**。鎖檔存在不等於 Busy；不得以 `Test-Path`、PID 或定期刪檔來解鎖。
 - 只有明確的 Windows **sharing violation**（例如 `ERROR_SHARING_VIOLATION`／Win32 32）回報 Busy。不要把所有 `IOException` 一律視為 Busy；`UnauthorizedAccessException`、磁碟與路徑錯誤應分別說明並 Fail Closed。是否支援其他等價分享衝突代碼，依實測證據決定。
-- **錯誤分類只包住 Acquire 的 Open 操作**，不可將 Restore／Retry 中途的 `IOException` 誤報為 Lock Busy。
+- **錯誤分類只包住 Acquire 的 Open 操作**，不可將 Restore／Retry 中途的 `IOException` 誤報為 Lock Busy。分享衝突只能證明鎖檔無法排他開啟，**不能證明持有者一定是另一個新版 CLI 或判定其 PID**；診斷應描述 Lock Busy，不擅自刪檔或終止程序。
 - Busy 或路徑失敗必須產生明確診斷和**非零 Process Exit Code**，禁止掉回正常 Action；不輪詢、不排隊、不背景 Retry。
 - 正常結束時 `Dispose()` 而**不刪除 Lock Anchor**。被強制終止時 OS 會關閉 Process handle；這不保證 Report 已 checkpoint 或 Cleanup 已恢復。
 
@@ -174,7 +174,7 @@ Acquire global instance lock
 | L12 | 持鎖測試 Process 被終止 | 下一個可重新取得，Anchor 不必刪除 |
 | L13 | CLI Busy | Explorer 呼叫 0 次；Snapshot／Report／sidecar 寫入 0 次 |
 | L14 | Retry family lock／global lock | 原 family lock 先釋放，global 在 CLI finally 釋放 |
-| L15 | 未來 FR-6 Cleanup 過程 | 第二個 CLI 仍 Busy、不能插入 |
+| L15（Deferred / FR-6 Phase 4） | 未來 FR-6 Cleanup 過程 | 實作 Cleanup 時才驗證第二個 CLI 仍 Busy、不能插入；Task-3 目前不需要建立假 Cleanup 或將本項標為 Passed |
 | L16 | 多輪並行測試 | 沒有同時讓兩個 Process 進入受保護 Action |
 | L17 | Busy 時現有 Snapshot／Report | 內容、Hash 與時間戳不變（Lock 初始化除外） |
 | L18 | Ctrl+C／正常離開 | 可控環境實測釋放；若不可控標記限制 |
@@ -185,14 +185,14 @@ Acquire global instance lock
 
 - **Task-4 已完成 S16 修正與跨版本驗收**：將已驗證錯誤的空格假設替換為 JSON 語意檢查，保留例外 identity／唯一 Warning／Report 路徑／禁止假成功契約，新增負向 fixture；詳見 [Task-4 結案紀錄](DONE/resume-explorer-Task-4-restore-summary-s16-regression-plan.md)。這不是任意改寫既有測試的授權；Task-3 仍須保留並重跑全部原有測試。
 - 建議新增 `tests/InstanceLock.Tests.ps1` 及必要的 test worker／fixture；沿用現有 deterministic testing style，不為本功能強制引入 Pester 5 或重寫整個架構。
-- 實作後重跑 `tests/Issue2.Tests.ps1`、`tests/RestoreSummary.Tests.ps1`、新的 Lock Tests，記錄 Exit Codes、通過／失敗／NotRun 與使用的 PowerShell 版本。
+- 實作後經 `tests/Invoke-Tests.ps1` 正式入口重跑**全部七套既有測試 + 新 Lock Suite**，記錄逐 suite PASS／ExitCode、整體 ExitCode、result.json／logs 與 PowerShell 版本；Issue2／RestoreSummary 可作為快速迭代測試，但不得取代完整交付 Gate。
 - 沒有執行真實 Explorer E2E，不得宣稱 E2E Passed。
 
 ## 6. Implementation Phases／Priority／Dependency Gate
 
 | Phase | 內容 | Exit Gate |
 | --- | --- | --- |
-| **0. Baseline** | 核對 Git 狀態、既有測試；Task-4 已完成，不重做歷史跨版本驗收 | PS7 RestoreSummary 17/17、Issue2 39/39；原安全檢查不弱化 |
+| **0. Baseline** | 核對 Git 狀態，執行 Task-1 的正式離線入口（目前七套共 175 項）；Task-4 已完成，不重做 PS5.1 歷史驗收 | 記錄七套個別 PASS／ExitCode 與 run evidence；若未達現有 175 項基準，先 RCA，不以僅通過 Issue2／RestoreSummary 56 項視為基準完成 |
 | **1. Lock Helper** | Known Folder、檔案排他 Open、Busy／I/O 分類、內部 Path Injection | L01–L06、L09–L12 的 deterministic／cross-process tests |
 | **2. CLI Guard** | 在薄 CLI 的最外層 `try/finally` 包 Action Dispatch；不更動 Restore/Retry core safety | L07–L08、L13–L14、L17 和原回歸測試 |
 | **3. Docs / Version / Validation** | 更新 README／Backlog／FR-6 references／版本，留存測試證據 | 全部可交付 Gate 與聚焦 Git Diff |
@@ -225,7 +225,7 @@ Track B: FR-6 Phase 0 --> Phase 1 --> Phase 2 ---------+
 - [ ] 正常 Action 的 CLI Parameters、Snapshot/Report Schema、console output 與 Exit Behavior 保持相容。
 - [ ] README／Backlog／FR-6 Plan／版本及測試紀錄同步；正確說明有意改變的同時執行行為。
 - [ ] 沒有操作真實 Explorer、重啟 Shell、改 Registry／Execution Policy 或引入不必要的依賴。
-- [ ] FR-6 未來 Cleanup 在 global lock 內且 Retry family lock 已釋放後執行，Cleanup 自有安全 Gate 另驗收。
+- [ ] Task-3 已驗證 Global Lock 覆蓋目前所有 Action 的完整生命週期，包括 Retry 內部 family lock 的 `finally`；**尚未實作的 FR-6 Cleanup 不屬 Task-3 結案必要條件**。未來 FR-6 Phase 4 才驗證 Cleanup 在同一 Global Lock 內且於 Retry family lock 釋放後執行。
 
 ## 8. Risks／限界
 
